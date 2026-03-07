@@ -13,6 +13,7 @@ import androidx.test.espresso.matcher.ViewMatchers.isDisplayed
 import androidx.test.espresso.matcher.ViewMatchers.isNotChecked
 import androidx.test.espresso.matcher.ViewMatchers.withEffectiveVisibility
 import androidx.test.espresso.matcher.ViewMatchers.withId
+import androidx.test.espresso.matcher.ViewMatchers.withSpinnerText
 import androidx.test.espresso.matcher.ViewMatchers.withText
 import androidx.test.espresso.matcher.ViewMatchers.Visibility
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -95,6 +96,41 @@ class MainActivityTest {
 
             onView(withId(R.id.export_log_button)).check(matches(isDisplayed()))
             onView(withText(R.string.sync_log_title)).check(matches(isDisplayed()))
+        }
+    }
+
+    @Test
+    fun backgroundSyncSwitch_persistsAcrossActivityRestart() {
+        ActivityScenario.launch(MainActivity::class.java).use {
+            onView(withId(R.id.navigation_settings)).perform(click())
+            onView(withId(R.id.background_sync_switch)).perform(scrollTo())
+            onView(withId(R.id.background_sync_switch)).check(matches(isNotChecked()))
+            onView(withId(R.id.background_sync_switch)).perform(click())
+            onView(withId(R.id.background_sync_switch)).check(matches(isChecked()))
+        }
+
+        ActivityScenario.launch(MainActivity::class.java).use {
+            onView(withId(R.id.navigation_settings)).perform(click())
+            onView(withId(R.id.background_sync_switch)).perform(scrollTo())
+            onView(withId(R.id.background_sync_switch)).check(matches(isChecked()))
+        }
+    }
+
+    @Test
+    fun backgroundSyncInterval_persistsAcrossActivityRestart() {
+        ActivityScenario.launch(MainActivity::class.java).use {
+            onView(withId(R.id.navigation_settings)).perform(click())
+            onView(withId(R.id.background_sync_interval_spinner)).perform(scrollTo(), click())
+            onView(withText("Every 6 hours")).perform(click())
+            onView(withId(R.id.background_sync_interval_spinner))
+                .check(matches(withSpinnerText("Every 6 hours")))
+        }
+
+        ActivityScenario.launch(MainActivity::class.java).use {
+            onView(withId(R.id.navigation_settings)).perform(click())
+            onView(withId(R.id.background_sync_interval_spinner)).perform(scrollTo())
+            onView(withId(R.id.background_sync_interval_spinner))
+                .check(matches(withSpinnerText("Every 6 hours")))
         }
     }
 

@@ -4,8 +4,10 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertSame
 import org.junit.Test
 import java.time.LocalDateTime
+import java.util.UUID
 
 class OmronDeviceRegistryTest {
 
@@ -106,5 +108,78 @@ class OmronDeviceRegistryTest {
 
         assertEquals(1, model.userCount)
         assertFalse(model.userLayouts.size > 1)
+    }
+
+    @Test
+    fun findById_unknownModelFallsBackToDefault() {
+        val model = OmronDeviceRegistry.findById("does_not_exist")
+
+        assertSame(OmronDeviceRegistry.defaultModel(), model)
+    }
+
+    @Test
+    fun supportedModels_shareExpectedFe4aService() {
+        val expectedService = UUID.fromString("0000fe4a-0000-1000-8000-00805f9b34fb")
+
+        assertEquals(
+            listOf(expectedService, expectedService, expectedService, expectedService),
+            OmronDeviceRegistry.supportedModels.map { it.serviceUuid },
+        )
+    }
+
+    @Test
+    fun parseMeasurement_rejectsInvalidTimestamp() {
+        val measurement = OmronRecordParser.parseMeasurement(
+            device = OmronDeviceRegistry.findById("hem_7380t1"),
+            user = 1,
+            recordBytes = byteArrayOf(
+                0x5D,
+                0x4D,
+                0x3D,
+                0x1A,
+                0x3F,
+                0x4D,
+                0x83.toByte(),
+                0x0A,
+                0x00,
+                0x00,
+                0x00,
+                0x00,
+                0x00,
+                0x00,
+                0x00,
+                0x00,
+            ),
+        )
+
+        assertNull(measurement)
+    }
+
+    @Test
+    fun parseMeasurement_rejectsOutOfRangeRawSystolic() {
+        val measurement = OmronRecordParser.parseMeasurement(
+            device = OmronDeviceRegistry.findById("hem_7380t1"),
+            user = 1,
+            recordBytes = byteArrayOf(
+                0xF0.toByte(),
+                0x4D,
+                0x3D,
+                0x1A,
+                0xEB.toByte(),
+                0x4C,
+                0x83.toByte(),
+                0x0A,
+                0x00,
+                0x00,
+                0x00,
+                0x00,
+                0x00,
+                0x00,
+                0x00,
+                0x00,
+            ),
+        )
+
+        assertNull(measurement)
     }
 }
