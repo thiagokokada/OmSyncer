@@ -348,24 +348,47 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, SettingsFragment
                 val persistedMeasurements = withContext(Dispatchers.IO) {
                     measurementStore.loadAll()
                 }
+                val healthConnectAutoExport = if (isHealthConnectAvailable && isHealthConnectConnected) {
+                    runCatching {
+                        healthConnectExporter.export(syncResult.measurements).exported
+                    }
+                } else {
+                    null
+                }
                 SyncRenderResult(
                     measurements = persistedMeasurements,
                     imported = saveSummary.imported,
                     inserted = saveSummary.inserted,
                     duplicates = saveSummary.duplicates,
                     syncLog = syncResult.diagnostics.asText(),
+                    healthConnectExported = healthConnectAutoExport?.getOrNull(),
+                    healthConnectExportError = healthConnectAutoExport?.exceptionOrNull()?.message,
                 )
             }.onSuccess { result ->
                 measurements = result.measurements
                 renderSyncLog(result.syncLog)
-                val summaryMessage = getString(
-                    R.string.status_imported_summary,
-                    result.imported,
-                    result.inserted,
-                    result.duplicates,
-                )
                 updateStatus(getString(R.string.status_idle))
-                showToast(summaryMessage)
+                showToast(
+                    if (result.healthConnectExported != null) {
+                        getString(
+                            R.string.status_imported_health_connect_summary,
+                            result.imported,
+                            result.inserted,
+                            result.duplicates,
+                            result.healthConnectExported,
+                        )
+                    } else {
+                        getString(
+                            R.string.status_imported_summary,
+                            result.imported,
+                            result.inserted,
+                            result.duplicates,
+                        )
+                    },
+                )
+                result.healthConnectExportError?.let { errorMessage ->
+                    showToast(getString(R.string.status_health_connect_auto_export_failed, errorMessage))
+                }
             }.onFailure { error ->
                 if (error is SyncException) {
                     renderSyncLog(error.diagnostics.asText())
@@ -618,6 +641,8 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, SettingsFragment
         val inserted: Int,
         val duplicates: Int,
         val syncLog: String,
+        val healthConnectExported: Int?,
+        val healthConnectExportError: String?,
     )
 
     private companion object {

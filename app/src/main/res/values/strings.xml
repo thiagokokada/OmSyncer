@@ -7,7 +7,7 @@
     <string name="settings_export_title">Data export</string>
     <string name="settings_export_body">Save the locally stored measurements as a CSV file wherever you want.</string>
     <string name="settings_health_connect_title">Health Connect</string>
-    <string name="settings_health_connect_body">Write synced blood pressure measurements into Health Connect. OmSyncer exports systolic and diastolic only.</string>
+    <string name="settings_health_connect_body">Write synced blood pressure measurements into Health Connect. OmSyncer exports systolic and diastolic only, and automatically exports after device sync when access is granted.</string>
     <string name="settings_diagnostics_title">Diagnostics</string>
     <string name="settings_log_body">Open the latest BLE session log and export it when you need to inspect a failed sync.</string>
     <string name="open_bluetooth_settings">Bluetooth</string>
@@ -37,9 +37,11 @@
     <string name="status_results_empty">No measurements found on the monitor.</string>
     <string name="status_imported">Imported %1$d measurements.</string>
     <string name="status_imported_summary">Fetched %1$d, saved %2$d new, skipped %3$d duplicates.</string>
+    <string name="status_imported_health_connect_summary">Fetched %1$d, saved %2$d new, skipped %3$d duplicates, exported %4$d to Health Connect.</string>
     <string name="status_exported">CSV exported.</string>
     <string name="status_health_connect_permissions_granted">Health Connect access granted.</string>
     <string name="status_health_connect_permissions_denied">Health Connect access was not granted.</string>
+    <string name="status_health_connect_auto_export_failed">Device sync completed, but Health Connect export failed: %1$s</string>
     <string name="status_health_connect_exporting">Exporting blood pressure to Health Connect...</string>
     <string name="status_health_connect_exported">Exported %1$d blood pressure records to Health Connect.</string>
     <string name="status_log_exported">Sync log exported.</string>
