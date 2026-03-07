@@ -42,6 +42,7 @@
         <activity
             android:name=".HealthConnectPermissionsRationaleActivity"
             android:exported="true"
+            android:label="@string/app_name"
             android:theme="@style/Theme.OmSyncer">
             <intent-filter>
                 <action android:name="androidx.health.ACTION_SHOW_PERMISSIONS_RATIONALE" />
@@ -51,6 +52,7 @@
         <activity-alias
             android:name="ViewPermissionUsageActivity"
             android:exported="true"
+            android:label="@string/app_name"
             android:permission="android.permission.START_VIEW_PERMISSION_USAGE"
             android:targetActivity=".HealthConnectPermissionsRationaleActivity">
             <intent-filter>
