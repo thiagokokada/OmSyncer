@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="om_primary">#8FD5CB</color>
+    <color name="om_on_primary">#003735</color>
+    <color name="om_primary_container">#00504C</color>
+    <color name="om_on_primary_container">#BEEAE2</color>
+    <color name="om_secondary">#FFB59B</color>
+    <color name="om_on_secondary">#6D2A0E</color>
+    <color name="om_secondary_container">#8D4223</color>
+    <color name="om_on_secondary_container">#FFD9CB</color>
+    <color name="om_tertiary">#C0D5A1</color>
+    <color name="om_on_tertiary">#2F4717</color>
+    <color name="om_background">#17120E</color>
+    <color name="om_on_background">#ECE0D9</color>
+    <color name="om_surface">#17120E</color>
+    <color name="om_on_surface">#ECE0D9</color>
+    <color name="om_surface_variant">#50463D</color>
+    <color name="om_on_surface_variant">#D4C4B8</color>
+    <color name="om_outline">#9D8D82</color>
+    <color name="om_outline_variant">#50463D</color>
+    <color name="om_surface_container_highest">#312A25</color>
+</resources>

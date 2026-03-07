@@ -12,6 +12,10 @@ import java.time.format.DateTimeFormatter
 class MeasurementAdapter :
     ListAdapter<Measurement, MeasurementAdapter.MeasurementViewHolder>(DiffCallback) {
 
+    fun formatTimestamp(recordedAt: java.time.LocalDateTime): String {
+        return TIMESTAMP_FORMATTER.format(recordedAt)
+    }
+
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): MeasurementViewHolder {
         val inflater = LayoutInflater.from(parent.context)
         val binding = ItemMeasurementBinding.inflate(inflater, parent, false)

@@ -1,5 +1,22 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="black">#FF000000</color>
-    <color name="white">#FFFFFFFF</color>
+    <color name="om_primary">#175C59</color>
+    <color name="om_on_primary">#FFFFFF</color>
+    <color name="om_primary_container">#BEEAE2</color>
+    <color name="om_on_primary_container">#00201E</color>
+    <color name="om_secondary">#C26A4A</color>
+    <color name="om_on_secondary">#FFFFFF</color>
+    <color name="om_secondary_container">#FFD9CB</color>
+    <color name="om_on_secondary_container">#3F1200</color>
+    <color name="om_tertiary">#5D7142</color>
+    <color name="om_on_tertiary">#FFFFFF</color>
+    <color name="om_background">#FFF8F0</color>
+    <color name="om_on_background">#211A14</color>
+    <color name="om_surface">#FFFDF9</color>
+    <color name="om_on_surface">#201B17</color>
+    <color name="om_surface_variant">#EAE0D6</color>
+    <color name="om_on_surface_variant">#50463D</color>
+    <color name="om_outline">#83746A</color>
+    <color name="om_outline_variant">#D4C4B8</color>
+    <color name="om_surface_container_highest">#F2E8DE</color>
 </resources>

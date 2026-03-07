@@ -1,11 +1,18 @@
 <resources>
     <string name="app_name">OmSyncer</string>
-    <string name="toolbar_title">Omron HEM-7380T1 Sync</string>
-    <string name="device_card_title">Bonded device</string>
-    <string name="device_card_body">Pair the monitor once in Android Bluetooth settings, then come back here and sync the stored measurements.</string>
+    <string name="results_title">Results</string>
+    <string name="settings_title">Settings</string>
+    <string name="results_hero_title">Recent measurements</string>
+    <string name="results_hero_body">Your Omron history stays on-device. Sync when you want to refresh the table.</string>
+    <string name="settings_device_title">Device configuration</string>
+    <string name="settings_device_body">Choose which bonded Bluetooth monitor to sync. Pair the monitor in Android settings before using it here.</string>
+    <string name="settings_export_title">Data export</string>
+    <string name="settings_export_body">Save the locally stored measurements as a CSV file wherever you want.</string>
+    <string name="settings_log_body">Use this log to inspect the last BLE session when sync succeeds or fails.</string>
     <string name="open_bluetooth_settings">Bluetooth settings</string>
     <string name="refresh_devices">Refresh devices</string>
     <string name="sync_now">Sync now</string>
+    <string name="syncing_button_label">Syncing...</string>
     <string name="export_csv">Export CSV</string>
     <string name="select_device">Select bonded device</string>
     <string name="status_idle">Ready.</string>
@@ -31,6 +38,12 @@
     <string name="sync_log_title">Last sync log</string>
     <string name="sync_log_empty">No sync log yet.</string>
     <string name="empty_measurements">Synced measurements will appear here.</string>
+    <string name="latest_measurement_summary">Latest: %1$s, %2$d/%3$d, pulse %4$d</string>
+    <string name="no_measurement_summary">No synced measurements yet.</string>
     <string name="permission_denied">Bluetooth permission was denied.</string>
     <string name="device_name_placeholder">Unknown device</string>
+    <plurals name="measurement_count">
+        <item quantity="one">%d measurement</item>
+        <item quantity="other">%d measurements</item>
+    </plurals>
 </resources>
