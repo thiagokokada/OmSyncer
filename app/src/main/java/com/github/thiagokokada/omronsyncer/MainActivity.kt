@@ -4,6 +4,7 @@ import android.Manifest
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothManager
+import android.net.Uri
 import android.content.Intent
 import android.content.SharedPreferences
 import android.content.pm.PackageManager
@@ -19,6 +20,7 @@ import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.github.thiagokokada.omronsyncer.data.MeasurementStore
 import com.github.thiagokokada.omronsyncer.databinding.ActivityMainBinding
+import com.github.thiagokokada.omronsyncer.export.MeasurementCsvExporter
 import com.github.thiagokokada.omronsyncer.model.Measurement
 import com.github.thiagokokada.omronsyncer.omron.Hem7380T1SyncClient
 import kotlinx.coroutines.Dispatchers
@@ -35,6 +37,7 @@ class MainActivity : AppCompatActivity() {
     private val bondedDevices = mutableListOf<BluetoothDevice>()
     private val syncClient by lazy { Hem7380T1SyncClient(this) }
     private val measurementStore by lazy { MeasurementStore(this) }
+    private val csvExporter by lazy { MeasurementCsvExporter() }
 
     private val permissionLauncher =
         registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { result ->
@@ -42,6 +45,16 @@ class MainActivity : AppCompatActivity() {
                 loadBondedDevices()
             } else {
                 showStatus(getString(R.string.permission_denied))
+            }
+        }
+
+    private val exportDocumentLauncher =
+        registerForActivityResult(ActivityResultContracts.CreateDocument("text/csv")) { uri ->
+            if (uri == null) {
+                showStatus(getString(R.string.status_export_cancelled))
+                setWorking(false)
+            } else {
+                completeExport(uri)
             }
         }
 
@@ -73,6 +86,9 @@ class MainActivity : AppCompatActivity() {
         }
         binding.refreshButton.setOnClickListener {
             loadBondedDevices()
+        }
+        binding.exportButton.setOnClickListener {
+            exportMeasurements()
         }
         binding.syncButton.setOnClickListener {
             startSync()
@@ -135,6 +151,7 @@ class MainActivity : AppCompatActivity() {
         val hasDevices = devices.isNotEmpty()
         binding.deviceSpinner.isEnabled = hasDevices
         binding.syncButton.isEnabled = hasDevices
+        binding.exportButton.isEnabled = measurementsAdapter.currentList.isNotEmpty()
 
         val savedAddress = selectedDeviceAddress()
         val selectedIndex = devices.indexOfFirst { it.address == savedAddress }
@@ -200,6 +217,7 @@ class MainActivity : AppCompatActivity() {
         binding.emptyState.text = getString(R.string.status_results_empty)
         binding.emptyState.visibility =
             if (measurements.isEmpty()) android.view.View.VISIBLE else android.view.View.GONE
+        binding.exportButton.isEnabled = measurements.isNotEmpty()
     }
 
     private fun loadPersistedMeasurements() {
@@ -211,14 +229,48 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private fun exportMeasurements() {
+        setWorking(true)
+        showStatus(getString(R.string.status_export_choose_location))
+        exportDocumentLauncher.launch(csvExporter.suggestedFileName())
+    }
+
+    private fun completeExport(uri: Uri) {
+        showStatus(getString(R.string.status_exporting))
+
+        lifecycleScope.launch {
+            runCatching {
+                val measurements = withContext(Dispatchers.IO) {
+                    measurementStore.loadAll()
+                }
+                withContext(Dispatchers.IO) {
+                    contentResolver.openOutputStream(uri)?.use { outputStream ->
+                        csvExporter.export(outputStream, measurements)
+                    } ?: error("Could not open the selected destination for writing.")
+                }
+            }.onSuccess {
+                showStatus(getString(R.string.status_exported))
+            }.onFailure { error ->
+                showStatus(error.message ?: error.javaClass.simpleName)
+            }
+
+            setWorking(false)
+        }
+    }
+
     private fun setSyncing(syncing: Boolean) {
-        binding.progressIndicator.isIndeterminate = syncing
+        setWorking(syncing)
+    }
+
+    private fun setWorking(working: Boolean) {
+        binding.progressIndicator.isIndeterminate = working
         binding.progressIndicator.visibility =
-            if (syncing) android.view.View.VISIBLE else android.view.View.GONE
-        binding.syncButton.isEnabled = !syncing && bondedDevices.isNotEmpty()
-        binding.refreshButton.isEnabled = !syncing
-        binding.bluetoothSettingsButton.isEnabled = !syncing
-        binding.deviceSpinner.isEnabled = !syncing && bondedDevices.isNotEmpty()
+            if (working) android.view.View.VISIBLE else android.view.View.GONE
+        binding.syncButton.isEnabled = !working && bondedDevices.isNotEmpty()
+        binding.exportButton.isEnabled = !working && measurementsAdapter.currentList.isNotEmpty()
+        binding.refreshButton.isEnabled = !working
+        binding.bluetoothSettingsButton.isEnabled = !working
+        binding.deviceSpinner.isEnabled = !working && bondedDevices.isNotEmpty()
     }
 
     private fun ensureBluetoothPermission(): Boolean {
