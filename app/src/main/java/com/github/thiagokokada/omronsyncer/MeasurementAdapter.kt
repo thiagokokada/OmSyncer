@@ -18,7 +18,9 @@ class MeasurementAdapter :
     fun setShowUserColumn(show: Boolean) {
         if (showUserColumn != show) {
             showUserColumn = show
-            notifyDataSetChanged()
+            if (itemCount > 0) {
+                notifyItemRangeChanged(0, itemCount, PAYLOAD_USER_COLUMN_VISIBILITY)
+            }
         }
     }
 
@@ -36,6 +38,18 @@ class MeasurementAdapter :
         holder.bind(getItem(position), showUserColumn)
     }
 
+    override fun onBindViewHolder(
+        holder: MeasurementViewHolder,
+        position: Int,
+        payloads: MutableList<Any>,
+    ) {
+        if (payloads.contains(PAYLOAD_USER_COLUMN_VISIBILITY)) {
+            holder.updateUserColumn(getItem(position).user, showUserColumn)
+            return
+        }
+        super.onBindViewHolder(holder, position, payloads)
+    }
+
     class MeasurementViewHolder(
         private val binding: ItemMeasurementBinding,
     ) : RecyclerView.ViewHolder(binding.root) {
@@ -46,12 +60,17 @@ class MeasurementAdapter :
             binding.diaValue.text = measurement.diastolic.toString()
             binding.pulseValue.text = measurement.pulse.toString()
             binding.flagsValue.text = measurement.flagsLabel()
-            binding.userValue.text = measurement.user.toString()
+            updateUserColumn(measurement.user, showUserColumn)
+        }
+
+        fun updateUserColumn(user: Int, showUserColumn: Boolean) {
+            binding.userValue.text = user.toString()
             binding.userValue.visibility = if (showUserColumn) View.VISIBLE else View.GONE
         }
     }
 
     private companion object {
+        const val PAYLOAD_USER_COLUMN_VISIBILITY = "user_column_visibility"
         val TIMESTAMP_FORMATTER: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")
 
         val DiffCallback = object : DiffUtil.ItemCallback<Measurement>() {
