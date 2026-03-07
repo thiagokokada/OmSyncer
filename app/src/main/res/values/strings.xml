@@ -15,6 +15,7 @@
     <string name="status_syncing">Syncing measurements...</string>
     <string name="status_results_empty">No measurements found on the monitor.</string>
     <string name="status_imported">Imported %1$d measurements.</string>
+    <string name="status_imported_summary">Fetched %1$d, saved %2$d new, skipped %3$d duplicates.</string>
     <string name="status_pair_device">This monitor is not bonded yet. Pair it in Android Bluetooth settings first.</string>
     <string name="column_time">Time</string>
     <string name="column_sys">SYS</string>

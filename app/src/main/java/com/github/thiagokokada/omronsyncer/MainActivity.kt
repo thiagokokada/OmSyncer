@@ -5,6 +5,7 @@ import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothManager
 import android.content.Intent
+import android.content.SharedPreferences
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
@@ -12,22 +13,28 @@ import android.provider.Settings
 import android.widget.ArrayAdapter
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.edit
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
+import com.github.thiagokokada.omronsyncer.data.MeasurementStore
 import com.github.thiagokokada.omronsyncer.databinding.ActivityMainBinding
 import com.github.thiagokokada.omronsyncer.model.Measurement
 import com.github.thiagokokada.omronsyncer.omron.Hem7380T1SyncClient
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class MainActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityMainBinding
     private lateinit var measurementsAdapter: MeasurementAdapter
     private lateinit var deviceNameAdapter: ArrayAdapter<String>
+    private lateinit var preferences: SharedPreferences
 
     private val bondedDevices = mutableListOf<BluetoothDevice>()
     private val syncClient by lazy { Hem7380T1SyncClient(this) }
+    private val measurementStore by lazy { MeasurementStore(this) }
 
     private val permissionLauncher =
         registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { result ->
@@ -43,6 +50,7 @@ class MainActivity : AppCompatActivity() {
 
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
+        preferences = getSharedPreferences(PREFERENCES_NAME, MODE_PRIVATE)
 
         measurementsAdapter = MeasurementAdapter()
         binding.measurementsList.layoutManager = LinearLayoutManager(this)
@@ -56,6 +64,9 @@ class MainActivity : AppCompatActivity() {
             it.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
             binding.deviceSpinner.adapter = it
         }
+        binding.deviceSpinner.onItemSelectedListener = SimpleItemSelectedListener { position ->
+            bondedDevices.getOrNull(position)?.address?.let(::persistSelectedDeviceAddress)
+        }
 
         binding.bluetoothSettingsButton.setOnClickListener {
             startActivity(Intent(Settings.ACTION_BLUETOOTH_SETTINGS))
@@ -67,6 +78,7 @@ class MainActivity : AppCompatActivity() {
             startSync()
         }
 
+        loadPersistedMeasurements()
         showStatus(getString(R.string.status_idle))
     }
 
@@ -123,6 +135,15 @@ class MainActivity : AppCompatActivity() {
         val hasDevices = devices.isNotEmpty()
         binding.deviceSpinner.isEnabled = hasDevices
         binding.syncButton.isEnabled = hasDevices
+
+        val savedAddress = selectedDeviceAddress()
+        val selectedIndex = devices.indexOfFirst { it.address == savedAddress }
+        if (selectedIndex >= 0) {
+            binding.deviceSpinner.setSelection(selectedIndex)
+        } else if (hasDevices) {
+            binding.deviceSpinner.setSelection(0)
+            persistSelectedDeviceAddress(devices.first().address)
+        }
     }
 
     private fun startSync() {
@@ -145,9 +166,27 @@ class MainActivity : AppCompatActivity() {
 
         lifecycleScope.launch {
             runCatching {
-                syncClient.sync(device)
-            }.onSuccess { measurements ->
-                renderMeasurements(measurements)
+                val measurements = syncClient.sync(device)
+                val saveSummary = withContext(Dispatchers.IO) {
+                    measurementStore.saveAll(measurements)
+                }
+                val persistedMeasurements = withContext(Dispatchers.IO) {
+                    measurementStore.loadAll()
+                }
+                SyncResult(
+                    measurements = persistedMeasurements,
+                    saveSummary = saveSummary,
+                )
+            }.onSuccess { result ->
+                renderMeasurements(result.measurements)
+                showStatus(
+                    getString(
+                        R.string.status_imported_summary,
+                        result.saveSummary.imported,
+                        result.saveSummary.inserted,
+                        result.saveSummary.duplicates,
+                    ),
+                )
             }.onFailure { error ->
                 showStatus(error.message ?: error.javaClass.simpleName)
             }
@@ -161,13 +200,15 @@ class MainActivity : AppCompatActivity() {
         binding.emptyState.text = getString(R.string.status_results_empty)
         binding.emptyState.visibility =
             if (measurements.isEmpty()) android.view.View.VISIBLE else android.view.View.GONE
+    }
 
-        val status = if (measurements.isEmpty()) {
-            getString(R.string.status_results_empty)
-        } else {
-            getString(R.string.status_imported, measurements.size)
+    private fun loadPersistedMeasurements() {
+        lifecycleScope.launch {
+            val measurements = withContext(Dispatchers.IO) {
+                measurementStore.loadAll()
+            }
+            renderMeasurements(measurements)
         }
-        showStatus(status)
     }
 
     private fun setSyncing(syncing: Boolean) {
@@ -205,5 +246,25 @@ class MainActivity : AppCompatActivity() {
 
     private fun showStatus(message: String) {
         binding.statusText.text = message
+    }
+
+    private fun persistSelectedDeviceAddress(address: String) {
+        preferences.edit {
+            putString(PREF_SELECTED_DEVICE_ADDRESS, address)
+        }
+    }
+
+    private fun selectedDeviceAddress(): String? {
+        return preferences.getString(PREF_SELECTED_DEVICE_ADDRESS, null)
+    }
+
+    private data class SyncResult(
+        val measurements: List<Measurement>,
+        val saveSummary: MeasurementStore.SaveSummary,
+    )
+
+    private companion object {
+        const val PREFERENCES_NAME = "om_syncer_prefs"
+        const val PREF_SELECTED_DEVICE_ADDRESS = "selected_device_address"
     }
 }
