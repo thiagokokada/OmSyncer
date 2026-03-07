@@ -19,4 +19,6 @@ data class MainUiState(
     val canOpenHealthConnect: Boolean,
     val canExportHealthConnect: Boolean,
     val autoExportHealthConnect: Boolean,
+    val healthConnectExportUserLabels: List<String>,
+    val selectedHealthConnectExportUserIndex: Int,
 )

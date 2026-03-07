@@ -14,6 +14,7 @@
     <string name="open_health_connect">Open Health Connect</string>
     <string name="manage_health_connect">Manage Health Connect</string>
     <string name="grant_health_connect_access">Grant Health Connect access</string>
+    <string name="health_connect_export_user_label">Export user</string>
     <string name="health_connect_auto_export_label">Auto-export after sync</string>
     <string name="open_sync_log">Open sync log</string>
     <string name="refresh_devices">Refresh devices</string>
@@ -45,6 +46,7 @@
     <string name="status_health_connect_auto_export_failed">Device sync completed, but Health Connect export failed: %1$s</string>
     <string name="status_health_connect_exporting">Exporting blood pressure to Health Connect...</string>
     <string name="status_health_connect_exported">Exported %1$d blood pressure and %2$d pulse records to Health Connect.</string>
+    <string name="status_health_connect_no_matching_measurements">No measurements match the selected Health Connect user.</string>
     <string name="status_log_exported">Sync log exported.</string>
     <string name="status_pair_device">This monitor is not bonded yet. Pair it in Android Bluetooth settings first.</string>
     <string name="health_connect_status_unavailable">Health Connect is not available on this device.</string>
@@ -67,6 +69,8 @@
     <string name="no_measurement_summary">No synced measurements yet.</string>
     <string name="permission_denied">Bluetooth permission was denied.</string>
     <string name="device_name_placeholder">Unknown device</string>
+    <string name="health_connect_export_user_all">All users</string>
+    <string name="health_connect_export_user_single">User %1$d</string>
     <plurals name="measurement_count">
         <item quantity="one">%d measurement</item>
         <item quantity="other">%d measurements</item>

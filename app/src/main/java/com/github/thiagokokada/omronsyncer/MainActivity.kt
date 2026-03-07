@@ -167,6 +167,8 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, SettingsFragment
         } else {
             -1
         }
+        val healthConnectUserOptions = buildHealthConnectExportUserOptions(measurements)
+        val selectedHealthConnectUser = resolveHealthConnectExportUserOption(measurements)
 
         return MainUiState(
             measurements = measurements,
@@ -186,6 +188,9 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, SettingsFragment
             canExportHealthConnect =
                 measurements.isNotEmpty() && isHealthConnectAvailable && isHealthConnectConnected,
             autoExportHealthConnect = healthConnectAutoExportEnabled(),
+            healthConnectExportUserLabels = healthConnectUserOptions.map { it.label },
+            selectedHealthConnectExportUserIndex =
+                healthConnectUserOptions.indexOfFirst { it.key == selectedHealthConnectUser.key },
         )
     }
 
@@ -216,6 +221,14 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, SettingsFragment
     override fun onHealthConnectAutoExportChanged(enabled: Boolean) {
         preferences.edit {
             putBoolean(PREF_HEALTH_CONNECT_AUTO_EXPORT, enabled)
+        }
+        notifyCurrentFragment()
+    }
+
+    override fun onHealthConnectExportUserSelected(position: Int) {
+        val option = buildHealthConnectExportUserOptions(measurements).getOrNull(position) ?: return
+        preferences.edit {
+            putString(PREF_HEALTH_CONNECT_EXPORT_USER, option.key)
         }
         notifyCurrentFragment()
     }
@@ -361,8 +374,13 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, SettingsFragment
                     isHealthConnectAvailable &&
                     isHealthConnectConnected
                 ) {
-                    runCatching {
-                        healthConnectExporter.export(syncResult.measurements)
+                    val exportMeasurements = filterMeasurementsForHealthConnect(syncResult.measurements)
+                    if (exportMeasurements.isEmpty()) {
+                        null
+                    } else {
+                        runCatching {
+                            healthConnectExporter.export(exportMeasurements)
+                        }
                     }
                 } else {
                     null
@@ -496,7 +514,11 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, SettingsFragment
                 val storedMeasurements = withContext(Dispatchers.IO) {
                     measurementStore.loadAll()
                 }
-                healthConnectExporter.export(storedMeasurements)
+                val exportMeasurements = filterMeasurementsForHealthConnect(storedMeasurements)
+                require(exportMeasurements.isNotEmpty()) {
+                    getString(R.string.status_health_connect_no_matching_measurements)
+                }
+                healthConnectExporter.export(exportMeasurements)
             }.onSuccess { summary ->
                 updateStatus(getString(R.string.health_connect_status_connected))
                 showToast(
@@ -628,6 +650,70 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, SettingsFragment
         return preferences.getBoolean(PREF_HEALTH_CONNECT_AUTO_EXPORT, true)
     }
 
+    private fun filterMeasurementsForHealthConnect(
+        sourceMeasurements: List<Measurement>,
+    ): List<Measurement> {
+        val selectedUser = resolveHealthConnectExportUserOption(sourceMeasurements).user
+        return if (selectedUser == null) {
+            sourceMeasurements
+        } else {
+            sourceMeasurements.filter { it.user == selectedUser }
+        }
+    }
+
+    private fun resolveHealthConnectExportUserOption(
+        sourceMeasurements: List<Measurement>,
+    ): HealthConnectExportUserOption {
+        val options = buildHealthConnectExportUserOptions(sourceMeasurements)
+        val selectedKey = preferences.getString(
+            PREF_HEALTH_CONNECT_EXPORT_USER,
+            HEALTH_CONNECT_EXPORT_USER_ALL,
+        )
+        return options.firstOrNull { it.key == selectedKey } ?: options.first()
+    }
+
+    private fun buildHealthConnectExportUserOptions(
+        sourceMeasurements: List<Measurement>,
+    ): List<HealthConnectExportUserOption> {
+        val users = sourceMeasurements.map { it.user }.distinct().sorted()
+        return when {
+            users.isEmpty() -> listOf(
+                HealthConnectExportUserOption(
+                    key = HEALTH_CONNECT_EXPORT_USER_ALL,
+                    user = null,
+                    label = getString(R.string.health_connect_export_user_all),
+                ),
+            )
+
+            users.size == 1 -> listOf(
+                HealthConnectExportUserOption(
+                    key = users.first().toString(),
+                    user = users.first(),
+                    label = getString(R.string.health_connect_export_user_single, users.first()),
+                ),
+            )
+
+            else -> buildList {
+                add(
+                    HealthConnectExportUserOption(
+                        key = HEALTH_CONNECT_EXPORT_USER_ALL,
+                        user = null,
+                        label = getString(R.string.health_connect_export_user_all),
+                    ),
+                )
+                users.forEach { user ->
+                    add(
+                        HealthConnectExportUserOption(
+                            key = user.toString(),
+                            user = user,
+                            label = getString(R.string.health_connect_export_user_single, user),
+                        ),
+                    )
+                }
+            }
+        }
+    }
+
     private fun bluetoothAdapter(): BluetoothAdapter? {
         val manager = getSystemService(BLUETOOTH_SERVICE) as? BluetoothManager
         return manager?.adapter
@@ -668,11 +754,19 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, SettingsFragment
         val healthConnectExportError: String?,
     )
 
+    private data class HealthConnectExportUserOption(
+        val key: String,
+        val user: Int?,
+        val label: String,
+    )
+
     private companion object {
         const val BACKSTACK_SYNC_LOG = "sync_log"
         const val PREFERENCES_NAME = "om_syncer_prefs"
         const val PREF_SELECTED_DEVICE_ADDRESS = "selected_device_address"
         const val PREF_HEALTH_CONNECT_AUTO_EXPORT = "health_connect_auto_export"
+        const val PREF_HEALTH_CONNECT_EXPORT_USER = "health_connect_export_user"
+        const val HEALTH_CONNECT_EXPORT_USER_ALL = "all"
         const val KEY_SELECTED_TAB = "selected_tab"
     }
 }

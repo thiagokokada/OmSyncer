@@ -19,6 +19,7 @@ class SettingsFragment : Fragment() {
         fun onHealthConnectRequested()
         fun onHealthConnectExportRequested()
         fun onHealthConnectAutoExportChanged(enabled: Boolean)
+        fun onHealthConnectExportUserSelected(position: Int)
         fun onSyncLogRequested()
         fun onDeviceSelected(position: Int)
     }
@@ -27,7 +28,9 @@ class SettingsFragment : Fragment() {
     private val binding get() = _binding!!
     private lateinit var host: Host
     private lateinit var deviceAdapter: ArrayAdapter<String>
+    private lateinit var healthConnectUserAdapter: ArrayAdapter<String>
     private var suppressSelectionCallback = false
+    private var suppressHealthConnectUserCallback = false
     private var suppressAutoExportCallback = false
 
     override fun onAttach(context: Context) {
@@ -56,10 +59,23 @@ class SettingsFragment : Fragment() {
             it.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
             binding.deviceSpinner.adapter = it
         }
+        healthConnectUserAdapter = ArrayAdapter(
+            requireContext(),
+            android.R.layout.simple_spinner_item,
+            mutableListOf<String>(),
+        ).also {
+            it.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+            binding.healthConnectUserSpinner.adapter = it
+        }
 
         binding.deviceSpinner.onItemSelectedListener = SimpleItemSelectedListener { position ->
             if (!suppressSelectionCallback) {
                 host.onDeviceSelected(position)
+            }
+        }
+        binding.healthConnectUserSpinner.onItemSelectedListener = SimpleItemSelectedListener { position ->
+            if (!suppressHealthConnectUserCallback) {
+                host.onHealthConnectExportUserSelected(position)
             }
         }
 
@@ -121,6 +137,19 @@ class SettingsFragment : Fragment() {
             else -> getString(R.string.grant_health_connect_access)
         }
         binding.healthConnectExportButton.isEnabled = state.canExportHealthConnect && !state.isWorking
+        suppressHealthConnectUserCallback = true
+        healthConnectUserAdapter.clear()
+        healthConnectUserAdapter.addAll(state.healthConnectExportUserLabels)
+        healthConnectUserAdapter.notifyDataSetChanged()
+        binding.healthConnectUserSpinner.isEnabled =
+            state.healthConnectExportUserLabels.size > 1 && !state.isWorking
+        if (
+            state.selectedHealthConnectExportUserIndex >= 0 &&
+            state.selectedHealthConnectExportUserIndex < state.healthConnectExportUserLabels.size
+        ) {
+            binding.healthConnectUserSpinner.setSelection(state.selectedHealthConnectExportUserIndex)
+        }
+        suppressHealthConnectUserCallback = false
         suppressAutoExportCallback = true
         binding.healthConnectAutoExportSwitch.isChecked = state.autoExportHealthConnect
         suppressAutoExportCallback = false
