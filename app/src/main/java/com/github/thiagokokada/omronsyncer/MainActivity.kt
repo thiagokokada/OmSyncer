@@ -4,18 +4,18 @@ import android.Manifest
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothManager
-import android.net.Uri
 import android.content.Intent
 import android.content.SharedPreferences
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
 import android.widget.ArrayAdapter
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
-import androidx.core.content.edit
 import androidx.core.content.ContextCompat
+import androidx.core.content.edit
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.github.thiagokokada.omronsyncer.data.MeasurementStore
@@ -23,6 +23,7 @@ import com.github.thiagokokada.omronsyncer.databinding.ActivityMainBinding
 import com.github.thiagokokada.omronsyncer.export.MeasurementCsvExporter
 import com.github.thiagokokada.omronsyncer.model.Measurement
 import com.github.thiagokokada.omronsyncer.omron.Hem7380T1SyncClient
+import com.github.thiagokokada.omronsyncer.omron.Hem7380T1SyncClient.SyncException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -33,6 +34,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var measurementsAdapter: MeasurementAdapter
     private lateinit var deviceNameAdapter: ArrayAdapter<String>
     private lateinit var preferences: SharedPreferences
+    private var lastSyncLog: String = ""
 
     private val bondedDevices = mutableListOf<BluetoothDevice>()
     private val syncClient by lazy { Hem7380T1SyncClient(this) }
@@ -95,6 +97,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         loadPersistedMeasurements()
+        renderSyncLog(lastSyncLog)
         showStatus(getString(R.string.status_idle))
     }
 
@@ -178,24 +181,26 @@ class MainActivity : AppCompatActivity() {
             return
         }
 
-        setSyncing(true)
+        setWorking(true)
         showStatus(getString(R.string.status_syncing))
 
         lifecycleScope.launch {
             runCatching {
-                val measurements = syncClient.sync(device)
+                val syncResult = syncClient.sync(device)
                 val saveSummary = withContext(Dispatchers.IO) {
-                    measurementStore.saveAll(measurements)
+                    measurementStore.saveAll(syncResult.measurements)
                 }
                 val persistedMeasurements = withContext(Dispatchers.IO) {
                     measurementStore.loadAll()
                 }
-                SyncResult(
+                UiSyncResult(
                     measurements = persistedMeasurements,
                     saveSummary = saveSummary,
+                    syncLog = syncResult.diagnostics.asText(),
                 )
             }.onSuccess { result ->
                 renderMeasurements(result.measurements)
+                renderSyncLog(result.syncLog)
                 showStatus(
                     getString(
                         R.string.status_imported_summary,
@@ -205,10 +210,13 @@ class MainActivity : AppCompatActivity() {
                     ),
                 )
             }.onFailure { error ->
+                if (error is SyncException) {
+                    renderSyncLog(error.diagnostics.asText())
+                }
                 showStatus(error.message ?: error.javaClass.simpleName)
             }
 
-            setSyncing(false)
+            setWorking(false)
         }
     }
 
@@ -258,10 +266,6 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun setSyncing(syncing: Boolean) {
-        setWorking(syncing)
-    }
-
     private fun setWorking(working: Boolean) {
         binding.progressIndicator.isIndeterminate = working
         binding.progressIndicator.visibility =
@@ -300,6 +304,13 @@ class MainActivity : AppCompatActivity() {
         binding.statusText.text = message
     }
 
+    private fun renderSyncLog(log: String) {
+        lastSyncLog = log
+        binding.syncLogText.text = log.ifBlank {
+            getString(R.string.sync_log_empty)
+        }
+    }
+
     private fun persistSelectedDeviceAddress(address: String) {
         preferences.edit {
             putString(PREF_SELECTED_DEVICE_ADDRESS, address)
@@ -310,9 +321,10 @@ class MainActivity : AppCompatActivity() {
         return preferences.getString(PREF_SELECTED_DEVICE_ADDRESS, null)
     }
 
-    private data class SyncResult(
+    private data class UiSyncResult(
         val measurements: List<Measurement>,
         val saveSummary: MeasurementStore.SaveSummary,
+        val syncLog: String,
     )
 
     private companion object {

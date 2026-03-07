@@ -14,6 +14,7 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.channels.trySendBlocking
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import java.time.DateTimeException
@@ -24,12 +25,23 @@ class Hem7380T1SyncClient(
     private val context: Context,
 ) {
 
-    suspend fun sync(device: BluetoothDevice): List<Measurement> = withContext(Dispatchers.IO) {
-        val session = GattSession(context, device)
+    suspend fun sync(device: BluetoothDevice): SyncResult = withContext(Dispatchers.IO) {
+        val diagnostics = mutableListOf<String>()
+        fun log(message: String) {
+            diagnostics += message
+        }
+
+        log("Selected device: ${device.name ?: "Unknown"} (${device.address})")
+
+        val session = GattSession(context, device, ::log)
         try {
+            log("Connecting to GATT...")
             session.connect()
+            log("Requesting MTU $MTU...")
             session.requestMtu(MTU)
+            log("Discovering services...")
             session.discoverServices()
+            log("Enabling RX notifications...")
             session.enableNotifications(SERVICE_UUID, RX_UUID)
 
             session.startTransmission()
@@ -41,7 +53,19 @@ class Hem7380T1SyncClient(
 
             session.endTransmission()
 
-            measurements.sortedByDescending { it.recordedAt }
+            val sortedMeasurements = measurements.sortedByDescending { it.recordedAt }
+            log("Sync completed with ${sortedMeasurements.size} parsed measurements.")
+            SyncResult(
+                measurements = sortedMeasurements,
+                diagnostics = SyncDiagnostics(diagnostics.toList()),
+            )
+        } catch (error: Exception) {
+            log("Sync failed: ${error.message ?: error.javaClass.simpleName}")
+            throw SyncException(
+                message = error.message ?: "Sync failed.",
+                diagnostics = SyncDiagnostics(diagnostics.toList()),
+                cause = error,
+            )
         } finally {
             session.close()
         }
@@ -102,6 +126,7 @@ class Hem7380T1SyncClient(
     private class GattSession(
         private val context: Context,
         private val device: BluetoothDevice,
+        private val log: (String) -> Unit,
     ) {
 
         private val notificationChannel = Channel<ByteArray>(capacity = Channel.UNLIMITED)
@@ -115,10 +140,16 @@ class Hem7380T1SyncClient(
         private val callback = object : BluetoothGattCallback() {
             override fun onConnectionStateChange(gatt: BluetoothGatt, status: Int, newState: Int) {
                 val deferred = connectDeferred
+                log(
+                    "Connection state changed: status=$status (${describeGattStatus(status)}), " +
+                        "newState=$newState",
+                )
                 when {
                     status != BluetoothGatt.GATT_SUCCESS -> {
                         deferred?.completeExceptionally(
-                            IllegalStateException("Bluetooth connect failed: status=$status"),
+                            IllegalStateException(
+                                "Bluetooth connect failed: status=$status (${describeGattStatus(status)})",
+                            ),
                         )
                     }
                     newState == BluetoothGatt.STATE_CONNECTED -> {
@@ -134,22 +165,28 @@ class Hem7380T1SyncClient(
 
             override fun onServicesDiscovered(gatt: BluetoothGatt, status: Int) {
                 val deferred = servicesDeferred ?: return
+                log("Services discovered: status=$status (${describeGattStatus(status)})")
                 if (status == BluetoothGatt.GATT_SUCCESS) {
                     deferred.complete(Unit)
                 } else {
                     deferred.completeExceptionally(
-                        IllegalStateException("Service discovery failed: status=$status"),
+                        IllegalStateException(
+                            "Service discovery failed: status=$status (${describeGattStatus(status)})",
+                        ),
                     )
                 }
             }
 
             override fun onMtuChanged(gatt: BluetoothGatt, mtu: Int, status: Int) {
                 val deferred = mtuDeferred ?: return
+                log("MTU callback: mtu=$mtu status=$status (${describeGattStatus(status)})")
                 if (status == BluetoothGatt.GATT_SUCCESS) {
                     deferred.complete(Unit)
                 } else {
                     deferred.completeExceptionally(
-                        IllegalStateException("MTU request failed: status=$status"),
+                        IllegalStateException(
+                            "MTU request failed: status=$status (${describeGattStatus(status)})",
+                        ),
                     )
                 }
             }
@@ -160,11 +197,14 @@ class Hem7380T1SyncClient(
                 status: Int,
             ) {
                 val deferred = descriptorDeferred ?: return
+                log("Descriptor write: status=$status (${describeGattStatus(status)})")
                 if (status == BluetoothGatt.GATT_SUCCESS) {
                     deferred.complete(Unit)
                 } else {
                     deferred.completeExceptionally(
-                        IllegalStateException("Descriptor write failed: status=$status"),
+                        IllegalStateException(
+                            "Descriptor write failed: status=$status (${describeGattStatus(status)})",
+                        ),
                     )
                 }
             }
@@ -174,7 +214,10 @@ class Hem7380T1SyncClient(
                 gatt: BluetoothGatt,
                 characteristic: BluetoothGattCharacteristic,
             ) {
-                characteristic.value?.let { notificationChannel.trySendBlocking(it) }
+                characteristic.value?.let {
+                    log("RX: ${it.toHexString()}")
+                    notificationChannel.trySendBlocking(it)
+                }
             }
 
             override fun onCharacteristicChanged(
@@ -182,6 +225,7 @@ class Hem7380T1SyncClient(
                 characteristic: BluetoothGattCharacteristic,
                 value: ByteArray,
             ) {
+                log("RX: ${value.toHexString()}")
                 notificationChannel.trySendBlocking(value)
             }
         }
@@ -298,6 +342,7 @@ class Hem7380T1SyncClient(
         }
 
         fun close() {
+            log("Closing GATT session.")
             notificationChannel.close()
             gatt?.close()
             gatt = null
@@ -305,28 +350,57 @@ class Hem7380T1SyncClient(
 
         @SuppressLint("MissingPermission")
         private suspend fun sendCommand(command: ByteArray): OmronResponse {
-            while (notificationChannel.tryReceive().isSuccess) {
-                // Discard stale packets before a new request.
-            }
+            var lastError: Exception? = null
+            repeat(COMMAND_RETRY_COUNT) { retryIndex ->
+                val attempt = retryIndex + 1
+                try {
+                    while (notificationChannel.tryReceive().isSuccess) {
+                        // Discard stale packets before a new request.
+                    }
 
-            val txCharacteristic = requireCharacteristic(SERVICE_UUID, TX_UUID)
-            @Suppress("DEPRECATION")
-            txCharacteristic.writeType = BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE
-            @Suppress("DEPRECATION")
-            txCharacteristic.value = command
+                    val txCharacteristic = requireCharacteristic(SERVICE_UUID, TX_UUID)
+                    @Suppress("DEPRECATION")
+                    txCharacteristic.writeType = BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE
+                    @Suppress("DEPRECATION")
+                    txCharacteristic.value = command
 
-            @Suppress("DEPRECATION")
-            if (!requireGatt().writeCharacteristic(txCharacteristic)) {
-                throw IllegalStateException("Characteristic write failed.")
-            }
+                    log("TX[$attempt]: ${command.toHexString()}")
 
-            val payload = withTimeout(RESPONSE_TIMEOUT_MS) {
-                notificationChannel.receive()
+                    @Suppress("DEPRECATION")
+                    if (!requireGatt().writeCharacteristic(txCharacteristic)) {
+                        throw IllegalStateException("Characteristic write failed.")
+                    }
+
+                    val payload = withTimeout(RESPONSE_TIMEOUT_MS) {
+                        notificationChannel.receive()
+                    }
+                    val response = parseResponse(payload)
+                    log(
+                        "Packet[$attempt]: type=0x${response.packetType.toString(16)} " +
+                            "address=0x${response.address.toString(16)} bytes=${response.data.size}",
+                    )
+                    return response
+                } catch (error: Exception) {
+                    lastError = error
+                    log(
+                        "Command attempt $attempt/$COMMAND_RETRY_COUNT failed: " +
+                            "${error.message ?: error.javaClass.simpleName}",
+                    )
+                    if (attempt < COMMAND_RETRY_COUNT) {
+                        delay(COMMAND_RETRY_DELAY_MS)
+                    }
+                }
             }
-            return parseResponse(payload)
+            throw IllegalStateException(
+                "Command failed after $COMMAND_RETRY_COUNT attempts.",
+                lastError,
+            )
         }
 
-        private fun requireCharacteristic(serviceUuid: UUID, characteristicUuid: UUID): BluetoothGattCharacteristic {
+        private fun requireCharacteristic(
+            serviceUuid: UUID,
+            characteristicUuid: UUID,
+        ): BluetoothGattCharacteristic {
             val service = requireService(serviceUuid)
             return service.getCharacteristic(characteristicUuid)
                 ?: throw IllegalStateException("Characteristic $characteristicUuid not found.")
@@ -375,6 +449,23 @@ class Hem7380T1SyncClient(
         )
     }
 
+    data class SyncResult(
+        val measurements: List<Measurement>,
+        val diagnostics: SyncDiagnostics,
+    )
+
+    data class SyncDiagnostics(
+        val entries: List<String>,
+    ) {
+        fun asText(): String = entries.joinToString(separator = "\n")
+    }
+
+    class SyncException(
+        message: String,
+        val diagnostics: SyncDiagnostics,
+        cause: Throwable? = null,
+    ) : IllegalStateException(message, cause)
+
     private companion object {
         const val USER1_START_ADDRESS = 0x01C4
         const val USER2_START_ADDRESS = 0x0804
@@ -383,6 +474,8 @@ class Hem7380T1SyncClient(
         const val EEPROM_BLOCK_SIZE = 0x38
         const val MTU = 185
         const val RESPONSE_TIMEOUT_MS = 5_000L
+        const val COMMAND_RETRY_COUNT = 3
+        const val COMMAND_RETRY_DELAY_MS = 400L
 
         const val RESPONSE_START = 0x8000
         const val RESPONSE_READ = 0x8100
@@ -432,6 +525,22 @@ class Hem7380T1SyncClient(
             }
             payload[7] = checksum.toByte()
             return payload
+        }
+
+        fun ByteArray.toHexString(): String = joinToString(separator = "") { "%02x".format(it) }
+
+        fun describeGattStatus(status: Int): String = when (status) {
+            BluetoothGatt.GATT_SUCCESS -> "SUCCESS"
+            BluetoothGatt.GATT_READ_NOT_PERMITTED -> "READ_NOT_PERMITTED"
+            BluetoothGatt.GATT_WRITE_NOT_PERMITTED -> "WRITE_NOT_PERMITTED"
+            BluetoothGatt.GATT_INSUFFICIENT_AUTHENTICATION -> "INSUFFICIENT_AUTHENTICATION"
+            BluetoothGatt.GATT_REQUEST_NOT_SUPPORTED -> "REQUEST_NOT_SUPPORTED"
+            BluetoothGatt.GATT_INSUFFICIENT_ENCRYPTION -> "INSUFFICIENT_ENCRYPTION"
+            BluetoothGatt.GATT_INVALID_OFFSET -> "INVALID_OFFSET"
+            BluetoothGatt.GATT_INVALID_ATTRIBUTE_LENGTH -> "INVALID_ATTRIBUTE_LENGTH"
+            BluetoothGatt.GATT_CONNECTION_CONGESTED -> "CONNECTION_CONGESTED"
+            BluetoothGatt.GATT_FAILURE -> "FAILURE"
+            else -> "UNKNOWN"
         }
     }
 }

@@ -28,6 +28,8 @@
     <string name="column_pulse">Pulse</string>
     <string name="column_flags">Flags</string>
     <string name="column_user">User</string>
+    <string name="sync_log_title">Last sync log</string>
+    <string name="sync_log_empty">No sync log yet.</string>
     <string name="empty_measurements">Synced measurements will appear here.</string>
     <string name="permission_denied">Bluetooth permission was denied.</string>
     <string name="device_name_placeholder">Unknown device</string>
