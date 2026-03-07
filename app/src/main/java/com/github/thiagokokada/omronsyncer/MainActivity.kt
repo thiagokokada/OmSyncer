@@ -350,7 +350,7 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, SettingsFragment
                 }
                 val healthConnectAutoExport = if (isHealthConnectAvailable && isHealthConnectConnected) {
                     runCatching {
-                        healthConnectExporter.export(syncResult.measurements).exported
+                        healthConnectExporter.export(syncResult.measurements)
                     }
                 } else {
                     null
@@ -361,7 +361,7 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, SettingsFragment
                     inserted = saveSummary.inserted,
                     duplicates = saveSummary.duplicates,
                     syncLog = syncResult.diagnostics.asText(),
-                    healthConnectExported = healthConnectAutoExport?.getOrNull(),
+                    healthConnectExportSummary = healthConnectAutoExport?.getOrNull(),
                     healthConnectExportError = healthConnectAutoExport?.exceptionOrNull()?.message,
                 )
             }.onSuccess { result ->
@@ -369,13 +369,14 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, SettingsFragment
                 renderSyncLog(result.syncLog)
                 updateStatus(getString(R.string.status_idle))
                 showToast(
-                    if (result.healthConnectExported != null) {
+                    if (result.healthConnectExportSummary != null) {
                         getString(
                             R.string.status_imported_health_connect_summary,
                             result.imported,
                             result.inserted,
                             result.duplicates,
-                            result.healthConnectExported,
+                            result.healthConnectExportSummary.bloodPressureExported,
+                            result.healthConnectExportSummary.heartRateExported,
                         )
                     } else {
                         getString(
@@ -486,7 +487,13 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, SettingsFragment
                 healthConnectExporter.export(storedMeasurements)
             }.onSuccess { summary ->
                 updateStatus(getString(R.string.health_connect_status_connected))
-                showToast(getString(R.string.status_health_connect_exported, summary.exported))
+                showToast(
+                    getString(
+                        R.string.status_health_connect_exported,
+                        summary.bloodPressureExported,
+                        summary.heartRateExported,
+                    ),
+                )
             }.onFailure { error ->
                 updateStatus(error.message ?: error.javaClass.simpleName)
             }
@@ -641,7 +648,7 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, SettingsFragment
         val inserted: Int,
         val duplicates: Int,
         val syncLog: String,
-        val healthConnectExported: Int?,
+        val healthConnectExportSummary: HealthConnectBloodPressureExporter.ExportSummary?,
         val healthConnectExportError: String?,
     )
 

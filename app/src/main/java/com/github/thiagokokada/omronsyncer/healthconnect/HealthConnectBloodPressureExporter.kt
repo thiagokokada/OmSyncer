@@ -6,6 +6,8 @@ import android.net.Uri
 import androidx.health.connect.client.HealthConnectClient
 import androidx.health.connect.client.permission.HealthPermission
 import androidx.health.connect.client.records.BloodPressureRecord
+import androidx.health.connect.client.records.HeartRateRecord
+import androidx.health.connect.client.records.Record
 import androidx.health.connect.client.records.metadata.Device
 import androidx.health.connect.client.records.metadata.Metadata
 import androidx.health.connect.client.units.Pressure
@@ -17,6 +19,7 @@ class HealthConnectBloodPressureExporter(private val context: Context) {
 
     val requiredPermissions: Set<String> = setOf(
         HealthPermission.getWritePermission(BloodPressureRecord::class),
+        HealthPermission.getWritePermission(HeartRateRecord::class),
     )
 
     fun sdkStatus(): Int {
@@ -48,8 +51,11 @@ class HealthConnectBloodPressureExporter(private val context: Context) {
             "No measurements available to export."
         }
 
-        val response = client().insertRecords(measurements.map(::toBloodPressureRecord))
-        return ExportSummary(exported = response.recordIdsList.size)
+        client().insertRecords(measurements.flatMap(::toHealthConnectRecords))
+        return ExportSummary(
+            bloodPressureExported = measurements.size,
+            heartRateExported = measurements.size,
+        )
     }
 
     private fun client(): HealthConnectClient {
@@ -77,9 +83,54 @@ class HealthConnectBloodPressureExporter(private val context: Context) {
         )
     }
 
+    private fun toHeartRateRecord(measurement: Measurement): HeartRateRecord {
+        val zonedTime = measurement.recordedAt.atZone(ZoneId.systemDefault())
+        return HeartRateRecord(
+            startTime = zonedTime.toInstant(),
+            startZoneOffset = zonedTime.offset,
+            endTime = zonedTime.toInstant(),
+            endZoneOffset = zonedTime.offset,
+            samples = listOf(
+                HeartRateRecord.Sample(
+                    time = zonedTime.toInstant(),
+                    beatsPerMinute = measurement.pulse.toLong(),
+                ),
+            ),
+            metadata = Metadata.autoRecorded(
+                device = Device(
+                    type = Device.TYPE_UNKNOWN,
+                    manufacturer = DEVICE_MANUFACTURER,
+                    model = DEVICE_MODEL,
+                ),
+                clientRecordId = heartRateClientRecordId(measurement),
+                clientRecordVersion = 0,
+            ),
+        )
+    }
+
+    private fun toHealthConnectRecords(measurement: Measurement): List<Record> {
+        return listOf(
+            toBloodPressureRecord(measurement),
+            toHeartRateRecord(measurement),
+        )
+    }
+
     private fun clientRecordId(measurement: Measurement): String {
         return buildString {
             append("omron-bp:")
+            append(baseMeasurementKey(measurement))
+        }
+    }
+
+    private fun heartRateClientRecordId(measurement: Measurement): String {
+        return buildString {
+            append("omron-hr:")
+            append(baseMeasurementKey(measurement))
+        }
+    }
+
+    private fun baseMeasurementKey(measurement: Measurement): String {
+        return buildString {
             append(measurement.user)
             append(':')
             append(CLIENT_TIME_FORMATTER.format(measurement.recordedAt))
@@ -97,7 +148,8 @@ class HealthConnectBloodPressureExporter(private val context: Context) {
     }
 
     data class ExportSummary(
-        val exported: Int,
+        val bloodPressureExported: Int,
+        val heartRateExported: Int,
     )
 
     private companion object {
