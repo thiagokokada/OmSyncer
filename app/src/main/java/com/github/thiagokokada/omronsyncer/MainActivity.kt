@@ -1,6 +1,7 @@
 package com.github.thiagokokada.omronsyncer
 
 import android.Manifest
+import android.annotation.SuppressLint
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothManager
@@ -8,7 +9,6 @@ import android.content.Intent
 import android.content.SharedPreferences
 import android.content.pm.PackageManager
 import android.net.Uri
-import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
 import android.view.View
@@ -18,19 +18,19 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.content.res.AppCompatResources
 import androidx.core.content.ContextCompat
 import androidx.core.content.edit
-import androidx.fragment.app.Fragment
-import androidx.lifecycle.lifecycleScope
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.updatePadding
+import androidx.fragment.app.Fragment
+import androidx.lifecycle.lifecycleScope
 import com.github.thiagokokada.omronsyncer.data.MeasurementStore
 import com.github.thiagokokada.omronsyncer.databinding.ActivityMainBinding
 import com.github.thiagokokada.omronsyncer.export.MeasurementCsvExporter
 import com.github.thiagokokada.omronsyncer.model.Measurement
 import com.github.thiagokokada.omronsyncer.omron.Hem7380T1SyncClient
 import com.github.thiagokokada.omronsyncer.omron.Hem7380T1SyncClient.SyncException
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -119,12 +119,21 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, SettingsFragment
         outState.putInt(KEY_SELECTED_TAB, selectedTabId)
     }
 
+    @SuppressLint("MissingPermission")
     override fun currentUiState(): MainUiState {
-        val labels = bondedDevices.map { device ->
-            val displayName = device.name ?: getString(R.string.device_name_placeholder)
-            "$displayName (${device.address})"
+        val labels = if (hasBluetoothPermission()) {
+            bondedDevices.map { device ->
+                val displayName = device.name ?: getString(R.string.device_name_placeholder)
+                "$displayName (${device.address})"
+            }
+        } else {
+            emptyList()
         }
-        val selectedIndex = bondedDevices.indexOfFirst { it.address == selectedDeviceAddress() }
+        val selectedIndex = if (hasBluetoothPermission()) {
+            bondedDevices.indexOfFirst { it.address == selectedDeviceAddress() }
+        } else {
+            -1
+        }
 
         return MainUiState(
             measurements = measurements,
@@ -224,6 +233,7 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, SettingsFragment
         ViewCompat.requestApplyInsets(binding.root)
     }
 
+    @SuppressLint("MissingPermission")
     private fun loadBondedDevices() {
         if (!ensureBluetoothPermission()) {
             return
@@ -258,6 +268,7 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, SettingsFragment
         notifyCurrentFragment()
     }
 
+    @SuppressLint("MissingPermission")
     private fun startSync() {
         if (!ensureBluetoothPermission()) {
             return
@@ -425,14 +436,7 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, SettingsFragment
     }
 
     private fun ensureBluetoothPermission(): Boolean {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
-            return true
-        }
-
-        val granted = ContextCompat.checkSelfPermission(
-            this,
-            Manifest.permission.BLUETOOTH_CONNECT,
-        ) == PackageManager.PERMISSION_GRANTED
+        val granted = hasBluetoothPermission()
 
         if (!granted) {
             updateStatus(getString(R.string.status_missing_permission))
@@ -440,6 +444,13 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, SettingsFragment
         }
 
         return granted
+    }
+
+    private fun hasBluetoothPermission(): Boolean {
+        return ContextCompat.checkSelfPermission(
+            this,
+            Manifest.permission.BLUETOOTH_CONNECT,
+        ) == PackageManager.PERMISSION_GRANTED
     }
 
     private fun bluetoothAdapter(): BluetoothAdapter? {
