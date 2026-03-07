@@ -8,7 +8,6 @@ import android.bluetooth.BluetoothGattCharacteristic
 import android.bluetooth.BluetoothGattDescriptor
 import android.bluetooth.BluetoothGattService
 import android.content.Context
-import android.os.Build
 import com.github.thiagokokada.omronsyncer.model.Measurement
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
@@ -237,11 +236,7 @@ class Hem7380T1SyncClient(
             }
 
             connectDeferred = CompletableDeferred()
-            gatt = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                device.connectGatt(context, false, callback, BluetoothDevice.TRANSPORT_LE)
-            } else {
-                device.connectGatt(context, false, callback)
-            }
+            gatt = device.connectGatt(context, false, callback, BluetoothDevice.TRANSPORT_LE)
 
             connectDeferred?.await()
             connectDeferred = null

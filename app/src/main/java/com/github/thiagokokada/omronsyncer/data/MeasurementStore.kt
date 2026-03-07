@@ -4,6 +4,7 @@ import android.content.ContentValues
 import android.content.Context
 import android.database.sqlite.SQLiteDatabase
 import android.database.sqlite.SQLiteOpenHelper
+import androidx.core.database.sqlite.transaction
 import com.github.thiagokokada.omronsyncer.model.Measurement
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
@@ -51,32 +52,37 @@ class MeasurementStore(context: Context) {
 
         val db = helper.writableDatabase
         var inserted = 0
-        db.beginTransaction()
-        try {
-            measurements.forEach { measurement ->
-                val values = ContentValues().apply {
-                    put(COLUMN_USER, measurement.user)
-                    put(COLUMN_RECORDED_AT, STORED_TIME_FORMATTER.format(measurement.recordedAt))
-                    put(COLUMN_SYSTOLIC, measurement.systolic)
-                    put(COLUMN_DIASTOLIC, measurement.diastolic)
-                    put(COLUMN_PULSE, measurement.pulse)
-                    put(COLUMN_IRREGULAR_HEARTBEAT, if (measurement.irregularHeartbeat) 1 else 0)
-                    put(COLUMN_MOVEMENT, if (measurement.movement) 1 else 0)
-                }
+        db.transaction {
+            try {
+                measurements.forEach { measurement ->
+                    val values = ContentValues().apply {
+                        put(COLUMN_USER, measurement.user)
+                        put(
+                            COLUMN_RECORDED_AT,
+                            STORED_TIME_FORMATTER.format(measurement.recordedAt)
+                        )
+                        put(COLUMN_SYSTOLIC, measurement.systolic)
+                        put(COLUMN_DIASTOLIC, measurement.diastolic)
+                        put(COLUMN_PULSE, measurement.pulse)
+                        put(
+                            COLUMN_IRREGULAR_HEARTBEAT,
+                            if (measurement.irregularHeartbeat) 1 else 0
+                        )
+                        put(COLUMN_MOVEMENT, if (measurement.movement) 1 else 0)
+                    }
 
-                val rowId = db.insertWithOnConflict(
-                    TABLE_MEASUREMENTS,
-                    null,
-                    values,
-                    SQLiteDatabase.CONFLICT_IGNORE,
-                )
-                if (rowId != -1L) {
-                    inserted += 1
+                    val rowId = insertWithOnConflict(
+                        TABLE_MEASUREMENTS,
+                        null,
+                        values,
+                        SQLiteDatabase.CONFLICT_IGNORE,
+                    )
+                    if (rowId != -1L) {
+                        inserted += 1
+                    }
                 }
+            } finally {
             }
-            db.setTransactionSuccessful()
-        } finally {
-            db.endTransaction()
         }
 
         return SaveSummary(

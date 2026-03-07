@@ -2,7 +2,7 @@ package com.github.thiagokokada.omronsyncer.healthconnect
 
 import android.content.Context
 import android.content.Intent
-import android.net.Uri
+import androidx.core.net.toUri
 import androidx.health.connect.client.HealthConnectClient
 import androidx.health.connect.client.permission.HealthPermission
 import androidx.health.connect.client.records.BloodPressureRecord
@@ -32,7 +32,7 @@ class HealthConnectBloodPressureExporter(private val context: Context) {
         } else {
             Intent(
                 Intent.ACTION_VIEW,
-                Uri.parse("market://details?id=$HEALTH_CONNECT_PACKAGE&url=healthconnect%3A%2F%2Fonboarding"),
+                "market://details?id=$HEALTH_CONNECT_PACKAGE&url=healthconnect%3A%2F%2Fonboarding".toUri(),
             ).apply {
                 setPackage("com.android.vending")
                 putExtra("overlay", true)

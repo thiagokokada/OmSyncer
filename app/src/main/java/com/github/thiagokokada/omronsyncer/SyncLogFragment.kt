@@ -53,10 +53,8 @@ class SyncLogFragment : Fragment() {
         }
 
         binding.exportLogButton.isEnabled = state.canExportLog && !state.isWorking
-        binding.syncLogText.text = if (state.syncLog.isBlank()) {
+        binding.syncLogText.text = state.syncLog.ifBlank {
             getString(R.string.sync_log_empty)
-        } else {
-            state.syncLog
         }
     }
 
