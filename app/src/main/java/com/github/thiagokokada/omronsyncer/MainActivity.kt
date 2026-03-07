@@ -22,10 +22,13 @@ import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.updatePadding
 import androidx.fragment.app.Fragment
+import androidx.health.connect.client.HealthConnectClient
+import androidx.health.connect.client.PermissionController
 import androidx.lifecycle.lifecycleScope
 import com.github.thiagokokada.omronsyncer.data.MeasurementStore
 import com.github.thiagokokada.omronsyncer.databinding.ActivityMainBinding
 import com.github.thiagokokada.omronsyncer.export.MeasurementCsvExporter
+import com.github.thiagokokada.omronsyncer.healthconnect.HealthConnectBloodPressureExporter
 import com.github.thiagokokada.omronsyncer.model.Measurement
 import com.github.thiagokokada.omronsyncer.omron.Hem7380T1SyncClient
 import com.github.thiagokokada.omronsyncer.omron.Hem7380T1SyncClient.SyncException
@@ -43,12 +46,17 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, SettingsFragment
     private val measurementStore by lazy { MeasurementStore(this) }
     private val syncClient by lazy { Hem7380T1SyncClient(this) }
     private val csvExporter by lazy { MeasurementCsvExporter() }
+    private val healthConnectExporter by lazy { HealthConnectBloodPressureExporter(this) }
 
     private var measurements: List<Measurement> = emptyList()
     private var statusMessage: String = ""
     private var lastSyncLog: String = ""
     private var isWorking: Boolean = false
     private var selectedTabId: Int = R.id.navigation_results
+    private var isHealthConnectAvailable: Boolean = false
+    private var isHealthConnectSetupRequired: Boolean = false
+    private var isHealthConnectConnected: Boolean = false
+    private var healthConnectStatusMessage: String = ""
 
     private val permissionLauncher =
         registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { result ->
@@ -79,6 +87,29 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, SettingsFragment
             }
         }
 
+    private val healthConnectPermissionLauncher =
+        registerForActivityResult(
+            PermissionController.createRequestPermissionResultContract(),
+        ) { grantedPermissions ->
+            launchUi {
+                val granted = grantedPermissions.containsAll(healthConnectExporter.requiredPermissions)
+                isHealthConnectConnected = granted
+                healthConnectStatusMessage = if (granted) {
+                    getString(R.string.health_connect_status_connected)
+                } else {
+                    getString(R.string.health_connect_status_not_connected)
+                }
+                updateStatus(
+                    if (granted) {
+                        getString(R.string.status_health_connect_permissions_granted)
+                    } else {
+                        getString(R.string.status_health_connect_permissions_denied)
+                    },
+                )
+                notifyCurrentFragment()
+            }
+        }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
@@ -106,12 +137,14 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, SettingsFragment
 
         loadPersistedMeasurements()
         renderSyncLog(lastSyncLog)
+        refreshHealthConnectState()
         updateStatus(getString(R.string.status_idle))
     }
 
     override fun onResume() {
         super.onResume()
         loadBondedDevices()
+        refreshHealthConnectState()
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
@@ -145,6 +178,13 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, SettingsFragment
             canSync = bondedDevices.isNotEmpty(),
             canExport = measurements.isNotEmpty(),
             canExportLog = lastSyncLog.isNotBlank(),
+            healthConnectAvailable = isHealthConnectAvailable,
+            healthConnectNeedsSetup = isHealthConnectSetupRequired,
+            healthConnectConnected = isHealthConnectConnected,
+            healthConnectStatusMessage = healthConnectStatusMessage,
+            canOpenHealthConnect = isHealthConnectAvailable || isHealthConnectSetupRequired,
+            canExportHealthConnect =
+                measurements.isNotEmpty() && isHealthConnectAvailable && isHealthConnectConnected,
         )
     }
 
@@ -162,6 +202,14 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, SettingsFragment
 
     override fun onExportRequested() {
         exportMeasurements()
+    }
+
+    override fun onHealthConnectRequested() {
+        openHealthConnect()
+    }
+
+    override fun onHealthConnectExportRequested() {
+        exportToHealthConnect()
     }
 
     override fun onSyncLogRequested() {
@@ -339,10 +387,91 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, SettingsFragment
         }
     }
 
+    private fun refreshHealthConnectState() {
+        when (healthConnectExporter.sdkStatus()) {
+            HealthConnectClient.SDK_AVAILABLE -> {
+                isHealthConnectAvailable = true
+                isHealthConnectSetupRequired = false
+                launchUi {
+                    isHealthConnectConnected = runCatching {
+                        healthConnectExporter.hasAllPermissions()
+                    }.getOrDefault(false)
+                    healthConnectStatusMessage = if (isHealthConnectConnected) {
+                        getString(R.string.health_connect_status_connected)
+                    } else {
+                        getString(R.string.health_connect_status_not_connected)
+                    }
+                    notifyCurrentFragment()
+                }
+            }
+
+            HealthConnectClient.SDK_UNAVAILABLE_PROVIDER_UPDATE_REQUIRED -> {
+                isHealthConnectAvailable = false
+                isHealthConnectSetupRequired = true
+                isHealthConnectConnected = false
+                healthConnectStatusMessage = getString(R.string.health_connect_status_setup_required)
+                notifyCurrentFragment()
+            }
+
+            else -> {
+                isHealthConnectAvailable = false
+                isHealthConnectSetupRequired = false
+                isHealthConnectConnected = false
+                healthConnectStatusMessage = getString(R.string.health_connect_status_unavailable)
+                notifyCurrentFragment()
+            }
+        }
+    }
+
     private fun exportMeasurements() {
         setWorking(true)
         updateStatus(getString(R.string.status_export_choose_location))
         exportDocumentLauncher.launch(csvExporter.suggestedFileName())
+    }
+
+    private fun openHealthConnect() {
+        when {
+            isHealthConnectSetupRequired -> startActivity(healthConnectExporter.manageOrInstallIntent())
+            !isHealthConnectAvailable -> updateStatus(getString(R.string.health_connect_status_unavailable))
+            isHealthConnectConnected -> startActivity(healthConnectExporter.manageOrInstallIntent())
+            else -> healthConnectPermissionLauncher.launch(healthConnectExporter.requiredPermissions)
+        }
+    }
+
+    private fun exportToHealthConnect() {
+        if (!isHealthConnectAvailable) {
+            updateStatus(getString(R.string.health_connect_status_unavailable))
+            return
+        }
+        if (!isHealthConnectConnected) {
+            updateStatus(getString(R.string.health_connect_status_not_connected))
+            return
+        }
+        if (measurements.isEmpty()) {
+            showToast(getString(R.string.empty_measurements))
+            return
+        }
+
+        setWorking(true)
+        updateStatus(getString(R.string.status_health_connect_exporting))
+
+        launchUi {
+            runCatching {
+                val storedMeasurements = withContext(Dispatchers.IO) {
+                    measurementStore.loadAll()
+                }
+                healthConnectExporter.export(storedMeasurements)
+            }.onSuccess { summary ->
+                updateStatus(getString(R.string.health_connect_status_connected))
+                showToast(getString(R.string.status_health_connect_exported, summary.exported))
+            }.onFailure { error ->
+                updateStatus(error.message ?: error.javaClass.simpleName)
+            }
+
+            setWorking(false)
+            refreshHealthConnectState()
+            notifyCurrentFragment()
+        }
     }
 
     private fun exportSyncLog() {

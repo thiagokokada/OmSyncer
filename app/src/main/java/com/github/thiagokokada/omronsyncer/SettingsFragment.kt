@@ -16,6 +16,8 @@ class SettingsFragment : Fragment() {
         fun onBluetoothSettingsRequested()
         fun onRefreshDevicesRequested()
         fun onExportRequested()
+        fun onHealthConnectRequested()
+        fun onHealthConnectExportRequested()
         fun onSyncLogRequested()
         fun onDeviceSelected(position: Int)
     }
@@ -68,6 +70,12 @@ class SettingsFragment : Fragment() {
         binding.exportButton.setOnClickListener {
             host.onExportRequested()
         }
+        binding.healthConnectActionButton.setOnClickListener {
+            host.onHealthConnectRequested()
+        }
+        binding.healthConnectExportButton.setOnClickListener {
+            host.onHealthConnectExportRequested()
+        }
         binding.syncLogButton.setOnClickListener {
             host.onSyncLogRequested()
         }
@@ -98,6 +106,14 @@ class SettingsFragment : Fragment() {
         binding.refreshButton.isEnabled = !state.isWorking
         binding.bluetoothSettingsButton.isEnabled = !state.isWorking
         binding.exportButton.isEnabled = state.canExport && !state.isWorking
+        binding.healthConnectStatusValue.text = state.healthConnectStatusMessage
+        binding.healthConnectActionButton.isEnabled = state.canOpenHealthConnect && !state.isWorking
+        binding.healthConnectActionButton.text = when {
+            state.healthConnectNeedsSetup -> getString(R.string.open_health_connect)
+            state.healthConnectConnected -> getString(R.string.manage_health_connect)
+            else -> getString(R.string.grant_health_connect_access)
+        }
+        binding.healthConnectExportButton.isEnabled = state.canExportHealthConnect && !state.isWorking
         binding.syncLogButton.isEnabled = !state.isWorking
     }
 

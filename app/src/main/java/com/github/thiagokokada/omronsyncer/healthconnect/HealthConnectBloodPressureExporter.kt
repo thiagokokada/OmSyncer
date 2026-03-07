@@ -1,0 +1,111 @@
+package com.github.thiagokokada.omronsyncer.healthconnect
+
+import android.content.Context
+import android.content.Intent
+import android.net.Uri
+import androidx.health.connect.client.HealthConnectClient
+import androidx.health.connect.client.permission.HealthPermission
+import androidx.health.connect.client.records.BloodPressureRecord
+import androidx.health.connect.client.records.metadata.Device
+import androidx.health.connect.client.records.metadata.Metadata
+import androidx.health.connect.client.units.Pressure
+import com.github.thiagokokada.omronsyncer.model.Measurement
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+
+class HealthConnectBloodPressureExporter(private val context: Context) {
+
+    val requiredPermissions: Set<String> = setOf(
+        HealthPermission.getWritePermission(BloodPressureRecord::class),
+    )
+
+    fun sdkStatus(): Int {
+        return HealthConnectClient.getSdkStatus(context)
+    }
+
+    fun manageOrInstallIntent(): Intent {
+        return if (sdkStatus() == HealthConnectClient.SDK_AVAILABLE) {
+            HealthConnectClient.getHealthConnectManageDataIntent(context)
+        } else {
+            Intent(
+                Intent.ACTION_VIEW,
+                Uri.parse("market://details?id=$HEALTH_CONNECT_PACKAGE&url=healthconnect%3A%2F%2Fonboarding"),
+            ).apply {
+                setPackage("com.android.vending")
+                putExtra("overlay", true)
+                putExtra("callerId", context.packageName)
+            }
+        }
+    }
+
+    suspend fun hasAllPermissions(): Boolean {
+        return sdkStatus() == HealthConnectClient.SDK_AVAILABLE &&
+            client().permissionController.getGrantedPermissions().containsAll(requiredPermissions)
+    }
+
+    suspend fun export(measurements: List<Measurement>): ExportSummary {
+        require(measurements.isNotEmpty()) {
+            "No measurements available to export."
+        }
+
+        val response = client().insertRecords(measurements.map(::toBloodPressureRecord))
+        return ExportSummary(exported = response.recordIdsList.size)
+    }
+
+    private fun client(): HealthConnectClient {
+        return HealthConnectClient.getOrCreate(context)
+    }
+
+    private fun toBloodPressureRecord(measurement: Measurement): BloodPressureRecord {
+        val zonedTime = measurement.recordedAt.atZone(ZoneId.systemDefault())
+        return BloodPressureRecord(
+            time = zonedTime.toInstant(),
+            zoneOffset = zonedTime.offset,
+            metadata = Metadata.autoRecorded(
+                device = Device(
+                    type = Device.TYPE_UNKNOWN,
+                    manufacturer = DEVICE_MANUFACTURER,
+                    model = DEVICE_MODEL,
+                ),
+                clientRecordId = clientRecordId(measurement),
+                clientRecordVersion = 0,
+            ),
+            systolic = Pressure.millimetersOfMercury(measurement.systolic.toDouble()),
+            diastolic = Pressure.millimetersOfMercury(measurement.diastolic.toDouble()),
+            bodyPosition = BloodPressureRecord.BODY_POSITION_UNKNOWN,
+            measurementLocation = BloodPressureRecord.MEASUREMENT_LOCATION_UNKNOWN,
+        )
+    }
+
+    private fun clientRecordId(measurement: Measurement): String {
+        return buildString {
+            append("omron-bp:")
+            append(measurement.user)
+            append(':')
+            append(CLIENT_TIME_FORMATTER.format(measurement.recordedAt))
+            append(':')
+            append(measurement.systolic)
+            append(':')
+            append(measurement.diastolic)
+            append(':')
+            append(measurement.pulse)
+            append(':')
+            append(if (measurement.irregularHeartbeat) 1 else 0)
+            append(':')
+            append(if (measurement.movement) 1 else 0)
+        }
+    }
+
+    data class ExportSummary(
+        val exported: Int,
+    )
+
+    private companion object {
+        const val DEVICE_MANUFACTURER = "Omron"
+        const val DEVICE_MODEL = "HEM-7380T1"
+        const val HEALTH_CONNECT_PACKAGE = "com.google.android.apps.healthdata"
+
+        val CLIENT_TIME_FORMATTER: DateTimeFormatter =
+            DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss")
+    }
+}

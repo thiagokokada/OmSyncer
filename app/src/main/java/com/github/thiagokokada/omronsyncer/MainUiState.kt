@@ -12,4 +12,10 @@ data class MainUiState(
     val canSync: Boolean,
     val canExport: Boolean,
     val canExportLog: Boolean,
+    val healthConnectAvailable: Boolean,
+    val healthConnectNeedsSetup: Boolean,
+    val healthConnectConnected: Boolean,
+    val healthConnectStatusMessage: String,
+    val canOpenHealthConnect: Boolean,
+    val canExportHealthConnect: Boolean,
 )
