@@ -232,5 +232,5 @@ object OmronRecordParser {
     }
 
     private const val MAX_VALID_RAW_SYSTOLIC = 0xE1
-    private val EMPTY_BYTE: Byte = 0xFF.toByte()
+    private const val EMPTY_BYTE: Byte = 0xFF.toByte()
 }
