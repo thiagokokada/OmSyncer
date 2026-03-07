@@ -8,6 +8,8 @@
     <string name="settings_export_body">Save the locally stored measurements as a CSV file wherever you want.</string>
     <string name="settings_health_connect_title">Health Connect</string>
     <string name="settings_health_connect_body">Write synced blood pressure and pulse measurements into Health Connect.</string>
+    <string name="settings_background_sync_title">Background sync</string>
+    <string name="settings_background_sync_body">Periodically attempts to sync the selected bonded monitor in the background. The monitor still needs to be nearby and awake when Android runs the job.</string>
     <string name="settings_diagnostics_title">Diagnostics</string>
     <string name="settings_log_body">Open the latest BLE session log and export it when you need to inspect a failed sync.</string>
     <string name="open_bluetooth_settings">Bluetooth</string>
@@ -16,6 +18,8 @@
     <string name="grant_health_connect_access">Grant Health Connect access</string>
     <string name="health_connect_export_user_label">Export user</string>
     <string name="health_connect_auto_export_label">Auto-export after sync</string>
+    <string name="background_sync_label">Background sync</string>
+    <string name="background_sync_interval_label">Frequency</string>
     <string name="open_sync_log">Open sync log</string>
     <string name="refresh_devices">Refresh devices</string>
     <string name="sync_now">Sync now</string>
@@ -50,6 +54,18 @@
     <string name="status_health_connect_no_matching_measurements">No measurements match the selected Health Connect user.</string>
     <string name="status_log_exported">Sync log exported.</string>
     <string name="status_pair_device">This monitor is not bonded yet. Pair it in Android Bluetooth settings first.</string>
+    <string name="status_background_sync_enabled">Background sync enabled.</string>
+    <string name="status_background_sync_disabled">Background sync disabled.</string>
+    <string name="status_background_sync_interval_updated">Background sync frequency set to %1$s.</string>
+    <string name="background_sync_summary_off">Background sync is off.</string>
+    <string name="background_sync_summary_pending">Background sync is enabled at %1$s. No background run has finished yet.</string>
+    <string name="background_sync_skipped_no_device">Background sync skipped: no device selected.</string>
+    <string name="background_sync_failed">Background sync failed: %1$s</string>
+    <string name="background_sync_summary_success">Background sync fetched %1$d, saved %2$d new, skipped %3$d duplicates.</string>
+    <string name="background_sync_summary_success_health_connect">Background sync fetched %1$d, saved %2$d new, skipped %3$d duplicates. Exported %4$d blood pressure and %5$d pulse records to Health Connect.</string>
+    <string name="background_sync_notification_channel_name">Monitor sync</string>
+    <string name="background_sync_notification_title">Syncing blood pressure monitor</string>
+    <string name="background_sync_notification_body">Reading measurements in the background.</string>
     <string name="health_connect_status_unavailable">Health Connect is not available on this device.</string>
     <string name="health_connect_status_setup_required">Install or update Health Connect to enable blood pressure export.</string>
     <string name="health_connect_status_not_connected">Grant Health Connect access to export blood pressure.</string>
@@ -74,6 +90,10 @@
     <string name="model_support_experimental">Experimental</string>
     <string name="health_connect_export_user_all">All users</string>
     <string name="health_connect_export_user_single">User %1$d</string>
+    <plurals name="background_sync_interval_option">
+        <item quantity="one">Every %d hour</item>
+        <item quantity="other">Every %d hours</item>
+    </plurals>
     <plurals name="measurement_count">
         <item quantity="one">%d measurement</item>
         <item quantity="other">%d measurements</item>

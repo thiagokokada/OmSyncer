@@ -14,6 +14,7 @@ recyclerview = "1.4.0"
 lifecycleRuntimeKtx = "2.8.7"
 coroutines = "1.10.1"
 healthConnect = "1.1.0"
+workRuntimeKtx = "2.10.4"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -29,6 +30,7 @@ androidx-recyclerview = { group = "androidx.recyclerview", name = "recyclerview"
 androidx-lifecycle-runtime-ktx = { group = "androidx.lifecycle", name = "lifecycle-runtime-ktx", version.ref = "lifecycleRuntimeKtx" }
 kotlinx-coroutines-android = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-android", version.ref = "coroutines" }
 androidx-health-connect-client = { group = "androidx.health.connect", name = "connect-client", version.ref = "healthConnect" }
+androidx-work-runtime-ktx = { group = "androidx.work", name = "work-runtime-ktx", version.ref = "workRuntimeKtx" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

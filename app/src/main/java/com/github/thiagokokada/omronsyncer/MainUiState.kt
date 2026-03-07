@@ -23,5 +23,9 @@ data class MainUiState(
     val autoExportHealthConnect: Boolean,
     val healthConnectExportUserLabels: List<String>,
     val selectedHealthConnectExportUserIndex: Int,
+    val backgroundSyncEnabled: Boolean,
+    val backgroundSyncIntervalLabels: List<String>,
+    val selectedBackgroundSyncIntervalIndex: Int,
+    val backgroundSyncSummary: String,
     val showsMeasurementUserColumn: Boolean,
 )

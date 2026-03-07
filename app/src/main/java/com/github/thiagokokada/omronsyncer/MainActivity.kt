@@ -6,7 +6,6 @@ import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothManager
 import android.content.Intent
-import android.content.SharedPreferences
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Bundle
@@ -17,7 +16,6 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.content.res.AppCompatResources
 import androidx.core.content.ContextCompat
-import androidx.core.content.edit
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.updatePadding
@@ -35,6 +33,10 @@ import com.github.thiagokokada.omronsyncer.omron.OmronDeviceRegistry
 import com.github.thiagokokada.omronsyncer.omron.OmronSyncClient
 import com.github.thiagokokada.omronsyncer.omron.OmronSyncClient.SyncException
 import com.github.thiagokokada.omronsyncer.omron.VerificationLevel
+import com.github.thiagokokada.omronsyncer.sync.BackgroundSyncScheduler
+import com.github.thiagokokada.omronsyncer.sync.SyncExecutionResult
+import com.github.thiagokokada.omronsyncer.sync.SyncOrchestrator
+import com.github.thiagokokada.omronsyncer.sync.SyncPreferences
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -43,13 +45,23 @@ import kotlinx.coroutines.withContext
 class MainActivity : AppCompatActivity(), ResultsFragment.Host, SettingsFragment.Host, SyncLogFragment.Host {
 
     private lateinit var binding: ActivityMainBinding
-    private lateinit var preferences: SharedPreferences
+    private lateinit var syncPreferences: SyncPreferences
 
     private val bondedDevices = mutableListOf<BluetoothDevice>()
     private val measurementStore by lazy { MeasurementStore(this) }
     private val syncClient by lazy { OmronSyncClient(this) }
     private val csvExporter by lazy { MeasurementCsvExporter() }
     private val healthConnectExporter by lazy { HealthConnectBloodPressureExporter(this) }
+    private val backgroundSyncScheduler by lazy { BackgroundSyncScheduler(this) }
+    private val syncOrchestrator by lazy {
+        SyncOrchestrator(
+            context = this,
+            syncClient = syncClient,
+            measurementStore = measurementStore,
+            healthConnectExporter = healthConnectExporter,
+            syncPreferences = syncPreferences,
+        )
+    }
 
     private var measurements: List<Measurement> = emptyList()
     private var statusMessage: String = ""
@@ -118,7 +130,7 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, SettingsFragment
 
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
-        preferences = getSharedPreferences(PREFERENCES_NAME, MODE_PRIVATE)
+        syncPreferences = SyncPreferences(this)
         applyWindowInsets()
 
         binding.appTitle.text = getString(R.string.app_name)
@@ -141,6 +153,10 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, SettingsFragment
         loadPersistedMeasurements()
         renderSyncLog(lastSyncLog)
         refreshHealthConnectState()
+        backgroundSyncScheduler.updateSchedule(
+            enabled = syncPreferences.backgroundSyncEnabled(),
+            intervalHours = syncPreferences.backgroundSyncIntervalHours(),
+        )
         updateStatus(getString(R.string.status_idle))
     }
 
@@ -158,7 +174,7 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, SettingsFragment
     @SuppressLint("MissingPermission")
     override fun currentUiState(): MainUiState {
         val selectedModel = selectedModel()
-        val labels = if (hasBluetoothPermission()) {
+        val deviceLabels = if (hasBluetoothPermission()) {
             bondedDevices.map { device ->
                 val displayName = device.name ?: getString(R.string.device_name_placeholder)
                 "$displayName (${device.address})"
@@ -166,13 +182,27 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, SettingsFragment
         } else {
             emptyList()
         }
-        val selectedIndex = if (hasBluetoothPermission()) {
+        val selectedDeviceIndex = if (hasBluetoothPermission()) {
             bondedDevices.indexOfFirst { it.address == selectedDeviceAddress() }
         } else {
             -1
         }
         val healthConnectUserOptions = buildHealthConnectExportUserOptions(selectedModel)
         val selectedHealthConnectUser = resolveHealthConnectExportUserOption(selectedModel)
+        val backgroundSyncEnabled = syncPreferences.backgroundSyncEnabled()
+        val backgroundSyncIntervalHours = syncPreferences.backgroundSyncIntervalHours()
+        val backgroundSyncIntervalLabels = SyncPreferences.BACKGROUND_SYNC_INTERVAL_OPTIONS_HOURS.map(
+            ::formatBackgroundSyncInterval,
+        )
+        val backgroundSyncSummary = if (!backgroundSyncEnabled) {
+            getString(R.string.background_sync_summary_off)
+        } else {
+            syncPreferences.lastBackgroundSyncSummary()?.takeIf { it.isNotBlank() }
+                ?: getString(
+                    R.string.background_sync_summary_pending,
+                    formatBackgroundSyncInterval(backgroundSyncIntervalHours),
+                )
+        }
 
         return MainUiState(
             measurements = measurements,
@@ -181,8 +211,8 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, SettingsFragment
             modelLabels = OmronDeviceRegistry.supportedModels.map(::modelLabel),
             selectedModelIndex = OmronDeviceRegistry.supportedModels
                 .indexOfFirst { it.id == selectedModel.id },
-            deviceLabels = labels,
-            selectedDeviceIndex = selectedIndex,
+            deviceLabels = deviceLabels,
+            selectedDeviceIndex = selectedDeviceIndex,
             isWorking = isWorking,
             canSync = bondedDevices.isNotEmpty(),
             canExport = measurements.isNotEmpty(),
@@ -194,19 +224,23 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, SettingsFragment
             canOpenHealthConnect = isHealthConnectAvailable || isHealthConnectSetupRequired,
             canExportHealthConnect =
                 measurements.isNotEmpty() && isHealthConnectAvailable && isHealthConnectConnected,
-            autoExportHealthConnect = healthConnectAutoExportEnabled(),
+            autoExportHealthConnect = syncPreferences.healthConnectAutoExportEnabled(),
             healthConnectExportUserLabels = healthConnectUserOptions.map { it.label },
             selectedHealthConnectExportUserIndex =
                 healthConnectUserOptions.indexOfFirst { it.key == selectedHealthConnectUser.key },
+            backgroundSyncEnabled = backgroundSyncEnabled,
+            backgroundSyncIntervalLabels = backgroundSyncIntervalLabels,
+            selectedBackgroundSyncIntervalIndex =
+                SyncPreferences.BACKGROUND_SYNC_INTERVAL_OPTIONS_HOURS
+                    .indexOf(backgroundSyncIntervalHours),
+            backgroundSyncSummary = backgroundSyncSummary,
             showsMeasurementUserColumn = selectedModel.userCount > 1,
         )
     }
 
     override fun onModelSelected(position: Int) {
         OmronDeviceRegistry.supportedModels.getOrNull(position)?.let { model ->
-            preferences.edit {
-                putString(PREF_SELECTED_MODEL_ID, model.id)
-            }
+            syncPreferences.setSelectedModelId(model.id)
             notifyCurrentFragment()
         }
     }
@@ -236,17 +270,47 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, SettingsFragment
     }
 
     override fun onHealthConnectAutoExportChanged(enabled: Boolean) {
-        preferences.edit {
-            putBoolean(PREF_HEALTH_CONNECT_AUTO_EXPORT, enabled)
-        }
+        syncPreferences.setHealthConnectAutoExportEnabled(enabled)
         notifyCurrentFragment()
     }
 
     override fun onHealthConnectExportUserSelected(position: Int) {
         val option = buildHealthConnectExportUserOptions(selectedModel()).getOrNull(position) ?: return
-        preferences.edit {
-            putString(PREF_HEALTH_CONNECT_EXPORT_USER, option.key)
+        syncPreferences.setHealthConnectExportUserKey(option.key)
+        notifyCurrentFragment()
+    }
+
+    override fun onBackgroundSyncChanged(enabled: Boolean) {
+        syncPreferences.setBackgroundSyncEnabled(enabled)
+        backgroundSyncScheduler.updateSchedule(
+            enabled = enabled,
+            intervalHours = syncPreferences.backgroundSyncIntervalHours(),
+        )
+        updateStatus(
+            if (enabled) {
+                getString(R.string.status_background_sync_enabled)
+            } else {
+                getString(R.string.status_background_sync_disabled)
+            },
+        )
+        notifyCurrentFragment()
+    }
+
+    override fun onBackgroundSyncIntervalSelected(position: Int) {
+        val hours = SyncPreferences.BACKGROUND_SYNC_INTERVAL_OPTIONS_HOURS.getOrNull(position) ?: return
+        syncPreferences.setBackgroundSyncIntervalHours(hours)
+        if (syncPreferences.backgroundSyncEnabled()) {
+            backgroundSyncScheduler.updateSchedule(
+                enabled = true,
+                intervalHours = hours,
+            )
         }
+        updateStatus(
+            getString(
+                R.string.status_background_sync_interval_updated,
+                formatBackgroundSyncInterval(hours),
+            ),
+        )
         notifyCurrentFragment()
     }
 
@@ -265,7 +329,10 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, SettingsFragment
 
     private fun showScreen(itemId: Int) {
         selectedTabId = itemId
-        supportFragmentManager.popBackStackImmediate(null, androidx.fragment.app.FragmentManager.POP_BACK_STACK_INCLUSIVE)
+        supportFragmentManager.popBackStackImmediate(
+            null,
+            androidx.fragment.app.FragmentManager.POP_BACK_STACK_INCLUSIVE,
+        )
         val fragment: Fragment = when (itemId) {
             R.id.navigation_settings -> SettingsFragment()
             else -> ResultsFragment()
@@ -373,48 +440,15 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, SettingsFragment
             return
         }
 
-        val model = selectedModel()
         persistSelectedDeviceAddress(device.address)
         setWorking(true)
         updateStatus(getString(R.string.status_syncing))
 
         launchUi {
             runCatching {
-                val syncResult = syncClient.sync(device, model)
-                val saveSummary = withContext(Dispatchers.IO) {
-                    measurementStore.saveAll(syncResult.measurements)
-                }
-                val persistedMeasurements = withContext(Dispatchers.IO) {
-                    measurementStore.loadAll()
-                }
-                val healthConnectAutoExport = if (
-                    healthConnectAutoExportEnabled() &&
-                    isHealthConnectAvailable &&
-                    isHealthConnectConnected
-                ) {
-                    val exportMeasurements = filterMeasurementsForHealthConnect(syncResult.measurements, model)
-                    if (exportMeasurements.isEmpty()) {
-                        null
-                    } else {
-                        runCatching {
-                            healthConnectExporter.export(exportMeasurements)
-                        }
-                    }
-                } else {
-                    null
-                }
-                SyncRenderResult(
-                    measurements = persistedMeasurements,
-                    imported = saveSummary.imported,
-                    inserted = saveSummary.inserted,
-                    duplicates = saveSummary.duplicates,
-                    syncLog = syncResult.diagnostics.asText(),
-                    healthConnectExportSummary = healthConnectAutoExport?.getOrNull(),
-                    healthConnectExportError = healthConnectAutoExport?.exceptionOrNull()?.message,
-                )
+                syncOrchestrator.syncSelectedDevice()
             }.onSuccess { result ->
-                measurements = result.measurements
-                renderSyncLog(result.syncLog)
+                renderSyncResult(result)
                 updateStatus(getString(R.string.status_idle))
                 showToast(
                     if (result.healthConnectExportSummary != null) {
@@ -435,9 +469,6 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, SettingsFragment
                         )
                     },
                 )
-                result.healthConnectExportError?.let { errorMessage ->
-                    showToast(getString(R.string.status_health_connect_auto_export_failed, errorMessage))
-                }
             }.onFailure { error ->
                 if (error is SyncException) {
                     renderSyncLog(error.diagnostics.asText())
@@ -448,6 +479,11 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, SettingsFragment
             setWorking(false)
             notifyCurrentFragment()
         }
+    }
+
+    private fun renderSyncResult(result: SyncExecutionResult) {
+        measurements = result.persistedMeasurements
+        renderSyncLog(result.syncLog)
     }
 
     private fun loadPersistedMeasurements() {
@@ -529,17 +565,7 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, SettingsFragment
 
         launchUi {
             runCatching {
-                val storedMeasurements = withContext(Dispatchers.IO) {
-                    measurementStore.loadAll()
-                }
-                val exportMeasurements = filterMeasurementsForHealthConnect(
-                    storedMeasurements,
-                    selectedModel(),
-                )
-                require(exportMeasurements.isNotEmpty()) {
-                    getString(R.string.status_health_connect_no_matching_measurements)
-                }
-                healthConnectExporter.export(exportMeasurements)
+                syncOrchestrator.exportStoredMeasurementsToHealthConnect()
             }.onSuccess { summary ->
                 updateStatus(getString(R.string.health_connect_status_connected))
                 showToast(
@@ -567,7 +593,12 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, SettingsFragment
 
         setWorking(true)
         updateStatus(getString(R.string.status_log_export_choose_location))
-        exportLogDocumentLauncher.launch(csvExporter.suggestedFileName(prefix = "omsyncer-sync-log", extension = "txt"))
+        exportLogDocumentLauncher.launch(
+            csvExporter.suggestedFileName(
+                prefix = "omsyncer-sync-log",
+                extension = "txt",
+            ),
+        )
     }
 
     private fun completeExport(uri: Uri) {
@@ -640,13 +671,11 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, SettingsFragment
     }
 
     private fun persistSelectedDeviceAddress(address: String) {
-        preferences.edit {
-            putString(PREF_SELECTED_DEVICE_ADDRESS, address)
-        }
+        syncPreferences.setSelectedDeviceAddress(address)
     }
 
     private fun selectedDeviceAddress(): String? {
-        return preferences.getString(PREF_SELECTED_DEVICE_ADDRESS, null)
+        return syncPreferences.selectedDeviceAddress()
     }
 
     private fun ensureBluetoothPermission(): Boolean {
@@ -667,30 +696,11 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, SettingsFragment
         ) == PackageManager.PERMISSION_GRANTED
     }
 
-    private fun healthConnectAutoExportEnabled(): Boolean {
-        return preferences.getBoolean(PREF_HEALTH_CONNECT_AUTO_EXPORT, true)
-    }
-
-    private fun filterMeasurementsForHealthConnect(
-        sourceMeasurements: List<Measurement>,
-        model: OmronDeviceDefinition,
-    ): List<Measurement> {
-        val selectedUser = resolveHealthConnectExportUserOption(model).user
-        return if (selectedUser == null) {
-            sourceMeasurements
-        } else {
-            sourceMeasurements.filter { it.user == selectedUser }
-        }
-    }
-
     private fun resolveHealthConnectExportUserOption(
         model: OmronDeviceDefinition,
     ): HealthConnectExportUserOption {
         val options = buildHealthConnectExportUserOptions(model)
-        val selectedKey = preferences.getString(
-            PREF_HEALTH_CONNECT_EXPORT_USER,
-            HEALTH_CONNECT_EXPORT_USER_ALL,
-        )
+        val selectedKey = syncPreferences.healthConnectExportUserKey()
         return options.firstOrNull { it.key == selectedKey } ?: options.first()
     }
 
@@ -701,7 +711,7 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, SettingsFragment
         return when {
             users.isEmpty() -> listOf(
                 HealthConnectExportUserOption(
-                    key = HEALTH_CONNECT_EXPORT_USER_ALL,
+                    key = SyncPreferences.HEALTH_CONNECT_EXPORT_USER_ALL,
                     user = null,
                     label = getString(R.string.health_connect_export_user_all),
                 ),
@@ -718,7 +728,7 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, SettingsFragment
             else -> buildList {
                 add(
                     HealthConnectExportUserOption(
-                        key = HEALTH_CONNECT_EXPORT_USER_ALL,
+                        key = SyncPreferences.HEALTH_CONNECT_EXPORT_USER_ALL,
                         user = null,
                         label = getString(R.string.health_connect_export_user_all),
                     ),
@@ -737,9 +747,7 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, SettingsFragment
     }
 
     private fun selectedModel(): OmronDeviceDefinition {
-        return OmronDeviceRegistry.findById(
-            preferences.getString(PREF_SELECTED_MODEL_ID, OmronDeviceRegistry.defaultModel().id),
-        )
+        return syncPreferences.selectedModel()
     }
 
     private fun modelLabel(model: OmronDeviceDefinition): String {
@@ -748,6 +756,14 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, SettingsFragment
             VerificationLevel.EXPERIMENTAL -> getString(R.string.model_support_experimental)
         }
         return "${model.modelCode} - $status"
+    }
+
+    private fun formatBackgroundSyncInterval(hours: Int): String {
+        return resources.getQuantityString(
+            R.plurals.background_sync_interval_option,
+            hours,
+            hours,
+        )
     }
 
     private fun bluetoothAdapter(): BluetoothAdapter? {
@@ -774,21 +790,15 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, SettingsFragment
         }
         binding.toolbar.navigationIcon =
             if (isLogScreen) {
-                AppCompatResources.getDrawable(this, androidx.appcompat.R.drawable.abc_ic_ab_back_material)
+                AppCompatResources.getDrawable(
+                    this,
+                    androidx.appcompat.R.drawable.abc_ic_ab_back_material,
+                )
+            } else {
+                null
             }
-            else null
         binding.bottomNavigation.visibility = if (isLogScreen) View.GONE else View.VISIBLE
     }
-
-    private data class SyncRenderResult(
-        val measurements: List<Measurement>,
-        val imported: Int,
-        val inserted: Int,
-        val duplicates: Int,
-        val syncLog: String,
-        val healthConnectExportSummary: HealthConnectBloodPressureExporter.ExportSummary?,
-        val healthConnectExportError: String?,
-    )
 
     private data class HealthConnectExportUserOption(
         val key: String,
@@ -798,12 +808,6 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, SettingsFragment
 
     private companion object {
         const val BACKSTACK_SYNC_LOG = "sync_log"
-        const val PREFERENCES_NAME = "om_syncer_prefs"
-        const val PREF_SELECTED_MODEL_ID = "selected_model_id"
-        const val PREF_SELECTED_DEVICE_ADDRESS = "selected_device_address"
-        const val PREF_HEALTH_CONNECT_AUTO_EXPORT = "health_connect_auto_export"
-        const val PREF_HEALTH_CONNECT_EXPORT_USER = "health_connect_export_user"
-        const val HEALTH_CONNECT_EXPORT_USER_ALL = "all"
         const val KEY_SELECTED_TAB = "selected_tab"
     }
 }
