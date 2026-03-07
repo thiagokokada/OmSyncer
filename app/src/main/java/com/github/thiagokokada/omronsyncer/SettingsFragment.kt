@@ -18,6 +18,7 @@ class SettingsFragment : Fragment() {
         fun onExportRequested()
         fun onHealthConnectRequested()
         fun onHealthConnectExportRequested()
+        fun onHealthConnectAutoExportChanged(enabled: Boolean)
         fun onSyncLogRequested()
         fun onDeviceSelected(position: Int)
     }
@@ -27,6 +28,7 @@ class SettingsFragment : Fragment() {
     private lateinit var host: Host
     private lateinit var deviceAdapter: ArrayAdapter<String>
     private var suppressSelectionCallback = false
+    private var suppressAutoExportCallback = false
 
     override fun onAttach(context: Context) {
         super.onAttach(context)
@@ -76,6 +78,11 @@ class SettingsFragment : Fragment() {
         binding.healthConnectExportButton.setOnClickListener {
             host.onHealthConnectExportRequested()
         }
+        binding.healthConnectAutoExportSwitch.setOnCheckedChangeListener { _, isChecked ->
+            if (!suppressAutoExportCallback) {
+                host.onHealthConnectAutoExportChanged(isChecked)
+            }
+        }
         binding.syncLogButton.setOnClickListener {
             host.onSyncLogRequested()
         }
@@ -114,6 +121,10 @@ class SettingsFragment : Fragment() {
             else -> getString(R.string.grant_health_connect_access)
         }
         binding.healthConnectExportButton.isEnabled = state.canExportHealthConnect && !state.isWorking
+        suppressAutoExportCallback = true
+        binding.healthConnectAutoExportSwitch.isChecked = state.autoExportHealthConnect
+        suppressAutoExportCallback = false
+        binding.healthConnectAutoExportSwitch.isEnabled = !state.isWorking
         binding.syncLogButton.isEnabled = !state.isWorking
     }
 

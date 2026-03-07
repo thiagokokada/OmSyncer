@@ -7,13 +7,14 @@
     <string name="settings_export_title">Data export</string>
     <string name="settings_export_body">Save the locally stored measurements as a CSV file wherever you want.</string>
     <string name="settings_health_connect_title">Health Connect</string>
-    <string name="settings_health_connect_body">Write synced blood pressure and pulse measurements into Health Connect. OmSyncer automatically exports after device sync when access is granted.</string>
+    <string name="settings_health_connect_body">Write synced blood pressure and pulse measurements into Health Connect.</string>
     <string name="settings_diagnostics_title">Diagnostics</string>
     <string name="settings_log_body">Open the latest BLE session log and export it when you need to inspect a failed sync.</string>
     <string name="open_bluetooth_settings">Bluetooth</string>
     <string name="open_health_connect">Open Health Connect</string>
     <string name="manage_health_connect">Manage Health Connect</string>
     <string name="grant_health_connect_access">Grant Health Connect access</string>
+    <string name="health_connect_auto_export_label">Auto-export after sync</string>
     <string name="open_sync_log">Open sync log</string>
     <string name="refresh_devices">Refresh devices</string>
     <string name="sync_now">Sync now</string>

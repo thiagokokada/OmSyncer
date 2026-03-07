@@ -185,6 +185,7 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, SettingsFragment
             canOpenHealthConnect = isHealthConnectAvailable || isHealthConnectSetupRequired,
             canExportHealthConnect =
                 measurements.isNotEmpty() && isHealthConnectAvailable && isHealthConnectConnected,
+            autoExportHealthConnect = healthConnectAutoExportEnabled(),
         )
     }
 
@@ -210,6 +211,13 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, SettingsFragment
 
     override fun onHealthConnectExportRequested() {
         exportToHealthConnect()
+    }
+
+    override fun onHealthConnectAutoExportChanged(enabled: Boolean) {
+        preferences.edit {
+            putBoolean(PREF_HEALTH_CONNECT_AUTO_EXPORT, enabled)
+        }
+        notifyCurrentFragment()
     }
 
     override fun onSyncLogRequested() {
@@ -348,7 +356,11 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, SettingsFragment
                 val persistedMeasurements = withContext(Dispatchers.IO) {
                     measurementStore.loadAll()
                 }
-                val healthConnectAutoExport = if (isHealthConnectAvailable && isHealthConnectConnected) {
+                val healthConnectAutoExport = if (
+                    healthConnectAutoExportEnabled() &&
+                    isHealthConnectAvailable &&
+                    isHealthConnectConnected
+                ) {
                     runCatching {
                         healthConnectExporter.export(syncResult.measurements)
                     }
@@ -612,6 +624,10 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, SettingsFragment
         ) == PackageManager.PERMISSION_GRANTED
     }
 
+    private fun healthConnectAutoExportEnabled(): Boolean {
+        return preferences.getBoolean(PREF_HEALTH_CONNECT_AUTO_EXPORT, true)
+    }
+
     private fun bluetoothAdapter(): BluetoothAdapter? {
         val manager = getSystemService(BLUETOOTH_SERVICE) as? BluetoothManager
         return manager?.adapter
@@ -656,6 +672,7 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, SettingsFragment
         const val BACKSTACK_SYNC_LOG = "sync_log"
         const val PREFERENCES_NAME = "om_syncer_prefs"
         const val PREF_SELECTED_DEVICE_ADDRESS = "selected_device_address"
+        const val PREF_HEALTH_CONNECT_AUTO_EXPORT = "health_connect_auto_export"
         const val KEY_SELECTED_TAB = "selected_tab"
     }
 }
