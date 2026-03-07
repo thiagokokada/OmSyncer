@@ -58,6 +58,7 @@ class ResultsFragment : Fragment() {
             return
         }
 
+        adapter.setShowUserColumn(state.showsMeasurementUserColumn)
         adapter.submitList(state.measurements)
 
         binding.syncButton.isEnabled = state.canSync && !state.isWorking
@@ -86,6 +87,8 @@ class ResultsFragment : Fragment() {
 
         binding.emptyState.visibility =
             if (state.measurements.isEmpty()) View.VISIBLE else View.GONE
+        binding.userColumnLabel.visibility =
+            if (state.showsMeasurementUserColumn) View.VISIBLE else View.GONE
     }
 
     override fun onDestroyView() {

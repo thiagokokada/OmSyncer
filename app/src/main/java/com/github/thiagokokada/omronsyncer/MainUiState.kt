@@ -6,6 +6,8 @@ data class MainUiState(
     val measurements: List<Measurement>,
     val statusMessage: String,
     val syncLog: String,
+    val modelLabels: List<String>,
+    val selectedModelIndex: Int,
     val deviceLabels: List<String>,
     val selectedDeviceIndex: Int,
     val isWorking: Boolean,
@@ -21,4 +23,5 @@ data class MainUiState(
     val autoExportHealthConnect: Boolean,
     val healthConnectExportUserLabels: List<String>,
     val selectedHealthConnectExportUserIndex: Int,
+    val showsMeasurementUserColumn: Boolean,
 )

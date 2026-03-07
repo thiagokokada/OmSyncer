@@ -16,23 +16,25 @@ import kotlinx.coroutines.channels.trySendBlocking
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
-import java.time.DateTimeException
-import java.time.LocalDateTime
 import java.util.UUID
 
-class Hem7380T1SyncClient(
+class OmronSyncClient(
     private val context: Context,
 ) {
 
-    suspend fun sync(device: BluetoothDevice): SyncResult = withContext(Dispatchers.IO) {
+    suspend fun sync(
+        device: BluetoothDevice,
+        model: OmronDeviceDefinition,
+    ): SyncResult = withContext(Dispatchers.IO) {
         val diagnostics = mutableListOf<String>()
         fun log(message: String) {
             diagnostics += message
         }
 
+        log("Model: ${model.modelCode} (${model.marketedName})")
         log("Selected device: ${device.name ?: "Unknown"} (${device.address})")
 
-        val session = GattSession(context, device, ::log)
+        val session = GattSession(context, device, model, ::log)
         try {
             log("Connecting to GATT...")
             session.connect()
@@ -41,13 +43,14 @@ class Hem7380T1SyncClient(
             log("Discovering services...")
             session.discoverServices()
             log("Enabling RX notifications...")
-            session.enableNotifications(SERVICE_UUID, RX_UUID)
+            session.enableNotifications()
 
             session.startTransmission()
 
             val measurements = buildList {
-                addAll(readUser(session, user = 1, startAddress = USER1_START_ADDRESS))
-                addAll(readUser(session, user = 2, startAddress = USER2_START_ADDRESS))
+                model.userLayouts.forEach { layout ->
+                    addAll(readUser(session, model, layout))
+                }
             }
 
             session.endTransmission()
@@ -72,57 +75,25 @@ class Hem7380T1SyncClient(
 
     private suspend fun readUser(
         session: GattSession,
-        user: Int,
-        startAddress: Int,
+        model: OmronDeviceDefinition,
+        userLayout: OmronUserLayout,
     ): List<Measurement> {
         val measurements = buildList {
-            repeat(RECORD_COUNT_PER_USER) { recordIndex ->
-                val recordAddress = startAddress + (recordIndex * RECORD_SIZE_BYTES)
-                val recordBytes = session.readRecord(recordAddress, RECORD_SIZE_BYTES)
-                parseMeasurement(user, recordBytes)?.let(::add)
+            repeat(userLayout.recordCount) { recordIndex ->
+                val recordAddress = userLayout.startAddress + (recordIndex * model.recordSizeBytes)
+                val recordBytes = session.readRecord(recordAddress, model.recordSizeBytes)
+                OmronRecordParser.parseMeasurement(model, userLayout.user, recordBytes)?.let(::add)
             }
         }
 
-        session.logUserSummary(user, measurements)
+        session.logUserSummary(userLayout.user, measurements)
         return measurements
-    }
-
-    private fun parseMeasurement(user: Int, recordBytes: ByteArray): Measurement? {
-        val rawSystolic = recordBytes[0].toUByte().toInt()
-        if (rawSystolic > 0xE1) {
-            return null
-        }
-
-        val year = 2000 + (recordBytes[3].toInt() and 0x3F)
-        val flags1 = recordBytes[4].toUByte().toInt() or (recordBytes[5].toUByte().toInt() shl 8)
-        val flags2 = recordBytes[6].toUByte().toInt() or (recordBytes[7].toUByte().toInt() shl 8)
-
-        val month = (flags1 shr 10) and 0x0F
-        val day = (flags1 shr 5) and 0x1F
-        val hour = flags1 and 0x1F
-        val minute = (flags2 shr 6) and 0x3F
-        val second = minOf(flags2 and 0x3F, 59)
-
-        val timestamp = try {
-            LocalDateTime.of(year, month, day, hour, minute, second)
-        } catch (_: DateTimeException) {
-            return null
-        }
-
-        return Measurement(
-            user = user,
-            recordedAt = timestamp,
-            systolic = rawSystolic + 25,
-            diastolic = recordBytes[1].toUByte().toInt(),
-            pulse = recordBytes[2].toUByte().toInt(),
-            irregularHeartbeat = ((flags1 shr 14) and 0x01) == 1,
-            movement = ((flags1 shr 15) and 0x01) == 1,
-        )
     }
 
     private class GattSession(
         private val context: Context,
         private val device: BluetoothDevice,
+        private val model: OmronDeviceDefinition,
         private val log: (String) -> Unit,
     ) {
 
@@ -149,9 +120,8 @@ class Hem7380T1SyncClient(
                             ),
                         )
                     }
-                    newState == BluetoothGatt.STATE_CONNECTED -> {
-                        deferred?.complete(Unit)
-                    }
+
+                    newState == BluetoothGatt.STATE_CONNECTED -> deferred?.complete(Unit)
                     newState == BluetoothGatt.STATE_DISCONNECTED -> {
                         deferred?.completeExceptionally(
                             IllegalStateException("Bluetooth device disconnected."),
@@ -265,9 +235,9 @@ class Hem7380T1SyncClient(
         }
 
         @SuppressLint("MissingPermission")
-        suspend fun enableNotifications(serviceUuid: UUID, characteristicUuid: UUID) {
+        suspend fun enableNotifications() {
             val gatt = requireGatt()
-            val characteristic = requireCharacteristic(serviceUuid, characteristicUuid)
+            val characteristic = requireCharacteristic(model.serviceUuid, model.rxUuid)
             if (!gatt.setCharacteristicNotification(characteristic, true)) {
                 throw IllegalStateException("Failed to enable notifications.")
             }
@@ -306,32 +276,6 @@ class Hem7380T1SyncClient(
                     "Device reported endTransmission error: ${response.data.first().toUByte().toInt()}",
                 )
             }
-        }
-
-        suspend fun readContinuousEepromData(
-            startAddress: Int,
-            bytesToRead: Int,
-            blockSize: Int,
-        ): ByteArray {
-            val data = ArrayList<Byte>(bytesToRead)
-            var currentAddress = startAddress
-            var remaining = bytesToRead
-
-            while (remaining > 0) {
-                val nextBlockSize = minOf(remaining, blockSize)
-                val response = sendCommand(buildReadCommand(currentAddress, nextBlockSize))
-                require(response.packetType == RESPONSE_READ) {
-                    "Unexpected read response: 0x${response.packetType.toString(16)}"
-                }
-                require(response.address == currentAddress) {
-                    "Read response address mismatch: expected=0x${currentAddress.toString(16)} actual=0x${response.address.toString(16)}"
-                }
-                data += response.data.toList()
-                currentAddress += nextBlockSize
-                remaining -= nextBlockSize
-            }
-
-            return data.toByteArray()
         }
 
         suspend fun readRecord(address: Int, recordSize: Int): ByteArray {
@@ -377,7 +321,7 @@ class Hem7380T1SyncClient(
                         // Discard stale packets before a new request.
                     }
 
-                    val txCharacteristic = requireCharacteristic(SERVICE_UUID, TX_UUID)
+                    val txCharacteristic = requireCharacteristic(model.serviceUuid, model.txUuid)
                     @Suppress("DEPRECATION")
                     txCharacteristic.writeType = BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE
                     @Suppress("DEPRECATION")
@@ -486,10 +430,6 @@ class Hem7380T1SyncClient(
     ) : IllegalStateException(message, cause)
 
     private companion object {
-        const val USER1_START_ADDRESS = 0x01C4
-        const val USER2_START_ADDRESS = 0x0804
-        const val RECORD_COUNT_PER_USER = 100
-        const val RECORD_SIZE_BYTES = 0x10
         const val MTU = 185
         const val RESPONSE_TIMEOUT_MS = 5_000L
         const val COMMAND_RETRY_COUNT = 3
@@ -499,9 +439,6 @@ class Hem7380T1SyncClient(
         const val RESPONSE_READ = 0x8100
         const val RESPONSE_END = 0x8F00
 
-        val SERVICE_UUID: UUID = UUID.fromString("0000fe4a-0000-1000-8000-00805f9b34fb")
-        val RX_UUID: UUID = UUID.fromString("49123040-aee8-11e1-a74d-0002a5d5c51b")
-        val TX_UUID: UUID = UUID.fromString("db5b55e0-aee7-11e1-965e-0002a5d5c51b")
         val CLIENT_CHARACTERISTIC_CONFIG_UUID: UUID =
             UUID.fromString("00002902-0000-1000-8000-00805f9b34fb")
 

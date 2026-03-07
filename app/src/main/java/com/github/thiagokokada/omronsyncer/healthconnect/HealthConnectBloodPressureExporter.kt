@@ -154,7 +154,7 @@ class HealthConnectBloodPressureExporter(private val context: Context) {
 
     private companion object {
         const val DEVICE_MANUFACTURER = "Omron"
-        const val DEVICE_MODEL = "HEM-7380T1"
+        const val DEVICE_MODEL = "Blood Pressure Monitor"
         const val HEALTH_CONNECT_PACKAGE = "com.google.android.apps.healthdata"
 
         val CLIENT_TIME_FORMATTER: DateTimeFormatter =

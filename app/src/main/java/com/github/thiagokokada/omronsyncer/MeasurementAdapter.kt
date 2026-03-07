@@ -1,5 +1,6 @@
 package com.github.thiagokokada.omronsyncer
 
+import android.view.View
 import android.view.LayoutInflater
 import android.view.ViewGroup
 import androidx.recyclerview.widget.DiffUtil
@@ -12,6 +13,15 @@ import java.time.format.DateTimeFormatter
 class MeasurementAdapter :
     ListAdapter<Measurement, MeasurementAdapter.MeasurementViewHolder>(DiffCallback) {
 
+    private var showUserColumn: Boolean = true
+
+    fun setShowUserColumn(show: Boolean) {
+        if (showUserColumn != show) {
+            showUserColumn = show
+            notifyDataSetChanged()
+        }
+    }
+
     fun formatTimestamp(recordedAt: java.time.LocalDateTime): String {
         return TIMESTAMP_FORMATTER.format(recordedAt)
     }
@@ -23,20 +33,21 @@ class MeasurementAdapter :
     }
 
     override fun onBindViewHolder(holder: MeasurementViewHolder, position: Int) {
-        holder.bind(getItem(position))
+        holder.bind(getItem(position), showUserColumn)
     }
 
     class MeasurementViewHolder(
         private val binding: ItemMeasurementBinding,
     ) : RecyclerView.ViewHolder(binding.root) {
 
-        fun bind(measurement: Measurement) {
+        fun bind(measurement: Measurement, showUserColumn: Boolean) {
             binding.timeValue.text = TIMESTAMP_FORMATTER.format(measurement.recordedAt)
             binding.sysValue.text = measurement.systolic.toString()
             binding.diaValue.text = measurement.diastolic.toString()
             binding.pulseValue.text = measurement.pulse.toString()
             binding.flagsValue.text = measurement.flagsLabel()
             binding.userValue.text = measurement.user.toString()
+            binding.userValue.visibility = if (showUserColumn) View.VISIBLE else View.GONE
         }
     }
 

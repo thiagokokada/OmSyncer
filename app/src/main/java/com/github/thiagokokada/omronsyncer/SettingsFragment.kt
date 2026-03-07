@@ -13,6 +13,7 @@ class SettingsFragment : Fragment() {
 
     interface Host {
         fun currentUiState(): MainUiState
+        fun onModelSelected(position: Int)
         fun onBluetoothSettingsRequested()
         fun onRefreshDevicesRequested()
         fun onExportRequested()
@@ -27,8 +28,10 @@ class SettingsFragment : Fragment() {
     private var _binding: FragmentSettingsBinding? = null
     private val binding get() = _binding!!
     private lateinit var host: Host
+    private lateinit var modelAdapter: ArrayAdapter<String>
     private lateinit var deviceAdapter: ArrayAdapter<String>
     private lateinit var healthConnectUserAdapter: ArrayAdapter<String>
+    private var suppressModelSelectionCallback = false
     private var suppressSelectionCallback = false
     private var suppressHealthConnectUserCallback = false
     private var suppressAutoExportCallback = false
@@ -51,6 +54,14 @@ class SettingsFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
+        modelAdapter = ArrayAdapter(
+            requireContext(),
+            android.R.layout.simple_spinner_item,
+            mutableListOf<String>(),
+        ).also {
+            it.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+            binding.modelSpinner.adapter = it
+        }
         deviceAdapter = ArrayAdapter(
             requireContext(),
             android.R.layout.simple_spinner_item,
@@ -68,6 +79,11 @@ class SettingsFragment : Fragment() {
             binding.healthConnectUserSpinner.adapter = it
         }
 
+        binding.modelSpinner.onItemSelectedListener = SimpleItemSelectedListener { position ->
+            if (!suppressModelSelectionCallback) {
+                host.onModelSelected(position)
+            }
+        }
         binding.deviceSpinner.onItemSelectedListener = SimpleItemSelectedListener { position ->
             if (!suppressSelectionCallback) {
                 host.onDeviceSelected(position)
@@ -115,6 +131,16 @@ class SettingsFragment : Fragment() {
         }
 
         binding.statusValue.text = state.statusMessage
+
+        suppressModelSelectionCallback = true
+        modelAdapter.clear()
+        modelAdapter.addAll(state.modelLabels)
+        modelAdapter.notifyDataSetChanged()
+        binding.modelSpinner.isEnabled = state.modelLabels.isNotEmpty() && !state.isWorking
+        if (state.selectedModelIndex >= 0 && state.selectedModelIndex < state.modelLabels.size) {
+            binding.modelSpinner.setSelection(state.selectedModelIndex)
+        }
+        suppressModelSelectionCallback = false
 
         suppressSelectionCallback = true
         deviceAdapter.clear()

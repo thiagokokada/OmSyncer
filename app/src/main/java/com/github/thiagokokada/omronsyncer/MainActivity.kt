@@ -30,8 +30,11 @@ import com.github.thiagokokada.omronsyncer.databinding.ActivityMainBinding
 import com.github.thiagokokada.omronsyncer.export.MeasurementCsvExporter
 import com.github.thiagokokada.omronsyncer.healthconnect.HealthConnectBloodPressureExporter
 import com.github.thiagokokada.omronsyncer.model.Measurement
-import com.github.thiagokokada.omronsyncer.omron.Hem7380T1SyncClient
-import com.github.thiagokokada.omronsyncer.omron.Hem7380T1SyncClient.SyncException
+import com.github.thiagokokada.omronsyncer.omron.OmronDeviceDefinition
+import com.github.thiagokokada.omronsyncer.omron.OmronDeviceRegistry
+import com.github.thiagokokada.omronsyncer.omron.OmronSyncClient
+import com.github.thiagokokada.omronsyncer.omron.OmronSyncClient.SyncException
+import com.github.thiagokokada.omronsyncer.omron.VerificationLevel
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -44,7 +47,7 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, SettingsFragment
 
     private val bondedDevices = mutableListOf<BluetoothDevice>()
     private val measurementStore by lazy { MeasurementStore(this) }
-    private val syncClient by lazy { Hem7380T1SyncClient(this) }
+    private val syncClient by lazy { OmronSyncClient(this) }
     private val csvExporter by lazy { MeasurementCsvExporter() }
     private val healthConnectExporter by lazy { HealthConnectBloodPressureExporter(this) }
 
@@ -154,6 +157,7 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, SettingsFragment
 
     @SuppressLint("MissingPermission")
     override fun currentUiState(): MainUiState {
+        val selectedModel = selectedModel()
         val labels = if (hasBluetoothPermission()) {
             bondedDevices.map { device ->
                 val displayName = device.name ?: getString(R.string.device_name_placeholder)
@@ -167,13 +171,16 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, SettingsFragment
         } else {
             -1
         }
-        val healthConnectUserOptions = buildHealthConnectExportUserOptions(measurements)
-        val selectedHealthConnectUser = resolveHealthConnectExportUserOption(measurements)
+        val healthConnectUserOptions = buildHealthConnectExportUserOptions(selectedModel)
+        val selectedHealthConnectUser = resolveHealthConnectExportUserOption(selectedModel)
 
         return MainUiState(
             measurements = measurements,
             statusMessage = statusMessage,
             syncLog = lastSyncLog,
+            modelLabels = OmronDeviceRegistry.supportedModels.map(::modelLabel),
+            selectedModelIndex = OmronDeviceRegistry.supportedModels
+                .indexOfFirst { it.id == selectedModel.id },
             deviceLabels = labels,
             selectedDeviceIndex = selectedIndex,
             isWorking = isWorking,
@@ -191,7 +198,17 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, SettingsFragment
             healthConnectExportUserLabels = healthConnectUserOptions.map { it.label },
             selectedHealthConnectExportUserIndex =
                 healthConnectUserOptions.indexOfFirst { it.key == selectedHealthConnectUser.key },
+            showsMeasurementUserColumn = selectedModel.userCount > 1,
         )
+    }
+
+    override fun onModelSelected(position: Int) {
+        OmronDeviceRegistry.supportedModels.getOrNull(position)?.let { model ->
+            preferences.edit {
+                putString(PREF_SELECTED_MODEL_ID, model.id)
+            }
+            notifyCurrentFragment()
+        }
     }
 
     override fun onSyncRequested() {
@@ -226,7 +243,7 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, SettingsFragment
     }
 
     override fun onHealthConnectExportUserSelected(position: Int) {
-        val option = buildHealthConnectExportUserOptions(measurements).getOrNull(position) ?: return
+        val option = buildHealthConnectExportUserOptions(selectedModel()).getOrNull(position) ?: return
         preferences.edit {
             putString(PREF_HEALTH_CONNECT_EXPORT_USER, option.key)
         }
@@ -356,13 +373,14 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, SettingsFragment
             return
         }
 
+        val model = selectedModel()
         persistSelectedDeviceAddress(device.address)
         setWorking(true)
         updateStatus(getString(R.string.status_syncing))
 
         launchUi {
             runCatching {
-                val syncResult = syncClient.sync(device)
+                val syncResult = syncClient.sync(device, model)
                 val saveSummary = withContext(Dispatchers.IO) {
                     measurementStore.saveAll(syncResult.measurements)
                 }
@@ -374,7 +392,7 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, SettingsFragment
                     isHealthConnectAvailable &&
                     isHealthConnectConnected
                 ) {
-                    val exportMeasurements = filterMeasurementsForHealthConnect(syncResult.measurements)
+                    val exportMeasurements = filterMeasurementsForHealthConnect(syncResult.measurements, model)
                     if (exportMeasurements.isEmpty()) {
                         null
                     } else {
@@ -514,7 +532,10 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, SettingsFragment
                 val storedMeasurements = withContext(Dispatchers.IO) {
                     measurementStore.loadAll()
                 }
-                val exportMeasurements = filterMeasurementsForHealthConnect(storedMeasurements)
+                val exportMeasurements = filterMeasurementsForHealthConnect(
+                    storedMeasurements,
+                    selectedModel(),
+                )
                 require(exportMeasurements.isNotEmpty()) {
                     getString(R.string.status_health_connect_no_matching_measurements)
                 }
@@ -652,8 +673,9 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, SettingsFragment
 
     private fun filterMeasurementsForHealthConnect(
         sourceMeasurements: List<Measurement>,
+        model: OmronDeviceDefinition,
     ): List<Measurement> {
-        val selectedUser = resolveHealthConnectExportUserOption(sourceMeasurements).user
+        val selectedUser = resolveHealthConnectExportUserOption(model).user
         return if (selectedUser == null) {
             sourceMeasurements
         } else {
@@ -662,9 +684,9 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, SettingsFragment
     }
 
     private fun resolveHealthConnectExportUserOption(
-        sourceMeasurements: List<Measurement>,
+        model: OmronDeviceDefinition,
     ): HealthConnectExportUserOption {
-        val options = buildHealthConnectExportUserOptions(sourceMeasurements)
+        val options = buildHealthConnectExportUserOptions(model)
         val selectedKey = preferences.getString(
             PREF_HEALTH_CONNECT_EXPORT_USER,
             HEALTH_CONNECT_EXPORT_USER_ALL,
@@ -673,9 +695,9 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, SettingsFragment
     }
 
     private fun buildHealthConnectExportUserOptions(
-        sourceMeasurements: List<Measurement>,
+        model: OmronDeviceDefinition,
     ): List<HealthConnectExportUserOption> {
-        val users = sourceMeasurements.map { it.user }.distinct().sorted()
+        val users = model.userLayouts.map { it.user }
         return when {
             users.isEmpty() -> listOf(
                 HealthConnectExportUserOption(
@@ -712,6 +734,20 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, SettingsFragment
                 }
             }
         }
+    }
+
+    private fun selectedModel(): OmronDeviceDefinition {
+        return OmronDeviceRegistry.findById(
+            preferences.getString(PREF_SELECTED_MODEL_ID, OmronDeviceRegistry.defaultModel().id),
+        )
+    }
+
+    private fun modelLabel(model: OmronDeviceDefinition): String {
+        val status = when (model.verificationLevel) {
+            VerificationLevel.VERIFIED -> getString(R.string.model_support_verified)
+            VerificationLevel.EXPERIMENTAL -> getString(R.string.model_support_experimental)
+        }
+        return "${model.modelCode} - $status"
     }
 
     private fun bluetoothAdapter(): BluetoothAdapter? {
@@ -763,6 +799,7 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, SettingsFragment
     private companion object {
         const val BACKSTACK_SYNC_LOG = "sync_log"
         const val PREFERENCES_NAME = "om_syncer_prefs"
+        const val PREF_SELECTED_MODEL_ID = "selected_model_id"
         const val PREF_SELECTED_DEVICE_ADDRESS = "selected_device_address"
         const val PREF_HEALTH_CONNECT_AUTO_EXPORT = "health_connect_auto_export"
         const val PREF_HEALTH_CONNECT_EXPORT_USER = "health_connect_export_user"
