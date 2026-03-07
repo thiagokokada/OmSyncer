@@ -11,4 +11,5 @@ data class MainUiState(
     val isWorking: Boolean,
     val canSync: Boolean,
     val canExport: Boolean,
+    val canExportLog: Boolean,
 )

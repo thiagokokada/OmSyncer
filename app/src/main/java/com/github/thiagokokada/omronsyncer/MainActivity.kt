@@ -14,6 +14,7 @@ import android.provider.Settings
 import android.view.View
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
+import androidx.appcompat.content.res.AppCompatResources
 import androidx.core.content.ContextCompat
 import androidx.core.content.edit
 import androidx.fragment.app.Fragment
@@ -32,7 +33,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-class MainActivity : AppCompatActivity(), ResultsFragment.Host, SettingsFragment.Host {
+class MainActivity : AppCompatActivity(), ResultsFragment.Host, SettingsFragment.Host, SyncLogFragment.Host {
 
     private lateinit var binding: ActivityMainBinding
     private lateinit var preferences: SharedPreferences
@@ -67,6 +68,16 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, SettingsFragment
             }
         }
 
+    private val exportLogDocumentLauncher =
+        registerForActivityResult(ActivityResultContracts.CreateDocument("text/plain")) { uri ->
+            if (uri == null) {
+                updateStatus(getString(R.string.status_log_export_cancelled))
+                setWorking(false)
+            } else {
+                completeLogExport(uri)
+            }
+        }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
@@ -75,10 +86,17 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, SettingsFragment
         preferences = getSharedPreferences(PREFERENCES_NAME, MODE_PRIVATE)
         applyWindowInsets()
 
-        binding.toolbar.title = getString(R.string.app_name)
+        binding.appTitle.text = getString(R.string.app_name)
+        binding.toolbar.setNavigationOnClickListener {
+            onBackPressedDispatcher.onBackPressed()
+        }
         binding.bottomNavigation.setOnItemSelectedListener { item ->
             showScreen(item.itemId)
             true
+        }
+        supportFragmentManager.addOnBackStackChangedListener {
+            updateTopLevelUi()
+            notifyCurrentFragment()
         }
 
         selectedTabId = savedInstanceState?.getInt(KEY_SELECTED_TAB, R.id.navigation_results)
@@ -116,6 +134,7 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, SettingsFragment
             isWorking = isWorking,
             canSync = bondedDevices.isNotEmpty(),
             canExport = measurements.isNotEmpty(),
+            canExportLog = lastSyncLog.isNotBlank(),
         )
     }
 
@@ -135,6 +154,14 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, SettingsFragment
         exportMeasurements()
     }
 
+    override fun onSyncLogRequested() {
+        showSyncLog()
+    }
+
+    override fun onExportSyncLogRequested() {
+        exportSyncLog()
+    }
+
     override fun onDeviceSelected(position: Int) {
         bondedDevices.getOrNull(position)?.address?.let(::persistSelectedDeviceAddress)
         notifyCurrentFragment()
@@ -142,20 +169,32 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, SettingsFragment
 
     private fun showScreen(itemId: Int) {
         selectedTabId = itemId
+        supportFragmentManager.popBackStackImmediate(null, androidx.fragment.app.FragmentManager.POP_BACK_STACK_INCLUSIVE)
         val fragment: Fragment = when (itemId) {
             R.id.navigation_settings -> SettingsFragment()
             else -> ResultsFragment()
         }
 
-        binding.toolbar.subtitle = getString(
-            if (itemId == R.id.navigation_settings) R.string.settings_title else R.string.results_title,
-        )
-
         supportFragmentManager.beginTransaction()
             .replace(R.id.fragment_container, fragment)
             .commit()
 
-        binding.root.post { notifyCurrentFragment() }
+        binding.root.post {
+            updateTopLevelUi()
+            notifyCurrentFragment()
+        }
+    }
+
+    private fun showSyncLog() {
+        supportFragmentManager.beginTransaction()
+            .replace(R.id.fragment_container, SyncLogFragment())
+            .addToBackStack(BACKSTACK_SYNC_LOG)
+            .commit()
+
+        binding.root.post {
+            updateTopLevelUi()
+            notifyCurrentFragment()
+        }
     }
 
     private fun applyWindowInsets() {
@@ -294,6 +333,17 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, SettingsFragment
         exportDocumentLauncher.launch(csvExporter.suggestedFileName())
     }
 
+    private fun exportSyncLog() {
+        if (lastSyncLog.isBlank()) {
+            updateStatus(getString(R.string.sync_log_empty))
+            return
+        }
+
+        setWorking(true)
+        updateStatus(getString(R.string.status_log_export_choose_location))
+        exportLogDocumentLauncher.launch(csvExporter.suggestedFileName(prefix = "omsyncer-sync-log", extension = "txt"))
+    }
+
     private fun completeExport(uri: Uri) {
         updateStatus(getString(R.string.status_exporting))
 
@@ -318,10 +368,32 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, SettingsFragment
         }
     }
 
+    private fun completeLogExport(uri: Uri) {
+        updateStatus(getString(R.string.status_log_exporting))
+
+        launchUi {
+            runCatching {
+                withContext(Dispatchers.IO) {
+                    contentResolver.openOutputStream(uri)?.bufferedWriter()?.use { writer ->
+                        writer.write(lastSyncLog)
+                    } ?: error("Could not open the selected destination for writing.")
+                }
+            }.onSuccess {
+                updateStatus(getString(R.string.status_log_exported))
+            }.onFailure { error ->
+                updateStatus(error.message ?: error.javaClass.simpleName)
+            }
+
+            setWorking(false)
+            notifyCurrentFragment()
+        }
+    }
+
     private fun notifyCurrentFragment() {
         when (val fragment = supportFragmentManager.findFragmentById(R.id.fragment_container)) {
             is ResultsFragment -> fragment.render(currentUiState())
             is SettingsFragment -> fragment.render(currentUiState())
+            is SyncLogFragment -> fragment.render(currentUiState())
         }
     }
 
@@ -378,6 +450,23 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, SettingsFragment
         lifecycleScope.launch(block = block)
     }
 
+    private fun updateTopLevelUi() {
+        val currentFragment = supportFragmentManager.findFragmentById(R.id.fragment_container)
+        val isLogScreen = currentFragment is SyncLogFragment
+
+        binding.screenTitle.text = when {
+            isLogScreen -> getString(R.string.sync_log_title)
+            selectedTabId == R.id.navigation_settings -> getString(R.string.settings_title)
+            else -> getString(R.string.results_title)
+        }
+        binding.toolbar.navigationIcon =
+            if (isLogScreen) {
+                AppCompatResources.getDrawable(this, androidx.appcompat.R.drawable.abc_ic_ab_back_material)
+            }
+            else null
+        binding.bottomNavigation.visibility = if (isLogScreen) View.GONE else View.VISIBLE
+    }
+
     private data class SyncRenderResult(
         val measurements: List<Measurement>,
         val imported: Int,
@@ -387,6 +476,7 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, SettingsFragment
     )
 
     private companion object {
+        const val BACKSTACK_SYNC_LOG = "sync_log"
         const val PREFERENCES_NAME = "om_syncer_prefs"
         const val PREF_SELECTED_DEVICE_ADDRESS = "selected_device_address"
         const val KEY_SELECTED_TAB = "selected_tab"

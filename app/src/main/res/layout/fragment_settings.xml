@@ -67,10 +67,11 @@
 
                     <com.google.android.material.button.MaterialButton
                         android:id="@+id/bluetooth_settings_button"
-                        style="@style/Widget.Material3.Button.TonalButton"
+                        style="@style/Widget.Material3.Button.OutlinedButton"
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
+                        android:minWidth="0dp"
                         android:text="@string/open_bluetooth_settings" />
 
                     <com.google.android.material.button.MaterialButton
@@ -80,6 +81,7 @@
                         android:layout_height="wrap_content"
                         android:layout_marginStart="8dp"
                         android:layout_weight="1"
+                        android:minWidth="0dp"
                         android:text="@string/refresh_devices" />
                 </LinearLayout>
             </LinearLayout>
@@ -135,7 +137,7 @@
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="@string/sync_log_title"
+                    android:text="@string/settings_diagnostics_title"
                     android:textAppearance="?attr/textAppearanceTitleMedium" />
 
                 <TextView
@@ -145,22 +147,13 @@
                     android:text="@string/settings_log_body"
                     android:textAppearance="?attr/textAppearanceBodyMedium" />
 
-                <ScrollView
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/sync_log_button"
+                    style="@style/Widget.Material3.Button.OutlinedButton"
                     android:layout_width="match_parent"
-                    android:layout_height="220dp"
+                    android:layout_height="wrap_content"
                     android:layout_marginTop="14dp"
-                    android:background="?attr/colorSurfaceContainerHighest"
-                    android:padding="12dp">
-
-                    <TextView
-                        android:id="@+id/sync_log_text"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:fontFamily="monospace"
-                        android:textAppearance="?attr/textAppearanceBodySmall"
-                        android:textIsSelectable="true"
-                        tools:text="No sync log yet." />
-                </ScrollView>
+                    android:text="@string/open_sync_log" />
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
     </LinearLayout>

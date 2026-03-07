@@ -30,8 +30,12 @@ class MeasurementCsvExporter {
         }
     }
 
-    fun suggestedFileName(now: LocalDateTime = LocalDateTime.now()): String {
-        return "omsyncer-measurements-${FILE_NAME_FORMATTER.format(now)}.csv"
+    fun suggestedFileName(
+        now: LocalDateTime = LocalDateTime.now(),
+        prefix: String = "omsyncer-measurements",
+        extension: String = "csv",
+    ): String {
+        return "$prefix-${FILE_NAME_FORMATTER.format(now)}.$extension"
     }
 
     private companion object {

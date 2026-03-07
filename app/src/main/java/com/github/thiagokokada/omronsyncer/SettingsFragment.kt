@@ -16,6 +16,7 @@ class SettingsFragment : Fragment() {
         fun onBluetoothSettingsRequested()
         fun onRefreshDevicesRequested()
         fun onExportRequested()
+        fun onSyncLogRequested()
         fun onDeviceSelected(position: Int)
     }
 
@@ -67,6 +68,9 @@ class SettingsFragment : Fragment() {
         binding.exportButton.setOnClickListener {
             host.onExportRequested()
         }
+        binding.syncLogButton.setOnClickListener {
+            host.onSyncLogRequested()
+        }
     }
 
     override fun onResume() {
@@ -94,12 +98,7 @@ class SettingsFragment : Fragment() {
         binding.refreshButton.isEnabled = !state.isWorking
         binding.bluetoothSettingsButton.isEnabled = !state.isWorking
         binding.exportButton.isEnabled = state.canExport && !state.isWorking
-
-        binding.syncLogText.text = if (state.syncLog.isBlank()) {
-            getString(R.string.sync_log_empty)
-        } else {
-            state.syncLog
-        }
+        binding.syncLogButton.isEnabled = !state.isWorking
     }
 
     override fun onDestroyView() {

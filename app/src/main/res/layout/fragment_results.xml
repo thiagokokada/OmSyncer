@@ -18,54 +18,58 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
-            android:padding="20dp">
+            android:padding="16dp">
 
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="@string/results_hero_title"
-                android:textAppearance="?attr/textAppearanceHeadlineSmall" />
-
-            <TextView
+            <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="6dp"
-                android:text="@string/results_hero_body"
-                android:textAppearance="?attr/textAppearanceBodyMedium" />
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:id="@+id/measurement_count"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:textAppearance="?attr/textAppearanceTitleMedium"
+                        tools:text="24 measurements" />
+
+                    <TextView
+                        android:id="@+id/latest_measurement"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="2dp"
+                        android:textAppearance="?attr/textAppearanceBodySmall"
+                        tools:text="Latest: 2026-03-07 11:42, 118/77, pulse 61" />
+                </LinearLayout>
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/sync_button"
+                    style="@style/Widget.Material3.Button.TonalButton"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="12dp"
+                    android:insetTop="0dp"
+                    android:insetBottom="0dp"
+                    android:minWidth="0dp"
+                    android:text="@string/sync_now" />
+            </LinearLayout>
 
             <TextView
                 android:id="@+id/sync_status"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="14dp"
+                android:layout_marginTop="12dp"
                 android:background="@drawable/bg_status_pill"
                 android:paddingHorizontal="12dp"
                 android:paddingVertical="8dp"
                 android:textAppearance="?attr/textAppearanceLabelLarge"
                 tools:text="Ready." />
-
-            <TextView
-                android:id="@+id/measurement_count"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="18dp"
-                android:textAppearance="?attr/textAppearanceTitleMedium"
-                tools:text="24 measurements" />
-
-            <TextView
-                android:id="@+id/latest_measurement"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="4dp"
-                android:textAppearance="?attr/textAppearanceBodyMedium"
-                tools:text="Latest: 2026-03-07 11:42, 118/77, pulse 61" />
-
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/sync_button"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="18dp"
-                android:text="@string/sync_now" />
         </LinearLayout>
     </com.google.android.material.card.MaterialCardView>
 
