@@ -58,12 +58,16 @@ class BackgroundSyncWorker(
             onFailure = { error ->
                 preferences.setLastBackgroundSyncAtMillis(System.currentTimeMillis())
                 preferences.setLastBackgroundSyncSummary(
-                    applicationContext.getString(
-                        R.string.background_sync_failed,
-                        error.message ?: error.javaClass.simpleName,
-                    ),
+                    if (error is MissingBluetoothPermissionException) {
+                        applicationContext.getString(R.string.status_missing_permission)
+                    } else {
+                        applicationContext.getString(
+                            R.string.background_sync_failed,
+                            error.message ?: error.javaClass.simpleName,
+                        )
+                    },
                 )
-                Result.retry()
+                if (error is MissingBluetoothPermissionException) Result.failure() else Result.retry()
             },
         )
     }

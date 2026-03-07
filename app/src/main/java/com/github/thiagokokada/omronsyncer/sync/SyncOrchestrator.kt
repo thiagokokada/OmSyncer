@@ -1,6 +1,5 @@
 package com.github.thiagokokada.omronsyncer.sync
 
-import android.annotation.SuppressLint
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothManager
@@ -23,6 +22,7 @@ class SyncOrchestrator(
 ) {
 
     suspend fun syncSelectedDevice(): SyncExecutionResult {
+        requireBluetoothConnectPermission()
         val device = requireSelectedBondedDevice()
         val model = syncPreferences.selectedModel()
         val syncResult = syncClient.sync(device, model)
@@ -80,7 +80,6 @@ class SyncOrchestrator(
         return healthConnectExporter.export(filteredMeasurements)
     }
 
-    @SuppressLint("MissingPermission")
     private fun requireSelectedBondedDevice(): BluetoothDevice {
         val adapter = bluetoothAdapter()
             ?: error("This device does not have a Bluetooth adapter.")
@@ -96,6 +95,12 @@ class SyncOrchestrator(
             "This monitor is not bonded yet. Pair it in Android Bluetooth settings first."
         }
         return device
+    }
+
+    private fun requireBluetoothConnectPermission() {
+        if (!context.hasBluetoothConnectPermission()) {
+            throw MissingBluetoothPermissionException()
+        }
     }
 
     private fun filterMeasurementsForHealthConnect(

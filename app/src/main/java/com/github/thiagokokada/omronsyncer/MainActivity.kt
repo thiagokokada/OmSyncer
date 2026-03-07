@@ -34,6 +34,7 @@ import com.github.thiagokokada.omronsyncer.omron.OmronSyncClient
 import com.github.thiagokokada.omronsyncer.omron.OmronSyncClient.SyncException
 import com.github.thiagokokada.omronsyncer.omron.VerificationLevel
 import com.github.thiagokokada.omronsyncer.sync.BackgroundSyncScheduler
+import com.github.thiagokokada.omronsyncer.sync.MissingBluetoothPermissionException
 import com.github.thiagokokada.omronsyncer.sync.SyncExecutionResult
 import com.github.thiagokokada.omronsyncer.sync.SyncOrchestrator
 import com.github.thiagokokada.omronsyncer.sync.SyncPreferences
@@ -465,7 +466,13 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, SettingsFragment
                 if (error is SyncException) {
                     renderSyncLog(error.diagnostics.asText())
                 }
-                updateStatus(error.message ?: error.javaClass.simpleName)
+                updateStatus(
+                    if (error is MissingBluetoothPermissionException) {
+                        getString(R.string.status_missing_permission)
+                    } else {
+                        error.message ?: error.javaClass.simpleName
+                    },
+                )
             }
 
             setWorking(false)

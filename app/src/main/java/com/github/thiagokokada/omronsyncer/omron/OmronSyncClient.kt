@@ -1,14 +1,15 @@
 package com.github.thiagokokada.omronsyncer.omron
 
-import android.annotation.SuppressLint
 import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothGatt
 import android.bluetooth.BluetoothGattCallback
 import android.bluetooth.BluetoothGattCharacteristic
 import android.bluetooth.BluetoothGattDescriptor
 import android.bluetooth.BluetoothGattService
+import android.bluetooth.BluetoothStatusCodes
 import android.content.Context
 import com.github.thiagokokada.omronsyncer.model.Measurement
+import com.github.thiagokokada.omronsyncer.sync.MissingBluetoothPermissionException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
@@ -31,8 +32,14 @@ class OmronSyncClient(
             diagnostics += message
         }
 
+        val deviceLabel = try {
+            "${device.name ?: "Unknown"} (${device.address})"
+        } catch (_: SecurityException) {
+            "Unknown device"
+        }
+
         log("Model: ${model.modelCode} (${model.marketedName})")
-        log("Selected device: ${device.name ?: "Unknown"} (${device.address})")
+        log("Selected device: $deviceLabel")
 
         val session = GattSession(context, device, model, ::log)
         try {
@@ -176,17 +183,6 @@ class OmronSyncClient(
                 }
             }
 
-            @Deprecated("Deprecated in Java")
-            override fun onCharacteristicChanged(
-                gatt: BluetoothGatt,
-                characteristic: BluetoothGattCharacteristic,
-            ) {
-                characteristic.value?.let {
-                    log("RX: ${it.toHexString()}")
-                    notificationChannel.trySendBlocking(it)
-                }
-            }
-
             override fun onCharacteristicChanged(
                 gatt: BluetoothGatt,
                 characteristic: BluetoothGattCharacteristic,
@@ -197,24 +193,33 @@ class OmronSyncClient(
             }
         }
 
-        @SuppressLint("MissingPermission")
         suspend fun connect() {
             if (gatt != null) {
                 return
             }
 
             connectDeferred = CompletableDeferred()
-            gatt = device.connectGatt(context, false, callback, BluetoothDevice.TRANSPORT_LE)
+            gatt = try {
+                device.connectGatt(context, false, callback, BluetoothDevice.TRANSPORT_LE)
+            } catch (_: SecurityException) {
+                connectDeferred = null
+                throw MissingBluetoothPermissionException()
+            }
 
             connectDeferred?.await()
             connectDeferred = null
         }
 
-        @SuppressLint("MissingPermission")
         suspend fun requestMtu(mtu: Int) {
             val gatt = requireGatt()
             mtuDeferred = CompletableDeferred()
-            if (!gatt.requestMtu(mtu)) {
+            val requested = try {
+                gatt.requestMtu(mtu)
+            } catch (_: SecurityException) {
+                mtuDeferred = null
+                throw MissingBluetoothPermissionException()
+            }
+            if (!requested) {
                 mtuDeferred = null
                 throw IllegalStateException("Failed to request MTU.")
             }
@@ -222,11 +227,16 @@ class OmronSyncClient(
             mtuDeferred = null
         }
 
-        @SuppressLint("MissingPermission")
         suspend fun discoverServices() {
             val gatt = requireGatt()
             servicesDeferred = CompletableDeferred()
-            if (!gatt.discoverServices()) {
+            val started = try {
+                gatt.discoverServices()
+            } catch (_: SecurityException) {
+                servicesDeferred = null
+                throw MissingBluetoothPermissionException()
+            }
+            if (!started) {
                 servicesDeferred = null
                 throw IllegalStateException("Failed to start service discovery.")
             }
@@ -234,11 +244,15 @@ class OmronSyncClient(
             servicesDeferred = null
         }
 
-        @SuppressLint("MissingPermission")
         suspend fun enableNotifications() {
             val gatt = requireGatt()
             val characteristic = requireCharacteristic(model.serviceUuid, model.rxUuid)
-            if (!gatt.setCharacteristicNotification(characteristic, true)) {
+            val notificationsEnabled = try {
+                gatt.setCharacteristicNotification(characteristic, true)
+            } catch (_: SecurityException) {
+                throw MissingBluetoothPermissionException()
+            }
+            if (!notificationsEnabled) {
                 throw IllegalStateException("Failed to enable notifications.")
             }
 
@@ -247,12 +261,20 @@ class OmronSyncClient(
 
             descriptorDeferred = CompletableDeferred()
 
-            @Suppress("DEPRECATION")
-            descriptor.value = BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE
-            @Suppress("DEPRECATION")
-            if (!gatt.writeDescriptor(descriptor)) {
+            val writeStatus = try {
+                gatt.writeDescriptor(
+                    descriptor,
+                    BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE,
+                )
+            } catch (_: SecurityException) {
                 descriptorDeferred = null
-                throw IllegalStateException("Failed to write notification descriptor.")
+                throw MissingBluetoothPermissionException()
+            }
+            if (writeStatus != BluetoothStatusCodes.SUCCESS) {
+                descriptorDeferred = null
+                throw IllegalStateException(
+                    "Failed to write notification descriptor: ${describeBluetoothStatusCode(writeStatus)}",
+                )
             }
 
             descriptorDeferred?.await()
@@ -307,11 +329,14 @@ class OmronSyncClient(
         fun close() {
             log("Closing GATT session.")
             notificationChannel.close()
-            gatt?.close()
+            try {
+                gatt?.close()
+            } catch (_: SecurityException) {
+                // Ignore close failures after permission loss.
+            }
             gatt = null
         }
 
-        @SuppressLint("MissingPermission")
         private suspend fun sendCommand(command: ByteArray): OmronResponse {
             var lastError: Exception? = null
             repeat(COMMAND_RETRY_COUNT) { retryIndex ->
@@ -322,16 +347,22 @@ class OmronSyncClient(
                     }
 
                     val txCharacteristic = requireCharacteristic(model.serviceUuid, model.txUuid)
-                    @Suppress("DEPRECATION")
-                    txCharacteristic.writeType = BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE
-                    @Suppress("DEPRECATION")
-                    txCharacteristic.value = command
 
                     log("TX[$attempt]: ${command.toHexString()}")
 
-                    @Suppress("DEPRECATION")
-                    if (!requireGatt().writeCharacteristic(txCharacteristic)) {
-                        throw IllegalStateException("Characteristic write failed.")
+                    val writeStatus = try {
+                        requireGatt().writeCharacteristic(
+                            txCharacteristic,
+                            command,
+                            BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE,
+                        )
+                    } catch (_: SecurityException) {
+                        throw MissingBluetoothPermissionException()
+                    }
+                    if (writeStatus != BluetoothStatusCodes.SUCCESS) {
+                        throw IllegalStateException(
+                            "Characteristic write failed: ${describeBluetoothStatusCode(writeStatus)}",
+                        )
                     }
 
                     val payload = withTimeout(RESPONSE_TIMEOUT_MS) {
@@ -370,7 +401,11 @@ class OmronSyncClient(
         }
 
         private fun requireService(serviceUuid: UUID): BluetoothGattService {
-            return requireGatt().getService(serviceUuid)
+            return try {
+                requireGatt().getService(serviceUuid)
+            } catch (_: SecurityException) {
+                throw MissingBluetoothPermissionException()
+            }
                 ?: throw IllegalStateException("Service $serviceUuid not found.")
         }
 
@@ -405,7 +440,7 @@ class OmronSyncClient(
             )
         }
 
-        private data class OmronResponse(
+        private class OmronResponse(
             val packetType: Int,
             val address: Int,
             val data: ByteArray,
@@ -438,6 +473,7 @@ class OmronSyncClient(
         const val RESPONSE_START = 0x8000
         const val RESPONSE_READ = 0x8100
         const val RESPONSE_END = 0x8F00
+        const val BLUETOOTH_STATUS_ERROR_DEVICE_NOT_CONNECTED = 4
 
         val CLIENT_CHARACTERISTIC_CONFIG_UUID: UUID =
             UUID.fromString("00002902-0000-1000-8000-00805f9b34fb")
@@ -496,6 +532,18 @@ class OmronSyncClient(
             BluetoothGatt.GATT_CONNECTION_CONGESTED -> "CONNECTION_CONGESTED"
             BluetoothGatt.GATT_FAILURE -> "FAILURE"
             else -> "UNKNOWN"
+        }
+
+        fun describeBluetoothStatusCode(status: Int): String = when (status) {
+            BluetoothStatusCodes.SUCCESS -> "SUCCESS"
+            BluetoothStatusCodes.ERROR_MISSING_BLUETOOTH_CONNECT_PERMISSION ->
+                "MISSING_BLUETOOTH_CONNECT_PERMISSION"
+            BLUETOOTH_STATUS_ERROR_DEVICE_NOT_CONNECTED -> "DEVICE_NOT_CONNECTED"
+            BluetoothStatusCodes.ERROR_PROFILE_SERVICE_NOT_BOUND -> "PROFILE_SERVICE_NOT_BOUND"
+            BluetoothStatusCodes.ERROR_GATT_WRITE_NOT_ALLOWED -> "GATT_WRITE_NOT_ALLOWED"
+            BluetoothStatusCodes.ERROR_GATT_WRITE_REQUEST_BUSY -> "GATT_WRITE_REQUEST_BUSY"
+            BluetoothStatusCodes.ERROR_UNKNOWN -> "UNKNOWN"
+            else -> "STATUS_$status"
         }
     }
 }
