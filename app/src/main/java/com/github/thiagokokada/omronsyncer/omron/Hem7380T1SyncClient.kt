@@ -75,18 +75,16 @@ class Hem7380T1SyncClient(
         user: Int,
         startAddress: Int,
     ): List<Measurement> {
-        val payload = session.readContinuousEepromData(
-            startAddress = startAddress,
-            bytesToRead = RECORD_COUNT_PER_USER * RECORD_SIZE_BYTES,
-            blockSize = EEPROM_BLOCK_SIZE,
-        )
-
-        return payload
-            .asList()
-            .chunked(RECORD_SIZE_BYTES)
-            .mapNotNull { recordBytes ->
-                parseMeasurement(user, recordBytes.toByteArray())
+        val measurements = buildList {
+            repeat(RECORD_COUNT_PER_USER) { recordIndex ->
+                val recordAddress = startAddress + (recordIndex * RECORD_SIZE_BYTES)
+                val recordBytes = session.readRecord(recordAddress, RECORD_SIZE_BYTES)
+                parseMeasurement(user, recordBytes)?.let(::add)
             }
+        }
+
+        session.logUserSummary(user, measurements)
+        return measurements
     }
 
     private fun parseMeasurement(user: Int, recordBytes: ByteArray): Measurement? {
@@ -336,6 +334,32 @@ class Hem7380T1SyncClient(
             return data.toByteArray()
         }
 
+        suspend fun readRecord(address: Int, recordSize: Int): ByteArray {
+            val response = sendCommand(buildReadCommand(address, recordSize))
+            require(response.packetType == RESPONSE_READ) {
+                "Unexpected read response: 0x${response.packetType.toString(16)}"
+            }
+            require(response.address == address) {
+                "Read response address mismatch: expected=0x${address.toString(16)} actual=0x${response.address.toString(16)}"
+            }
+            require(response.data.size == recordSize) {
+                "Read response size mismatch: expected=$recordSize actual=${response.data.size}"
+            }
+            return response.data
+        }
+
+        fun logUserSummary(user: Int, measurements: List<Measurement>) {
+            val latestMeasurement = measurements.maxByOrNull { it.recordedAt }
+            if (latestMeasurement == null) {
+                log("User $user: no valid measurements parsed.")
+                return
+            }
+            log(
+                "User $user: parsed ${measurements.size} measurements, latest=" +
+                    latestMeasurement.recordedAt,
+            )
+        }
+
         fun close() {
             log("Closing GATT session.")
             notificationChannel.close()
@@ -466,7 +490,6 @@ class Hem7380T1SyncClient(
         const val USER2_START_ADDRESS = 0x0804
         const val RECORD_COUNT_PER_USER = 100
         const val RECORD_SIZE_BYTES = 0x10
-        const val EEPROM_BLOCK_SIZE = 0x38
         const val MTU = 185
         const val RESPONSE_TIMEOUT_MS = 5_000L
         const val COMMAND_RETRY_COUNT = 3
