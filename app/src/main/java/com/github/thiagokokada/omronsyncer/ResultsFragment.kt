@@ -60,7 +60,6 @@ class ResultsFragment : Fragment() {
 
         adapter.submitList(state.measurements)
 
-        binding.syncStatus.text = state.statusMessage
         binding.syncButton.isEnabled = state.canSync && !state.isWorking
         binding.syncButton.text = if (state.isWorking) {
             getString(R.string.syncing_button_label)

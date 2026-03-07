@@ -59,17 +59,6 @@
                     android:minWidth="0dp"
                     android:text="@string/sync_now" />
             </LinearLayout>
-
-            <TextView
-                android:id="@+id/sync_status"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="12dp"
-                android:background="@drawable/bg_status_pill"
-                android:paddingHorizontal="12dp"
-                android:paddingVertical="8dp"
-                android:textAppearance="?attr/textAppearanceLabelLarge"
-                tools:text="Ready." />
         </LinearLayout>
     </com.google.android.material.card.MaterialCardView>
 

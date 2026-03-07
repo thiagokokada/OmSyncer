@@ -12,6 +12,7 @@ import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
 import android.view.View
+import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.content.res.AppCompatResources
@@ -298,14 +299,14 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, SettingsFragment
             }.onSuccess { result ->
                 measurements = result.measurements
                 renderSyncLog(result.syncLog)
-                updateStatus(
-                    getString(
-                        R.string.status_imported_summary,
-                        result.imported,
-                        result.inserted,
-                        result.duplicates,
-                    ),
+                val summaryMessage = getString(
+                    R.string.status_imported_summary,
+                    result.imported,
+                    result.inserted,
+                    result.duplicates,
                 )
+                updateStatus(getString(R.string.status_idle))
+                showToast(summaryMessage)
             }.onFailure { error ->
                 if (error is SyncException) {
                     renderSyncLog(error.diagnostics.asText())
@@ -448,6 +449,10 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, SettingsFragment
 
     private fun launchUi(block: suspend CoroutineScope.() -> Unit) {
         lifecycleScope.launch(block = block)
+    }
+
+    private fun showToast(message: String) {
+        Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
     }
 
     private fun updateTopLevelUi() {
