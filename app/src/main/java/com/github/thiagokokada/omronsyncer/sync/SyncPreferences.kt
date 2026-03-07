@@ -99,6 +99,17 @@ class SyncPreferences(context: Context) {
         }
     }
 
+    fun lastBackgroundSyncAtMillis(): Long? {
+        val value = preferences.getLong(PREF_LAST_BACKGROUND_SYNC_AT_MILLIS, -1L)
+        return if (value > 0L) value else null
+    }
+
+    fun setLastBackgroundSyncAtMillis(timestampMillis: Long) {
+        preferences.edit {
+            putLong(PREF_LAST_BACKGROUND_SYNC_AT_MILLIS, timestampMillis)
+        }
+    }
+
     companion object {
         const val PREFERENCES_NAME = "om_syncer_prefs"
         const val PREF_SELECTED_MODEL_ID = "selected_model_id"
@@ -108,6 +119,7 @@ class SyncPreferences(context: Context) {
         const val PREF_BACKGROUND_SYNC_ENABLED = "background_sync_enabled"
         const val PREF_BACKGROUND_SYNC_INTERVAL_HOURS = "background_sync_interval_hours"
         const val PREF_LAST_BACKGROUND_SYNC_SUMMARY = "last_background_sync_summary"
+        const val PREF_LAST_BACKGROUND_SYNC_AT_MILLIS = "last_background_sync_at_millis"
         const val HEALTH_CONNECT_EXPORT_USER_ALL = "all"
         val BACKGROUND_SYNC_INTERVAL_OPTIONS_HOURS = listOf(1, 3, 6, 12, 24)
         const val DEFAULT_BACKGROUND_SYNC_INTERVAL_HOURS = 12

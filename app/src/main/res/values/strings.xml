@@ -45,6 +45,8 @@
     <string name="status_imported">Imported %1$d measurements.</string>
     <string name="status_imported_summary">Fetched %1$d, saved %2$d new, skipped %3$d duplicates.</string>
     <string name="status_imported_health_connect_summary">Fetched %1$d, saved %2$d new, skipped %3$d duplicates, exported %4$d blood pressure and %5$d pulse records to Health Connect.</string>
+    <string name="toast_sync_no_new">Sync complete. No new measurements.</string>
+    <string name="toast_sync_no_new_health_connect">Sync complete. Health Connect updated.</string>
     <string name="status_exported">CSV exported.</string>
     <string name="status_health_connect_permissions_granted">Health Connect access granted.</string>
     <string name="status_health_connect_permissions_denied">Health Connect access was not granted.</string>
@@ -59,10 +61,11 @@
     <string name="status_background_sync_interval_updated">Background sync frequency set to %1$s.</string>
     <string name="background_sync_summary_off">Background sync is off.</string>
     <string name="background_sync_summary_pending">Background sync is enabled at %1$s. No background run has finished yet.</string>
+    <string name="background_sync_summary_with_time">Last run: %1$s\n%2$s</string>
     <string name="background_sync_skipped_no_device">Background sync skipped: no device selected.</string>
     <string name="background_sync_failed">Background sync failed: %1$s</string>
     <string name="background_sync_summary_success">Background sync fetched %1$d, saved %2$d new, skipped %3$d duplicates.</string>
-    <string name="background_sync_summary_success_health_connect">Background sync fetched %1$d, saved %2$d new, skipped %3$d duplicates. Exported %4$d blood pressure and %5$d pulse records to Health Connect.</string>
+    <string name="background_sync_summary_success_health_connect">Background sync fetched %1$d, saved %2$d new, skipped %3$d duplicates. Exported records to Health Connect.</string>
     <string name="background_sync_notification_channel_name">Monitor sync</string>
     <string name="background_sync_notification_title">Syncing blood pressure monitor</string>
     <string name="background_sync_notification_body">Reading measurements in the background.</string>
@@ -93,6 +96,14 @@
     <plurals name="background_sync_interval_option">
         <item quantity="one">Every %d hour</item>
         <item quantity="other">Every %d hours</item>
+    </plurals>
+    <plurals name="toast_sync_saved_new">
+        <item quantity="one">Sync complete. Saved %d new measurement.</item>
+        <item quantity="other">Sync complete. Saved %d new measurements.</item>
+    </plurals>
+    <plurals name="toast_sync_saved_new_health_connect">
+        <item quantity="one">Sync complete. Saved %d new measurement. Health Connect updated.</item>
+        <item quantity="other">Sync complete. Saved %d new measurements. Health Connect updated.</item>
     </plurals>
     <plurals name="measurement_count">
         <item quantity="one">%d measurement</item>

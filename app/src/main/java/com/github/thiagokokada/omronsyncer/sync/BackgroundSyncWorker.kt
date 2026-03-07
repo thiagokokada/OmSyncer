@@ -27,6 +27,7 @@ class BackgroundSyncWorker(
         )
 
         if (preferences.selectedDeviceAddress() == null) {
+            preferences.setLastBackgroundSyncAtMillis(System.currentTimeMillis())
             preferences.setLastBackgroundSyncSummary(
                 applicationContext.getString(R.string.background_sync_skipped_no_device),
             )
@@ -50,10 +51,12 @@ class BackgroundSyncWorker(
                 result.inserted,
                 result.duplicates,
             )
+            preferences.setLastBackgroundSyncAtMillis(System.currentTimeMillis())
             preferences.setLastBackgroundSyncSummary(summary)
         }.fold(
             onSuccess = { Result.success() },
             onFailure = { error ->
+                preferences.setLastBackgroundSyncAtMillis(System.currentTimeMillis())
                 preferences.setLastBackgroundSyncSummary(
                     applicationContext.getString(
                         R.string.background_sync_failed,

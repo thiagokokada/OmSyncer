@@ -47,6 +47,9 @@
         android:id="@+id/progress_indicator"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:indeterminate="true"
+        android:minHeight="4dp"
+        app:trackThickness="4dp"
         android:visibility="gone" />
 
     <androidx.fragment.app.FragmentContainerView

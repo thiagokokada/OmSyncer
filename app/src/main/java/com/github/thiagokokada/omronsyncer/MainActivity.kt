@@ -41,6 +41,9 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 
 class MainActivity : AppCompatActivity(), ResultsFragment.Host, SettingsFragment.Host, SyncLogFragment.Host {
 
@@ -197,11 +200,18 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, SettingsFragment
         val backgroundSyncSummary = if (!backgroundSyncEnabled) {
             getString(R.string.background_sync_summary_off)
         } else {
-            syncPreferences.lastBackgroundSyncSummary()?.takeIf { it.isNotBlank() }
+            val rawSummary = syncPreferences.lastBackgroundSyncSummary()?.takeIf { it.isNotBlank() }
                 ?: getString(
                     R.string.background_sync_summary_pending,
                     formatBackgroundSyncInterval(backgroundSyncIntervalHours),
                 )
+            syncPreferences.lastBackgroundSyncAtMillis()?.let { timestampMillis ->
+                getString(
+                    R.string.background_sync_summary_with_time,
+                    formatBackgroundSyncTimestamp(timestampMillis),
+                    rawSummary,
+                )
+            } ?: rawSummary
         }
 
         return MainUiState(
@@ -450,25 +460,7 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, SettingsFragment
             }.onSuccess { result ->
                 renderSyncResult(result)
                 updateStatus(getString(R.string.status_idle))
-                showToast(
-                    if (result.healthConnectExportSummary != null) {
-                        getString(
-                            R.string.status_imported_health_connect_summary,
-                            result.imported,
-                            result.inserted,
-                            result.duplicates,
-                            result.healthConnectExportSummary.bloodPressureExported,
-                            result.healthConnectExportSummary.heartRateExported,
-                        )
-                    } else {
-                        getString(
-                            R.string.status_imported_summary,
-                            result.imported,
-                            result.inserted,
-                            result.duplicates,
-                        )
-                    },
-                )
+                showToast(syncCompletionToast(result))
             }.onFailure { error ->
                 if (error is SyncException) {
                     renderSyncLog(error.diagnostics.asText())
@@ -766,6 +758,38 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, SettingsFragment
         )
     }
 
+    private fun formatBackgroundSyncTimestamp(timestampMillis: Long): String {
+        return BACKGROUND_SYNC_TIME_FORMATTER.format(
+            Instant.ofEpochMilli(timestampMillis).atZone(ZoneId.systemDefault()),
+        )
+    }
+
+    private fun syncCompletionToast(result: SyncExecutionResult): String {
+        val inserted = result.inserted
+        val exportedToHealthConnect = result.healthConnectExportSummary != null
+        return when {
+            inserted <= 0 && exportedToHealthConnect ->
+                getString(R.string.toast_sync_no_new_health_connect)
+
+            inserted <= 0 ->
+                getString(R.string.toast_sync_no_new)
+
+            exportedToHealthConnect ->
+                resources.getQuantityString(
+                    R.plurals.toast_sync_saved_new_health_connect,
+                    inserted,
+                    inserted,
+                )
+
+            else ->
+                resources.getQuantityString(
+                    R.plurals.toast_sync_saved_new,
+                    inserted,
+                    inserted,
+                )
+        }
+    }
+
     private fun bluetoothAdapter(): BluetoothAdapter? {
         val manager = getSystemService(BLUETOOTH_SERVICE) as? BluetoothManager
         return manager?.adapter
@@ -809,5 +833,7 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, SettingsFragment
     private companion object {
         const val BACKSTACK_SYNC_LOG = "sync_log"
         const val KEY_SELECTED_TAB = "selected_tab"
+        val BACKGROUND_SYNC_TIME_FORMATTER: DateTimeFormatter =
+            DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")
     }
 }
