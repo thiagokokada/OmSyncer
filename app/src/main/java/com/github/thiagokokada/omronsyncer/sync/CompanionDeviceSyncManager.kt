@@ -18,15 +18,12 @@ import com.github.thiagokokada.omronsyncer.omron.OmronDeviceDefinition
 class CompanionDeviceSyncManager(private val context: Context) {
 
     private var observingAssociationId: Int? = null
+    private var observingDeviceAddress: String? = null
 
     fun isAvailable(): Boolean {
         return Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
             context.packageManager.hasSystemFeature(PackageManager.FEATURE_COMPANION_DEVICE_SETUP) &&
             companionDeviceManager() != null
-    }
-
-    fun supportsPresenceObservation(): Boolean {
-        return isAvailable() && Build.VERSION.SDK_INT >= 36
     }
 
     fun associationForSelectedDevice(selectedDeviceAddress: String?): AssociationInfo? {
@@ -72,7 +69,7 @@ class CompanionDeviceSyncManager(private val context: Context) {
     }
 
     fun updatePresenceObservation(enabled: Boolean, selectedDeviceAddress: String?): Boolean {
-        if (!supportsPresenceObservation()) {
+        if (!isAvailable()) {
             return false
         }
 
@@ -84,17 +81,37 @@ class CompanionDeviceSyncManager(private val context: Context) {
             return false
         }
 
-        if (observingAssociationId == selectedAssociation.id) {
+        if (Build.VERSION.SDK_INT >= 36) {
+            if (observingAssociationId == selectedAssociation.id) {
+                return true
+            }
+
+            stopCurrentObservation(manager)
+            val request = ObservingDevicePresenceRequest.Builder()
+                .setAssociationId(selectedAssociation.id)
+                .build()
+            return runCatching {
+                manager.startObservingDevicePresence(request)
+                observingAssociationId = selectedAssociation.id
+                observingDeviceAddress = selectedAssociation.getDeviceMacAddress()?.toString()
+                true
+            }.onFailure { error ->
+                Log.w(TAG, "Failed to start companion presence observation.", error)
+            }.getOrDefault(false)
+        }
+
+        val selectedDeviceMacAddress = selectedAssociation.getDeviceMacAddress()?.toString()
+            ?: selectedDeviceAddress
+            ?: return false
+        if (observingDeviceAddress.equals(selectedDeviceMacAddress, ignoreCase = true)) {
             return true
         }
 
         stopCurrentObservation(manager)
-        val request = ObservingDevicePresenceRequest.Builder()
-            .setAssociationId(selectedAssociation.id)
-            .build()
         return runCatching {
-            manager.startObservingDevicePresence(request)
+            manager.startObservingDevicePresence(selectedDeviceMacAddress)
             observingAssociationId = selectedAssociation.id
+            observingDeviceAddress = selectedDeviceMacAddress
             true
         }.onFailure { error ->
             Log.w(TAG, "Failed to start companion presence observation.", error)
@@ -113,22 +130,23 @@ class CompanionDeviceSyncManager(private val context: Context) {
     }
 
     private fun stopCurrentObservation(manager: CompanionDeviceManager) {
-        if (!supportsPresenceObservation()) {
-            observingAssociationId = null
-            return
-        }
-
-        val associationId = observingAssociationId ?: return
         runCatching {
-            manager.stopObservingDevicePresence(
-                ObservingDevicePresenceRequest.Builder()
-                    .setAssociationId(associationId)
-                    .build(),
-            )
+            if (Build.VERSION.SDK_INT >= 36) {
+                val associationId = observingAssociationId ?: return@runCatching
+                manager.stopObservingDevicePresence(
+                    ObservingDevicePresenceRequest.Builder()
+                        .setAssociationId(associationId)
+                        .build(),
+                )
+            } else {
+                val deviceAddress = observingDeviceAddress ?: return@runCatching
+                manager.stopObservingDevicePresence(deviceAddress)
+            }
         }.onFailure { error ->
             Log.d(TAG, "Ignoring failure while stopping companion presence observation.", error)
         }
         observingAssociationId = null
+        observingDeviceAddress = null
     }
 
     private fun companionDeviceManager(): CompanionDeviceManager? {
