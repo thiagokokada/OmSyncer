@@ -33,6 +33,16 @@ class SyncPreferences(context: Context) {
         }
     }
 
+    fun initialBluetoothPermissionPromptShown(): Boolean {
+        return preferences.getBoolean(PREF_INITIAL_BLUETOOTH_PERMISSION_PROMPT_SHOWN, false)
+    }
+
+    fun setInitialBluetoothPermissionPromptShown(shown: Boolean) {
+        preferences.edit {
+            putBoolean(PREF_INITIAL_BLUETOOTH_PERMISSION_PROMPT_SHOWN, shown)
+        }
+    }
+
     fun healthConnectAutoExportEnabled(): Boolean {
         return preferences.getBoolean(PREF_HEALTH_CONNECT_AUTO_EXPORT, true)
     }
@@ -123,6 +133,8 @@ class SyncPreferences(context: Context) {
         const val PREFERENCES_NAME = "om_syncer_prefs"
         const val PREF_SELECTED_MODEL_ID = "selected_model_id"
         const val PREF_SELECTED_DEVICE_ADDRESS = "selected_device_address"
+        const val PREF_INITIAL_BLUETOOTH_PERMISSION_PROMPT_SHOWN =
+            "initial_bluetooth_permission_prompt_shown"
         const val PREF_HEALTH_CONNECT_AUTO_EXPORT = "health_connect_auto_export"
         const val PREF_HEALTH_CONNECT_EXPORT_USER = "health_connect_export_user"
         const val PREF_NEARBY_SYNC_ENABLED = "nearby_sync_enabled"

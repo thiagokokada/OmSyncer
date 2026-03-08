@@ -104,6 +104,12 @@
     <string name="latest_measurement_summary">Latest: %1$s, %2$d/%3$d, pulse %4$d</string>
     <string name="no_measurement_summary">No synced measurements yet.</string>
     <string name="permission_denied">Bluetooth permission was denied.</string>
+    <string name="permission_try_again">Try again</string>
+    <string name="permission_open_settings">Open settings</string>
+    <string name="bluetooth_permission_explanation_title">Bluetooth access</string>
+    <string name="bluetooth_permission_explanation_body">OmSyncer needs Bluetooth access to connect to your monitor and sync measurements.</string>
+    <string name="notification_permission_explanation_title">Notifications</string>
+    <string name="notification_permission_explanation_body">OmSyncer uses notifications to show when automatic sync is running and when it finishes.</string>
     <string name="device_name_placeholder">Unknown device</string>
     <string name="model_support_verified">Verified</string>
     <string name="model_support_experimental">Experimental</string>

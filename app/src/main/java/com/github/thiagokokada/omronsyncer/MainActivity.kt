@@ -24,6 +24,7 @@ import androidx.health.connect.client.HealthConnectClient
 import androidx.health.connect.client.PermissionController
 import androidx.lifecycle.lifecycleScope
 import androidx.work.WorkManager
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.github.thiagokokada.omronsyncer.data.MeasurementStore
 import com.github.thiagokokada.omronsyncer.databinding.ActivityMainBinding
 import com.github.thiagokokada.omronsyncer.export.MeasurementCsvExporter
@@ -85,6 +86,9 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, SettingsFragment
                 loadBondedDevices()
             } else {
                 updateStatus(getString(R.string.permission_denied))
+                showBluetoothPermissionExplanation {
+                    requestBluetoothConnectPermission()
+                }
             }
         }
 
@@ -95,6 +99,9 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, SettingsFragment
             } else {
                 pendingEnableNearbySync = false
                 updateStatus(getString(R.string.nearby_sync_permission_denied))
+                showBluetoothPermissionExplanation {
+                    requestBluetoothScanPermission()
+                }
                 notifyCurrentFragment()
             }
         }
@@ -104,6 +111,9 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, SettingsFragment
             pendingEnableNearbySync = false
             if (!granted) {
                 updateStatus(getString(R.string.notification_permission_denied))
+                showNotificationPermissionExplanation {
+                    requestNotificationPermission()
+                }
             }
             setNearbySyncEnabled(true)
         }
@@ -182,12 +192,13 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, SettingsFragment
         cancelLegacyPeriodicSync()
         refreshNearbySyncRegistration()
         updateStatus(getString(R.string.status_idle))
+        maybeRequestInitialBluetoothPermission()
     }
 
     override fun onResume() {
         super.onResume()
         loadPersistedMeasurements()
-        loadBondedDevices()
+        loadBondedDevices(requestPermission = false)
         refreshHealthConnectState()
         refreshNearbySyncRegistration()
     }
@@ -285,7 +296,7 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, SettingsFragment
     }
 
     override fun onRefreshDevicesRequested() {
-        loadBondedDevices()
+        loadBondedDevices(requestPermission = true)
     }
 
     override fun onExportRequested() {
@@ -321,7 +332,7 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, SettingsFragment
             if (!hasBluetoothScanPermission()) {
                 pendingEnableNearbySync = true
                 updateStatus(getString(R.string.nearby_sync_permission_required))
-                nearbySyncPermissionLauncher.launch(Manifest.permission.BLUETOOTH_SCAN)
+                requestBluetoothScanPermission()
                 return
             }
             if (!hasNotificationPermission()) {
@@ -413,8 +424,10 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, SettingsFragment
     }
 
     @SuppressLint("MissingPermission")
-    private fun loadBondedDevices() {
-        if (!ensureBluetoothPermission()) {
+    private fun loadBondedDevices(requestPermission: Boolean = false) {
+        if (!ensureBluetoothPermission(requestPermission = requestPermission)) {
+            bondedDevices.clear()
+            notifyCurrentFragment()
             return
         }
 
@@ -449,7 +462,7 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, SettingsFragment
 
     @SuppressLint("MissingPermission")
     private fun startSync() {
-        if (!ensureBluetoothPermission()) {
+        if (!ensureBluetoothPermission(requestPermission = true)) {
             return
         }
 
@@ -692,12 +705,12 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, SettingsFragment
         return syncPreferences.selectedDeviceAddress()
     }
 
-    private fun ensureBluetoothPermission(): Boolean {
+    private fun ensureBluetoothPermission(requestPermission: Boolean): Boolean {
         val granted = hasBluetoothPermission()
 
-        if (!granted) {
+        if (!granted && requestPermission) {
             updateStatus(getString(R.string.status_missing_permission))
-            permissionLauncher.launch(arrayOf(Manifest.permission.BLUETOOTH_CONNECT))
+            requestBluetoothConnectPermission()
         }
 
         return granted
@@ -752,7 +765,84 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, SettingsFragment
         }
 
         pendingEnableNearbySync = true
+        requestNotificationPermission()
+    }
+
+    private fun requestBluetoothConnectPermission() {
+        permissionLauncher.launch(arrayOf(Manifest.permission.BLUETOOTH_CONNECT))
+    }
+
+    private fun requestBluetoothScanPermission() {
+        nearbySyncPermissionLauncher.launch(Manifest.permission.BLUETOOTH_SCAN)
+    }
+
+    private fun requestNotificationPermission() {
         notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+    }
+
+    private fun showBluetoothPermissionExplanation(onRetry: () -> Unit) {
+        showPermissionExplanation(
+            permission = Manifest.permission.BLUETOOTH_CONNECT,
+            titleResId = R.string.bluetooth_permission_explanation_title,
+            messageResId = R.string.bluetooth_permission_explanation_body,
+            onRetry = onRetry,
+        )
+    }
+
+    private fun showNotificationPermissionExplanation(onRetry: () -> Unit) {
+        showPermissionExplanation(
+            permission = Manifest.permission.POST_NOTIFICATIONS,
+            titleResId = R.string.notification_permission_explanation_title,
+            messageResId = R.string.notification_permission_explanation_body,
+            onRetry = onRetry,
+        )
+    }
+
+    private fun showPermissionExplanation(
+        permission: String,
+        titleResId: Int,
+        messageResId: Int,
+        onRetry: () -> Unit,
+    ) {
+        val canRequestAgain = shouldShowRequestPermissionRationale(permission)
+        MaterialAlertDialogBuilder(this)
+            .setTitle(titleResId)
+            .setMessage(messageResId)
+            .setPositiveButton(
+                if (canRequestAgain) {
+                    R.string.permission_try_again
+                } else {
+                    R.string.permission_open_settings
+                },
+            ) { _, _ ->
+                if (canRequestAgain) {
+                    onRetry()
+                } else {
+                    openAppSettings()
+                }
+            }
+            .setNegativeButton(R.string.close_label, null)
+            .show()
+    }
+
+    private fun openAppSettings() {
+        startActivity(
+            Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                data = Uri.fromParts("package", packageName, null)
+            },
+        )
+    }
+
+    private fun maybeRequestInitialBluetoothPermission() {
+        if (hasBluetoothPermission()) {
+            return
+        }
+        if (syncPreferences.initialBluetoothPermissionPromptShown()) {
+            return
+        }
+
+        syncPreferences.setInitialBluetoothPermissionPromptShown(true)
+        requestBluetoothConnectPermission()
     }
 
     private fun cancelLegacyPeriodicSync() {
