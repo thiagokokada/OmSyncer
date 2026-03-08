@@ -74,6 +74,9 @@
     <string name="background_sync_notification_channel_name">Monitor sync</string>
     <string name="nearby_sync_notification_title">Syncing nearby blood pressure monitor</string>
     <string name="nearby_sync_notification_body">Reading measurements after the monitor was detected nearby.</string>
+    <string name="sync_success_notification_title">Automatic sync complete</string>
+    <string name="sync_success_notification_body">%1$s · fetched %2$d, saved %3$d new, skipped %4$d duplicates.</string>
+    <string name="sync_success_notification_body_health_connect">%1$s · fetched %2$d, saved %3$d new, skipped %4$d duplicates. Health Connect updated.</string>
     <string name="health_connect_status_unavailable">Health Connect is not available on this device.</string>
     <string name="health_connect_status_setup_required">Install or update Health Connect to enable blood pressure export.</string>
     <string name="health_connect_status_not_connected">Grant Health Connect access to export blood pressure.</string>
