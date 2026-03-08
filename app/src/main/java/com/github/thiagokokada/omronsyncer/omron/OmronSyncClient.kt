@@ -29,12 +29,10 @@ class OmronSyncClient(
     suspend fun sync(
         device: BluetoothDevice,
         model: OmronDeviceDefinition,
-        onDiagnosticsUpdated: ((SyncDiagnostics) -> Unit)? = null,
     ): SyncResult = withContext(Dispatchers.IO) {
         val diagnostics = mutableListOf<String>()
         fun log(message: String) {
             diagnostics += "${timestampText()} - $message"
-            onDiagnosticsUpdated?.invoke(SyncDiagnostics(diagnostics.toList()))
         }
 
         val deviceLabel = try {
