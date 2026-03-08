@@ -9,7 +9,7 @@
     <string name="settings_health_connect_title">Health Connect</string>
     <string name="settings_health_connect_body">Write synced blood pressure and pulse measurements into Health Connect.</string>
     <string name="settings_automatic_sync_title">Automatic sync</string>
-    <string name="settings_automatic_sync_body">Sync the selected monitor automatically when it advertises nearby after a measurement.</string>
+    <string name="settings_automatic_sync_body">Sync the selected monitor automatically after a measurement when the phone detects it nearby.</string>
     <string name="settings_diagnostics_title">Diagnostics</string>
     <string name="settings_log_body">Open the latest BLE session log and export it when you need to inspect a failed sync.</string>
     <string name="open_bluetooth_settings">Bluetooth</string>
@@ -58,11 +58,18 @@
     <string name="status_pair_device">This monitor is not bonded yet. Pair it in Android Bluetooth settings first.</string>
     <string name="status_nearby_sync_enabled">Nearby sync enabled.</string>
     <string name="status_nearby_sync_disabled">Nearby sync disabled.</string>
+    <string name="nearby_sync_association_requested">Setting up automatic sync for the selected monitor…</string>
+    <string name="nearby_sync_association_created">Automatic sync is ready for the selected monitor.</string>
+    <string name="nearby_sync_association_cancelled">Automatic sync setup was cancelled.</string>
+    <string name="nearby_sync_association_unavailable">Automatic sync setup is not available on this device.</string>
+    <string name="nearby_sync_association_failed">Automatic sync setup failed: %1$s</string>
+    <string name="nearby_sync_association_failed_generic">Unknown setup error</string>
     <string name="nearby_sync_permission_required">Bluetooth scan permission is required for nearby sync.</string>
     <string name="nearby_sync_permission_denied">Nearby sync stays off because Bluetooth scan permission was denied.</string>
     <string name="nearby_sync_summary_off">Nearby sync is off.</string>
     <string name="nearby_sync_summary_waiting">Nearby sync is enabled. Waiting for the selected monitor.</string>
     <string name="nearby_sync_summary_triggered">Monitor detected nearby. Starting sync.</string>
+    <string name="nearby_sync_summary_association_required">Finish automatic sync setup for the selected monitor.</string>
     <string name="nearby_sync_summary_missing_permission">Nearby sync is enabled, but Bluetooth scan permission is missing.</string>
     <string name="nearby_sync_summary_with_time">Last run: %1$s\n%2$s</string>
     <string name="nearby_sync_skipped_no_device">Nearby sync skipped: no device selected.</string>
