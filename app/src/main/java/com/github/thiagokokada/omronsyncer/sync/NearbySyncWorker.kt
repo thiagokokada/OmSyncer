@@ -15,6 +15,12 @@ class NearbySyncWorker(
 
     override suspend fun doWork(): Result {
         Log.d(TAG, "Nearby sync worker started.")
+        SyncWorkerNotifications.showRunningSync(
+            context = applicationContext,
+            notificationId = NOTIFICATION_ID,
+            titleResId = R.string.nearby_sync_notification_title,
+            bodyResId = R.string.nearby_sync_notification_body,
+        )
         SyncWorkerNotifications.promoteToForegroundIfAllowed(
             worker = this,
             context = applicationContext,
@@ -40,6 +46,7 @@ class NearbySyncWorker(
                 timestampMillis = System.currentTimeMillis(),
                 summary = applicationContext.getString(R.string.nearby_sync_skipped_no_device),
             )
+            SyncWorkerNotifications.dismiss(applicationContext, NOTIFICATION_ID)
             Log.d(TAG, "Nearby sync skipped because no device is selected.")
             return Result.success()
         }
@@ -74,7 +81,10 @@ class NearbySyncWorker(
             )
             Log.d(TAG, "Nearby sync completed: $summary")
         }.fold(
-            onSuccess = { Result.success() },
+            onSuccess = {
+                SyncWorkerNotifications.dismiss(applicationContext, NOTIFICATION_ID)
+                Result.success()
+            },
             onFailure = { error ->
                 val summary = if (error is MissingBluetoothPermissionException) {
                     applicationContext.getString(R.string.nearby_sync_skipped_permission)
@@ -88,6 +98,7 @@ class NearbySyncWorker(
                     timestampMillis = System.currentTimeMillis(),
                     summary = summary,
                 )
+                SyncWorkerNotifications.dismiss(applicationContext, NOTIFICATION_ID)
                 Log.e(TAG, "Nearby sync failed: $summary", error)
                 Result.failure()
             },

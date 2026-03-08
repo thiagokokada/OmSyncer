@@ -22,6 +22,30 @@ import java.time.format.DateTimeFormatter
 object SyncWorkerNotifications {
     const val CHANNEL_ID = "background_sync"
 
+    fun showRunningSync(
+        context: Context,
+        notificationId: Int,
+        titleResId: Int,
+        bodyResId: Int,
+    ) {
+        if (!hasNotificationPermission(context)) {
+            return
+        }
+
+        ensureNotificationChannel(context)
+        val notification = NotificationCompat.Builder(context, CHANNEL_ID)
+            .setSmallIcon(android.R.drawable.stat_notify_sync)
+            .setContentTitle(context.getString(titleResId))
+            .setContentText(context.getString(bodyResId))
+            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .setOngoing(true)
+            .setOnlyAlertOnce(true)
+            .setContentIntent(launchPendingIntent(context))
+            .build()
+
+        NotificationManagerCompat.from(context).notify(notificationId, notification)
+    }
+
     fun createForegroundInfo(
         context: Context,
         notificationId: Int,
@@ -103,6 +127,10 @@ object SyncWorkerNotifications {
             .build()
 
         NotificationManagerCompat.from(context).notify(notificationId, notification)
+    }
+
+    fun dismiss(context: Context, notificationId: Int) {
+        NotificationManagerCompat.from(context).cancel(notificationId)
     }
 
     private fun ensureNotificationChannel(context: Context) {
