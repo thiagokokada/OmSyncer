@@ -6,14 +6,18 @@ import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Path
 import android.util.TypedValue
+import android.view.MotionEvent
 import android.util.AttributeSet
 import android.view.View
 import androidx.core.graphics.withSave
+import com.github.thiagokokada.omronsyncer.model.Measurement
 import com.google.android.material.color.MaterialColors
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import kotlin.math.max
+import kotlin.math.min
+import kotlin.math.pow
 import kotlin.math.roundToInt
 
 class BloodPressureChartView @JvmOverloads constructor(
@@ -50,17 +54,29 @@ class BloodPressureChartView @JvmOverloads constructor(
     private val pointPaint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val systolicPath = Path()
     private val diastolicPath = Path()
+    private val selectedPointPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = MaterialColors.getColor(context, com.google.android.material.R.attr.colorSurface, Color.WHITE)
+        style = Paint.Style.FILL
+    }
+    private val selectionPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = MaterialColors.getColor(context, com.google.android.material.R.attr.colorOutline, Color.GRAY)
+        strokeWidth = resources.displayMetrics.density
+    }
 
     private var chartPoints: List<ChartPoint> = emptyList()
+    private var selectedMeasurement: Measurement? = null
+    var onSelectionChanged: ((Measurement?) -> Unit)? = null
 
-    fun setMeasurements(measurements: List<com.github.thiagokokada.omronsyncer.model.Measurement>) {
+    fun setMeasurements(measurements: List<Measurement>, selectedMeasurement: Measurement?) {
         chartPoints = measurements.sortedBy { it.recordedAt }.map {
             ChartPoint(
+                measurement = it,
                 recordedAtMillis = it.recordedAt.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
                 systolic = it.systolic,
                 diastolic = it.diastolic,
             )
         }
+        this.selectedMeasurement = selectedMeasurement
         invalidate()
     }
 
@@ -119,10 +135,24 @@ class BloodPressureChartView @JvmOverloads constructor(
                 diastolicPath.lineTo(x, diastolicY)
             }
 
+            if (point.measurement == selectedMeasurement) {
+                canvas.drawLine(x, topPadding, x, bottomPadding, selectionPaint)
+            }
+
             pointPaint.color = systolicPaint.color
             canvas.drawCircle(x, systolicY, 3f * resources.displayMetrics.density, pointPaint)
             pointPaint.color = diastolicPaint.color
             canvas.drawCircle(x, diastolicY, 3f * resources.displayMetrics.density, pointPaint)
+
+            if (point.measurement == selectedMeasurement) {
+                val selectionRadius = 6f * resources.displayMetrics.density
+                canvas.drawCircle(x, systolicY, selectionRadius, selectedPointPaint)
+                canvas.drawCircle(x, diastolicY, selectionRadius, selectedPointPaint)
+                pointPaint.color = systolicPaint.color
+                canvas.drawCircle(x, systolicY, 4f * resources.displayMetrics.density, pointPaint)
+                pointPaint.color = diastolicPaint.color
+                canvas.drawCircle(x, diastolicY, 4f * resources.displayMetrics.density, pointPaint)
+            }
         }
 
         canvas.drawPath(systolicPath, systolicPaint)
@@ -157,7 +187,52 @@ class BloodPressureChartView @JvmOverloads constructor(
         }
     }
 
+    override fun onTouchEvent(event: MotionEvent): Boolean {
+        if (chartPoints.isEmpty()) {
+            return super.onTouchEvent(event)
+        }
+        if (event.actionMasked != MotionEvent.ACTION_DOWN && event.actionMasked != MotionEvent.ACTION_UP) {
+            return super.onTouchEvent(event)
+        }
+
+        val nearestPoint = nearestPoint(event.x)
+        if (nearestPoint.measurement != selectedMeasurement) {
+            selectedMeasurement = nearestPoint.measurement
+            onSelectionChanged?.invoke(selectedMeasurement)
+            invalidate()
+        }
+        if (event.actionMasked == MotionEvent.ACTION_UP) {
+            performClick()
+        }
+        return true
+    }
+
+    override fun performClick(): Boolean {
+        super.performClick()
+        return true
+    }
+
+    private fun nearestPoint(touchX: Float): ChartPoint {
+        if (chartPoints.size == 1) {
+            return chartPoints.first()
+        }
+
+        val leftPadding = paddingLeft + 56f * resources.displayMetrics.density
+        val rightPadding = width - paddingRight - 16f * resources.displayMetrics.density
+        val plotWidth = rightPadding - leftPadding
+        val timeMin = chartPoints.first().recordedAtMillis
+        val timeMax = chartPoints.last().recordedAtMillis
+        val timeRange = max(1L, timeMax - timeMin)
+        val clampedX = touchX.coerceIn(leftPadding, rightPadding)
+
+        return chartPoints.minBy { point ->
+            val pointX = leftPadding + (((point.recordedAtMillis - timeMin).toFloat() / timeRange) * plotWidth)
+            (pointX - clampedX).pow(2)
+        }
+    }
+
     private data class ChartPoint(
+        val measurement: Measurement,
         val recordedAtMillis: Long,
         val systolic: Int,
         val diastolic: Int,

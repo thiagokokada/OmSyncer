@@ -10,7 +10,8 @@ import androidx.core.view.isVisible
 import androidx.fragment.app.Fragment
 import com.github.thiagokokada.omronsyncer.databinding.FragmentTrendsBinding
 import com.github.thiagokokada.omronsyncer.model.Measurement
-import java.time.LocalDateTime
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 
 class TrendsFragment : Fragment() {
 
@@ -25,6 +26,7 @@ class TrendsFragment : Fragment() {
     private var suppressUserSelection = false
     private var selectedUser: Int? = null
     private var selectedRange: TrendRange = TrendRange.THIRTY_DAYS
+    private var selectedMeasurement: Measurement? = null
 
     override fun onAttach(context: Context) {
         super.onAttach(context)
@@ -66,9 +68,13 @@ class TrendsFragment : Fragment() {
         }
         binding.userSpinner.onItemSelectedListener = SimpleItemSelectedListener { position ->
             if (!suppressUserSelection) {
-                selectedUser = userOptions(host.currentUiState().measurements).getOrNull(position)
+                selectedUser = TrendChartData.userOptions(host.currentUiState().measurements).getOrNull(position)
                 render(host.currentUiState())
             }
+        }
+        binding.chartView.onSelectionChanged = { measurement ->
+            selectedMeasurement = measurement
+            renderSelectedMeasurement()
         }
     }
 
@@ -82,7 +88,7 @@ class TrendsFragment : Fragment() {
             return
         }
 
-        val allUserOptions = userOptions(state.measurements)
+        val allUserOptions = TrendChartData.userOptions(state.measurements)
         if (selectedUser != null && selectedUser !in allUserOptions) {
             selectedUser = null
         }
@@ -109,11 +115,17 @@ class TrendsFragment : Fragment() {
             },
         )
 
-        val filteredMeasurements = state.measurements
-            .filter { measurement -> selectedUser == null || measurement.user == selectedUser }
-            .filter { measurement -> selectedRange.includes(measurement.recordedAt) }
+        val filteredMeasurements = TrendChartData.filterMeasurements(
+            measurements = state.measurements,
+            selectedUser = selectedUser,
+            selectedRange = selectedRange,
+        )
+        if (selectedMeasurement !in filteredMeasurements) {
+            selectedMeasurement = filteredMeasurements.lastOrNull()
+        }
 
-        binding.chartView.setMeasurements(filteredMeasurements)
+        binding.chartView.setMeasurements(filteredMeasurements, selectedMeasurement)
+        renderSelectedMeasurement()
         binding.emptyState.isVisible = filteredMeasurements.isEmpty()
         binding.chartCard.isVisible = filteredMeasurements.isNotEmpty()
     }
@@ -123,28 +135,27 @@ class TrendsFragment : Fragment() {
         _binding = null
     }
 
-    private fun userOptions(measurements: List<Measurement>): List<Int?> {
-        val distinctUsers = measurements.map { it.user }.distinct().sorted()
-        return if (distinctUsers.size <= 1) {
-            distinctUsers.map { it as Int? }.ifEmpty { listOf(null) }
-        } else {
-            listOf(null) + distinctUsers.map { it as Int? }
+    private fun renderSelectedMeasurement() {
+        val measurement = selectedMeasurement
+        binding.selectedReadingCard.isVisible = measurement != null
+        if (measurement == null) {
+            return
         }
+
+        binding.selectedReadingTime.text = SELECTED_READING_TIME_FORMATTER.format(
+            measurement.recordedAt.atZone(ZoneId.systemDefault()),
+        )
+        binding.selectedReadingSummary.text = getString(
+            R.string.trends_selected_reading_summary,
+            measurement.systolic,
+            measurement.diastolic,
+            measurement.pulse,
+            measurement.flagsLabel(),
+        )
     }
 
-    private enum class TrendRange {
-        SEVEN_DAYS,
-        THIRTY_DAYS,
-        ALL,
-        ;
-
-        fun includes(recordedAt: LocalDateTime): Boolean {
-            val now = LocalDateTime.now()
-            return when (this) {
-                SEVEN_DAYS -> !recordedAt.isBefore(now.minusDays(7))
-                THIRTY_DAYS -> !recordedAt.isBefore(now.minusDays(30))
-                ALL -> true
-            }
-        }
+    private companion object {
+        val SELECTED_READING_TIME_FORMATTER: DateTimeFormatter =
+            DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")
     }
 }
