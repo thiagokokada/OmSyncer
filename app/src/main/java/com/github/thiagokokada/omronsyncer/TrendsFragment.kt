@@ -117,7 +117,7 @@ class TrendsFragment : Fragment() {
             selectedRange = state.selectedTrendRange,
         )
         if (selectedMeasurement !in filteredMeasurements) {
-            selectedMeasurement = filteredMeasurements.lastOrNull()
+            selectedMeasurement = null
         }
 
         binding.chartView.setMeasurements(filteredMeasurements, selectedMeasurement)
