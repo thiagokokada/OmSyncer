@@ -11,12 +11,20 @@ class OmSyncerCompanionDeviceService : CompanionDeviceService() {
         if (Build.VERSION.SDK_INT >= 36) {
             return
         }
-        enqueueDetectedDevice(address)
+        enqueueDetectedDevice(
+            deviceAddress = address,
+            source = NearbySyncTrigger.TriggerSource.BLE_APPEARED,
+        )
     }
 
     override fun onDevicePresenceEvent(event: DevicePresenceEvent) {
-        if (Build.VERSION.SDK_INT < 36 || event.event != DevicePresenceEvent.EVENT_BLE_APPEARED) {
+        if (Build.VERSION.SDK_INT < 36) {
             return
+        }
+        val source = when (event.event) {
+            DevicePresenceEvent.EVENT_BLE_APPEARED -> NearbySyncTrigger.TriggerSource.BLE_APPEARED
+            DevicePresenceEvent.EVENT_BT_CONNECTED -> NearbySyncTrigger.TriggerSource.BT_CONNECTED
+            else -> return
         }
 
         val deviceAddress = CompanionDeviceSyncManager(this).associationAddress(event.associationId)
@@ -25,12 +33,15 @@ class OmSyncerCompanionDeviceService : CompanionDeviceService() {
             return
         }
 
-        enqueueDetectedDevice(deviceAddress)
+        enqueueDetectedDevice(deviceAddress, source)
     }
 
-    private fun enqueueDetectedDevice(deviceAddress: String) {
-        Log.d(TAG, "Companion device appeared, enqueueing nearby sync worker.")
-        NearbySyncTrigger.enqueueIfAllowed(this, deviceAddress)
+    private fun enqueueDetectedDevice(
+        deviceAddress: String,
+        source: NearbySyncTrigger.TriggerSource,
+    ) {
+        Log.d(TAG, "Companion device event=$source, enqueueing nearby sync worker.")
+        NearbySyncTrigger.enqueueIfAllowed(this, deviceAddress, source)
     }
 
     companion object {

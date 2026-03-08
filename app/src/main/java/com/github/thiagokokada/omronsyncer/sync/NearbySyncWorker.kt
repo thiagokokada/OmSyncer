@@ -98,19 +98,36 @@ class NearbySyncWorker(
         var lastError: Throwable? = null
 
         repeat(MAX_SYNC_ATTEMPTS) { attemptIndex ->
+            val attemptNumber = attemptIndex + 1
             try {
+                if (attemptIndex == 0) {
+                    Log.d(TAG, "Starting nearby sync attempt $attemptNumber/$MAX_SYNC_ATTEMPTS.")
+                } else {
+                    Log.d(TAG, "Retrying nearby sync attempt $attemptNumber/$MAX_SYNC_ATTEMPTS.")
+                }
                 return orchestrator.syncSelectedDevice()
             } catch (error: Throwable) {
                 lastError = error
-                val hasRetryRemaining = attemptIndex + 1 < MAX_SYNC_ATTEMPTS
+                val hasRetryRemaining = attemptNumber < MAX_SYNC_ATTEMPTS
                 if (!hasRetryRemaining || !isTransientConnectFailure(error)) {
                     throw error
                 }
-                delay(RETRY_DELAY_MS)
+                val retryDelayMs = retryDelayMillis(attemptIndex)
+                Log.w(
+                    TAG,
+                    "Transient connect failure on attempt $attemptNumber/$MAX_SYNC_ATTEMPTS; " +
+                        "retrying in ${retryDelayMs / 1000}s.",
+                    error,
+                )
+                delay(retryDelayMs)
             }
         }
 
         throw IllegalStateException("Nearby sync failed after retries.", lastError)
+    }
+
+    private fun retryDelayMillis(attemptIndex: Int): Long {
+        return RETRY_DELAYS_MS.getOrElse(attemptIndex) { RETRY_DELAYS_MS.last() }
     }
 
     private fun isTransientConnectFailure(error: Throwable): Boolean {
@@ -134,8 +151,8 @@ class NearbySyncWorker(
         private const val TAG = "OmSyncerNearby"
         private const val NOTIFICATION_ID = 1002
         private const val SUCCESS_NOTIFICATION_ID = 1003
-        private const val MAX_SYNC_ATTEMPTS = 3
-        private const val INITIAL_SYNC_DELAY_MS = 4_000L
-        private const val RETRY_DELAY_MS = 5_000L
+        private const val MAX_SYNC_ATTEMPTS = 4
+        private const val INITIAL_SYNC_DELAY_MS = 6_000L
+        private val RETRY_DELAYS_MS = listOf(8_000L, 15_000L, 25_000L)
     }
 }
