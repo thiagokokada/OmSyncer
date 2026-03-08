@@ -469,10 +469,15 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, SettingsFragment
         persistSelectedDeviceAddress(device.address)
         setWorking(true)
         updateStatus(getString(R.string.status_syncing))
+        renderSyncLog("")
 
         launchUi {
             runCatching {
-                syncOrchestrator.syncSelectedDevice()
+                syncOrchestrator.syncSelectedDevice { diagnostics ->
+                    runOnUiThread {
+                        renderSyncLog(diagnostics.asText())
+                    }
+                }
             }.onSuccess { result ->
                 renderSyncResult(result)
                 updateStatus(getString(R.string.status_idle))

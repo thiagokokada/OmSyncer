@@ -47,6 +47,38 @@ class SyncOrchestrator(
         )
     }
 
+    suspend fun syncSelectedDevice(
+        onDiagnosticsUpdated: ((OmronSyncClient.SyncDiagnostics) -> Unit)?,
+    ): SyncExecutionResult {
+        requireBluetoothConnectPermission()
+        val device = requireSelectedBondedDevice()
+        val model = syncPreferences.selectedModel()
+        val syncResult = syncClient.sync(
+            device = device,
+            model = model,
+            onDiagnosticsUpdated = onDiagnosticsUpdated,
+        )
+        val saveSummary = withContext(Dispatchers.IO) {
+            measurementStore.saveAll(syncResult.measurements)
+        }
+        val persistedMeasurements = withContext(Dispatchers.IO) {
+            measurementStore.loadAll()
+        }
+        val healthConnectSummary = maybeExportToHealthConnect(
+            saveSummary.insertedMeasurements,
+            model,
+        )
+
+        return SyncExecutionResult(
+            persistedMeasurements = persistedMeasurements,
+            imported = saveSummary.imported,
+            inserted = saveSummary.inserted,
+            duplicates = saveSummary.duplicates,
+            syncLog = syncResult.diagnostics.asText(),
+            healthConnectExportSummary = healthConnectSummary,
+        )
+    }
+
     suspend fun exportStoredMeasurementsToHealthConnect(): HealthConnectBloodPressureExporter.ExportSummary {
         val storedMeasurements = withContext(Dispatchers.IO) {
             measurementStore.loadAll()

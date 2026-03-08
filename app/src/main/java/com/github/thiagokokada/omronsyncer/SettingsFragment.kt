@@ -222,7 +222,7 @@ class SettingsFragment : Fragment() {
         binding.nearbySyncSwitch.isChecked = state.nearbySyncEnabled
         suppressNearbySyncCallback = false
         binding.nearbySyncSwitch.isEnabled = !state.isWorking
-        binding.syncLogButton.isEnabled = !state.isWorking
+        binding.syncLogButton.isEnabled = true
     }
 
     override fun onDestroyView() {
