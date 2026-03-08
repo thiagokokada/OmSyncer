@@ -37,8 +37,9 @@ import com.github.thiagokokada.omronsyncer.omron.OmronDeviceRegistry
 import com.github.thiagokokada.omronsyncer.omron.OmronSyncClient
 import com.github.thiagokokada.omronsyncer.omron.OmronSyncClient.SyncException
 import com.github.thiagokokada.omronsyncer.omron.VerificationLevel
-import com.github.thiagokokada.omronsyncer.sync.CompanionDeviceSyncManager
 import com.github.thiagokokada.omronsyncer.sync.MissingBluetoothPermissionException
+import com.github.thiagokokada.omronsyncer.sync.CompanionDeviceSyncManager
+import com.github.thiagokokada.omronsyncer.sync.NearbySyncRegistrar
 import com.github.thiagokokada.omronsyncer.sync.SyncExecutionResult
 import com.github.thiagokokada.omronsyncer.sync.SyncOrchestrator
 import com.github.thiagokokada.omronsyncer.sync.SyncPreferences
@@ -61,6 +62,7 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, SettingsFragment
     private val csvExporter by lazy { MeasurementCsvExporter() }
     private val healthConnectExporter by lazy { HealthConnectBloodPressureExporter(this) }
     private val companionDeviceSyncManager by lazy { CompanionDeviceSyncManager(this) }
+    private val nearbySyncRegistrar by lazy { NearbySyncRegistrar(this) }
     private val syncOrchestrator by lazy {
         SyncOrchestrator(
             context = this,
@@ -88,6 +90,17 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, SettingsFragment
                 loadBondedDevices()
             } else {
                 updateStatus(getString(R.string.permission_denied))
+            }
+        }
+
+    private val nearbySyncPermissionLauncher =
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+            if (granted) {
+                requestNotificationPermissionThenEnableNearbySync()
+            } else {
+                pendingEnableNearbySync = false
+                updateStatus(getString(R.string.nearby_sync_permission_denied))
+                notifyCurrentFragment()
             }
         }
 
@@ -222,8 +235,13 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, SettingsFragment
             companionDeviceSyncManager.associationForSelectedDevice(selectedAddress) != null
         val nearbySyncSummary = if (!nearbySyncEnabled) {
             getString(R.string.nearby_sync_summary_off)
-        } else if (!hasCompanionAssociation) {
+        } else if (
+            companionDeviceSyncManager.supportsPresenceObservation() &&
+            !hasCompanionAssociation
+        ) {
             getString(R.string.nearby_sync_summary_association_required)
+        } else if (!hasCompanionAssociation && !hasBluetoothScanPermission()) {
+            getString(R.string.nearby_sync_summary_missing_permission)
         } else {
             val rawSummary = syncPreferences.lastNearbySyncSummary()?.takeIf { it.isNotBlank() }
                 ?: getString(R.string.nearby_sync_summary_waiting)
@@ -316,14 +334,27 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, SettingsFragment
                 notifyCurrentFragment()
                 return
             }
-            if (companionDeviceSyncManager.associationForSelectedDevice(selectedAddress) == null) {
+            if (
+                companionDeviceSyncManager.supportsPresenceObservation() &&
+                companionDeviceSyncManager.associationForSelectedDevice(selectedAddress) == null
+            ) {
                 pendingEnableNearbySync = true
                 updateStatus(getString(R.string.nearby_sync_association_requested))
                 if (!requestCompanionAssociation(selectedAddress, selectedModel())) {
                     pendingEnableNearbySync = false
-                    updateStatus(getString(R.string.nearby_sync_association_unavailable))
-                    notifyCurrentFragment()
+                    if (hasBluetoothScanPermission()) {
+                        setNearbySyncEnabled(true)
+                    } else {
+                        updateStatus(getString(R.string.nearby_sync_association_unavailable))
+                        notifyCurrentFragment()
+                    }
                 }
+                return
+            }
+            if (!hasBluetoothScanPermission() && !companionDeviceSyncManager.supportsPresenceObservation()) {
+                pendingEnableNearbySync = true
+                updateStatus(getString(R.string.nearby_sync_permission_required))
+                nearbySyncPermissionLauncher.launch(Manifest.permission.BLUETOOTH_SCAN)
                 return
             }
 
@@ -702,6 +733,13 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, SettingsFragment
         return granted
     }
 
+    private fun hasBluetoothScanPermission(): Boolean {
+        return ContextCompat.checkSelfPermission(
+            this,
+            Manifest.permission.BLUETOOTH_SCAN,
+        ) == PackageManager.PERMISSION_GRANTED
+    }
+
     private fun hasBluetoothPermission(): Boolean {
         return ContextCompat.checkSelfPermission(
             this,
@@ -741,9 +779,13 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, SettingsFragment
     }
 
     private fun refreshNearbySyncRegistration() {
-        companionDeviceSyncManager.updatePresenceObservation(
+        val usesCompanionPresence = companionDeviceSyncManager.updatePresenceObservation(
             enabled = syncPreferences.nearbySyncEnabled(),
             selectedDeviceAddress = selectedDeviceAddress(),
+        )
+        nearbySyncRegistrar.updateRegistration(
+            enabled = syncPreferences.nearbySyncEnabled() && hasBluetoothScanPermission() && !usesCompanionPresence,
+            model = selectedModel(),
         )
     }
 

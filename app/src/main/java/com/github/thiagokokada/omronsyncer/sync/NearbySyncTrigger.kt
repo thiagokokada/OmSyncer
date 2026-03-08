@@ -18,10 +18,7 @@ object NearbySyncTrigger {
         }
 
         val selectedAddress = preferences.selectedDeviceAddress()
-        if (
-            selectedAddress != null &&
-            !selectedAddress.equals(deviceAddress, ignoreCase = true)
-        ) {
+        if (selectedAddress != null && selectedAddress != deviceAddress) {
             Log.d(TAG, "Ignoring nearby trigger for non-selected device.")
             return
         }

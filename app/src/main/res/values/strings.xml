@@ -64,11 +64,14 @@
     <string name="nearby_sync_association_unavailable">Automatic sync setup is not available on this device.</string>
     <string name="nearby_sync_association_failed">Automatic sync setup failed: %1$s</string>
     <string name="nearby_sync_association_failed_generic">Unknown setup error</string>
+    <string name="nearby_sync_permission_required">Bluetooth scan permission is required for nearby sync.</string>
+    <string name="nearby_sync_permission_denied">Nearby sync stays off because Bluetooth scan permission was denied.</string>
     <string name="notification_permission_denied">Notifications stay off because notification permission was denied.</string>
     <string name="nearby_sync_summary_off">Nearby sync is off.</string>
     <string name="nearby_sync_summary_waiting">Nearby sync is enabled. Waiting for the selected monitor.</string>
     <string name="nearby_sync_summary_triggered">Monitor detected nearby. Starting sync.</string>
     <string name="nearby_sync_summary_association_required">Finish automatic sync setup for the selected monitor.</string>
+    <string name="nearby_sync_summary_missing_permission">Nearby sync is enabled, but Bluetooth scan permission is missing.</string>
     <string name="nearby_sync_summary_with_time">Last run: %1$s\n%2$s</string>
     <string name="nearby_sync_skipped_no_device">Nearby sync skipped: no device selected.</string>
     <string name="nearby_sync_skipped_permission">Nearby sync skipped: Bluetooth permission is required.</string>
