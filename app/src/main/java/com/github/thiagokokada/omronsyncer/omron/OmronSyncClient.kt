@@ -17,6 +17,9 @@ import kotlinx.coroutines.channels.trySendBlocking
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 import java.util.UUID
 
 class OmronSyncClient(
@@ -29,7 +32,7 @@ class OmronSyncClient(
     ): SyncResult = withContext(Dispatchers.IO) {
         val diagnostics = mutableListOf<String>()
         fun log(message: String) {
-            diagnostics += message
+            diagnostics += "${timestampText()} - $message"
         }
 
         val deviceLabel = try {
@@ -517,6 +520,8 @@ class OmronSyncClient(
         const val RESPONSE_READ = 0x8100
         const val RESPONSE_END = 0x8F00
         const val BLUETOOTH_STATUS_ERROR_DEVICE_NOT_CONNECTED = 4
+        val DIAGNOSTIC_TIME_FORMATTER: DateTimeFormatter =
+            DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss").withZone(ZoneId.systemDefault())
 
         val CLIENT_CHARACTERISTIC_CONFIG_UUID: UUID =
             UUID.fromString("00002902-0000-1000-8000-00805f9b34fb")
@@ -562,6 +567,8 @@ class OmronSyncClient(
         }
 
         fun ByteArray.toHexString(): String = joinToString(separator = "") { "%02x".format(it) }
+
+        fun timestampText(): String = DIAGNOSTIC_TIME_FORMATTER.format(Instant.now())
 
         fun describeGattStatus(status: Int): String = when (status) {
             BluetoothGatt.GATT_SUCCESS -> "SUCCESS"
