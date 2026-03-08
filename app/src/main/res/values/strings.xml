@@ -60,6 +60,7 @@
     <string name="status_nearby_sync_disabled">Nearby sync disabled.</string>
     <string name="nearby_sync_permission_required">Bluetooth scan permission is required for nearby sync.</string>
     <string name="nearby_sync_permission_denied">Nearby sync stays off because Bluetooth scan permission was denied.</string>
+    <string name="notification_permission_denied">Notifications stay off because notification permission was denied.</string>
     <string name="nearby_sync_summary_off">Nearby sync is off.</string>
     <string name="nearby_sync_summary_waiting">Nearby sync is enabled. Waiting for the selected monitor.</string>
     <string name="nearby_sync_summary_triggered">Monitor detected nearby. Starting sync.</string>

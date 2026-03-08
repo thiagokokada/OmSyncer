@@ -91,13 +91,21 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, SettingsFragment
     private val nearbySyncPermissionLauncher =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
             if (granted) {
-                pendingEnableNearbySync = false
-                setNearbySyncEnabled(true)
+                requestNotificationPermissionThenEnableNearbySync()
             } else {
                 pendingEnableNearbySync = false
                 updateStatus(getString(R.string.nearby_sync_permission_denied))
                 notifyCurrentFragment()
             }
+        }
+
+    private val notificationPermissionLauncher =
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+            pendingEnableNearbySync = false
+            if (!granted) {
+                updateStatus(getString(R.string.notification_permission_denied))
+            }
+            setNearbySyncEnabled(true)
         }
 
     private val exportDocumentLauncher =
@@ -307,6 +315,10 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, SettingsFragment
                 pendingEnableNearbySync = true
                 updateStatus(getString(R.string.nearby_sync_permission_required))
                 nearbySyncPermissionLauncher.launch(Manifest.permission.BLUETOOTH_SCAN)
+                return
+            }
+            if (!hasNotificationPermission()) {
+                requestNotificationPermissionThenEnableNearbySync()
                 return
             }
         }
@@ -684,6 +696,13 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, SettingsFragment
         ) == PackageManager.PERMISSION_GRANTED
     }
 
+    private fun hasNotificationPermission(): Boolean {
+        return ContextCompat.checkSelfPermission(
+            this,
+            Manifest.permission.POST_NOTIFICATIONS,
+        ) == PackageManager.PERMISSION_GRANTED
+    }
+
     private fun hasBluetoothPermission(): Boolean {
         return ContextCompat.checkSelfPermission(
             this,
@@ -709,6 +728,17 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, SettingsFragment
             enabled = syncPreferences.nearbySyncEnabled() && hasBluetoothScanPermission(),
             model = selectedModel(),
         )
+    }
+
+    private fun requestNotificationPermissionThenEnableNearbySync() {
+        if (hasNotificationPermission()) {
+            pendingEnableNearbySync = false
+            setNearbySyncEnabled(true)
+            return
+        }
+
+        pendingEnableNearbySync = true
+        notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
     }
 
     private fun cancelLegacyPeriodicSync() {
