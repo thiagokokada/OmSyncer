@@ -17,6 +17,8 @@ class TrendsFragment : Fragment() {
 
     interface Host {
         fun currentUiState(): MainUiState
+        fun onTrendUserSelected(user: Int?)
+        fun onTrendRangeSelected(range: TrendRange)
     }
 
     private var _binding: FragmentTrendsBinding? = null
@@ -24,8 +26,6 @@ class TrendsFragment : Fragment() {
     private lateinit var host: Host
     private lateinit var userAdapter: ArrayAdapter<String>
     private var suppressUserSelection = false
-    private var selectedUser: Int? = null
-    private var selectedRange: TrendRange = TrendRange.THIRTY_DAYS
     private var selectedMeasurement: Measurement? = null
 
     override fun onAttach(context: Context) {
@@ -45,31 +45,29 @@ class TrendsFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
-        userAdapter = ArrayAdapter(
+        userAdapter = ArrayAdapter<String>(
             requireContext(),
             android.R.layout.simple_spinner_item,
-            mutableListOf<String>(),
+            arrayListOf(),
         ).also {
             it.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
             binding.userSpinner.adapter = it
         }
 
         binding.rangeSevenDays.setOnClickListener {
-            selectedRange = TrendRange.SEVEN_DAYS
-            render(host.currentUiState())
+            host.onTrendRangeSelected(TrendRange.SEVEN_DAYS)
         }
         binding.rangeThirtyDays.setOnClickListener {
-            selectedRange = TrendRange.THIRTY_DAYS
-            render(host.currentUiState())
+            host.onTrendRangeSelected(TrendRange.THIRTY_DAYS)
         }
         binding.rangeAll.setOnClickListener {
-            selectedRange = TrendRange.ALL
-            render(host.currentUiState())
+            host.onTrendRangeSelected(TrendRange.ALL)
         }
         binding.userSpinner.onItemSelectedListener = SimpleItemSelectedListener { position ->
             if (!suppressUserSelection) {
-                selectedUser = TrendChartData.userOptions(host.currentUiState().measurements).getOrNull(position)
-                render(host.currentUiState())
+                host.onTrendUserSelected(
+                    TrendChartData.userOptions(host.currentUiState().measurements).getOrNull(position),
+                )
             }
         }
         binding.chartView.onSelectionChanged = { measurement ->
@@ -89,9 +87,7 @@ class TrendsFragment : Fragment() {
         }
 
         val allUserOptions = TrendChartData.userOptions(state.measurements)
-        if (selectedUser != null && selectedUser !in allUserOptions) {
-            selectedUser = null
-        }
+        val selectedUser = state.selectedTrendUser.takeIf { it in allUserOptions }
 
         suppressUserSelection = true
         val userLabels = allUserOptions.map { user ->
@@ -108,7 +104,7 @@ class TrendsFragment : Fragment() {
         suppressUserSelection = false
 
         binding.rangeToggle.check(
-            when (selectedRange) {
+            when (state.selectedTrendRange) {
                 TrendRange.SEVEN_DAYS -> R.id.range_seven_days
                 TrendRange.THIRTY_DAYS -> R.id.range_thirty_days
                 TrendRange.ALL -> R.id.range_all
@@ -118,7 +114,7 @@ class TrendsFragment : Fragment() {
         val filteredMeasurements = TrendChartData.filterMeasurements(
             measurements = state.measurements,
             selectedUser = selectedUser,
-            selectedRange = selectedRange,
+            selectedRange = state.selectedTrendRange,
         )
         if (selectedMeasurement !in filteredMeasurements) {
             selectedMeasurement = filteredMeasurements.lastOrNull()

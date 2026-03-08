@@ -3,6 +3,7 @@ package com.github.thiagokokada.omronsyncer.sync
 import android.content.Context
 import android.content.SharedPreferences
 import androidx.core.content.edit
+import com.github.thiagokokada.omronsyncer.TrendRange
 import com.github.thiagokokada.omronsyncer.omron.OmronDeviceDefinition
 import com.github.thiagokokada.omronsyncer.omron.OmronDeviceRegistry
 
@@ -86,6 +87,28 @@ class SyncPreferences(context: Context) {
         }
     }
 
+    fun selectedTrendUser(): Int? {
+        val value = preferences.getInt(PREF_SELECTED_TREND_USER, TREND_USER_ALL)
+        return if (value == TREND_USER_ALL) null else value
+    }
+
+    fun setSelectedTrendUser(user: Int?) {
+        preferences.edit {
+            putInt(PREF_SELECTED_TREND_USER, user ?: TREND_USER_ALL)
+        }
+    }
+
+    fun selectedTrendRange(): TrendRange {
+        val storedValue = preferences.getString(PREF_SELECTED_TREND_RANGE, TrendRange.THIRTY_DAYS.name)
+        return TrendRange.entries.firstOrNull { it.name == storedValue } ?: TrendRange.THIRTY_DAYS
+    }
+
+    fun setSelectedTrendRange(range: TrendRange) {
+        preferences.edit {
+            putString(PREF_SELECTED_TREND_RANGE, range.name)
+        }
+    }
+
     fun nearbySyncCooldownMillis(): Long {
         return nearbySyncCooldownMinutes() * 60_000L
     }
@@ -139,10 +162,13 @@ class SyncPreferences(context: Context) {
         const val PREF_HEALTH_CONNECT_EXPORT_USER = "health_connect_export_user"
         const val PREF_NEARBY_SYNC_ENABLED = "nearby_sync_enabled"
         const val PREF_NEARBY_SYNC_COOLDOWN_MINUTES = "nearby_sync_cooldown_minutes"
+        const val PREF_SELECTED_TREND_USER = "selected_trend_user"
+        const val PREF_SELECTED_TREND_RANGE = "selected_trend_range"
         const val PREF_LAST_NEARBY_SYNC_SUMMARY = "last_nearby_sync_summary"
         const val PREF_LAST_NEARBY_SYNC_AT_MILLIS = "last_nearby_sync_at_millis"
         const val PREF_LAST_NEARBY_SYNC_TRIGGER_AT_MILLIS = "last_nearby_sync_trigger_at_millis"
         const val HEALTH_CONNECT_EXPORT_USER_ALL = "all"
         const val DEFAULT_NEARBY_SYNC_COOLDOWN_MINUTES = 5
+        const val TREND_USER_ALL = -1
     }
 }

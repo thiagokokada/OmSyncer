@@ -281,6 +281,8 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, TrendsFragment.H
             nearbySyncCooldownLabels = nearbySyncCooldownOptions.map { it.label },
             selectedNearbySyncCooldownIndex =
                 nearbySyncCooldownOptions.indexOfFirst { it.minutes == selectedNearbySyncCooldownMinutes },
+            selectedTrendUser = syncPreferences.selectedTrendUser(),
+            selectedTrendRange = syncPreferences.selectedTrendRange(),
             showsMeasurementUserColumn = selectedModel.userCount > 1,
         )
     }
@@ -295,6 +297,16 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, TrendsFragment.H
 
     override fun onSyncRequested() {
         startSync()
+    }
+
+    override fun onTrendUserSelected(user: Int?) {
+        syncPreferences.setSelectedTrendUser(user)
+        notifyCurrentFragment()
+    }
+
+    override fun onTrendRangeSelected(range: TrendRange) {
+        syncPreferences.setSelectedTrendRange(range)
+        notifyCurrentFragment()
     }
 
     override fun onBluetoothSettingsRequested() {
