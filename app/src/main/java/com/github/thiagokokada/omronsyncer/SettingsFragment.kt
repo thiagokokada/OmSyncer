@@ -21,9 +21,7 @@ class SettingsFragment : Fragment() {
         fun onHealthConnectExportRequested()
         fun onHealthConnectAutoExportChanged(enabled: Boolean)
         fun onHealthConnectExportUserSelected(position: Int)
-        fun onBackgroundSyncChanged(enabled: Boolean)
         fun onNearbySyncChanged(enabled: Boolean)
-        fun onBackgroundSyncIntervalSelected(position: Int)
         fun onSyncLogRequested()
         fun onDeviceSelected(position: Int)
     }
@@ -34,14 +32,11 @@ class SettingsFragment : Fragment() {
     private lateinit var modelAdapter: ArrayAdapter<String>
     private lateinit var deviceAdapter: ArrayAdapter<String>
     private lateinit var healthConnectUserAdapter: ArrayAdapter<String>
-    private lateinit var backgroundSyncIntervalAdapter: ArrayAdapter<String>
     private var suppressModelSelectionCallback = false
     private var suppressSelectionCallback = false
     private var suppressHealthConnectUserCallback = false
     private var suppressAutoExportCallback = false
-    private var suppressBackgroundSyncCallback = false
     private var suppressNearbySyncCallback = false
-    private var suppressBackgroundSyncIntervalCallback = false
 
     override fun onAttach(context: Context) {
         super.onAttach(context)
@@ -85,15 +80,6 @@ class SettingsFragment : Fragment() {
             it.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
             binding.healthConnectUserSpinner.adapter = it
         }
-        backgroundSyncIntervalAdapter = ArrayAdapter(
-            requireContext(),
-            android.R.layout.simple_spinner_item,
-            mutableListOf<String>(),
-        ).also {
-            it.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
-            binding.backgroundSyncIntervalSpinner.adapter = it
-        }
-
         binding.modelSpinner.onItemSelectedListener = SimpleItemSelectedListener { position ->
             if (!suppressModelSelectionCallback) {
                 host.onModelSelected(position)
@@ -109,13 +95,6 @@ class SettingsFragment : Fragment() {
                 host.onHealthConnectExportUserSelected(position)
             }
         }
-        binding.backgroundSyncIntervalSpinner.onItemSelectedListener =
-            SimpleItemSelectedListener { position ->
-                if (!suppressBackgroundSyncIntervalCallback) {
-                    host.onBackgroundSyncIntervalSelected(position)
-                }
-            }
-
         binding.bluetoothSettingsButton.setOnClickListener {
             host.onBluetoothSettingsRequested()
         }
@@ -134,11 +113,6 @@ class SettingsFragment : Fragment() {
         binding.healthConnectAutoExportSwitch.setOnCheckedChangeListener { _, isChecked ->
             if (!suppressAutoExportCallback) {
                 host.onHealthConnectAutoExportChanged(isChecked)
-            }
-        }
-        binding.backgroundSyncSwitch.setOnCheckedChangeListener { _, isChecked ->
-            if (!suppressBackgroundSyncCallback) {
-                host.onBackgroundSyncChanged(isChecked)
             }
         }
         binding.nearbySyncSwitch.setOnCheckedChangeListener { _, isChecked ->
@@ -216,23 +190,6 @@ class SettingsFragment : Fragment() {
         binding.nearbySyncSwitch.isChecked = state.nearbySyncEnabled
         suppressNearbySyncCallback = false
         binding.nearbySyncSwitch.isEnabled = !state.isWorking
-        binding.backgroundSyncSummaryValue.text = state.backgroundSyncSummary
-        suppressBackgroundSyncIntervalCallback = true
-        backgroundSyncIntervalAdapter.clear()
-        backgroundSyncIntervalAdapter.addAll(state.backgroundSyncIntervalLabels)
-        backgroundSyncIntervalAdapter.notifyDataSetChanged()
-        binding.backgroundSyncIntervalSpinner.isEnabled = !state.isWorking
-        if (
-            state.selectedBackgroundSyncIntervalIndex >= 0 &&
-            state.selectedBackgroundSyncIntervalIndex < state.backgroundSyncIntervalLabels.size
-        ) {
-            binding.backgroundSyncIntervalSpinner.setSelection(state.selectedBackgroundSyncIntervalIndex)
-        }
-        suppressBackgroundSyncIntervalCallback = false
-        suppressBackgroundSyncCallback = true
-        binding.backgroundSyncSwitch.isChecked = state.backgroundSyncEnabled
-        suppressBackgroundSyncCallback = false
-        binding.backgroundSyncSwitch.isEnabled = !state.isWorking
         binding.syncLogButton.isEnabled = !state.isWorking
     }
 

@@ -23,11 +23,7 @@ data class MainUiState(
     val autoExportHealthConnect: Boolean,
     val healthConnectExportUserLabels: List<String>,
     val selectedHealthConnectExportUserIndex: Int,
-    val backgroundSyncEnabled: Boolean,
     val nearbySyncEnabled: Boolean,
     val nearbySyncSummary: String,
-    val backgroundSyncIntervalLabels: List<String>,
-    val selectedBackgroundSyncIntervalIndex: Int,
-    val backgroundSyncSummary: String,
     val showsMeasurementUserColumn: Boolean,
 )

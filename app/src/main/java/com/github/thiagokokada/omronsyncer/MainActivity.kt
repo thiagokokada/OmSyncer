@@ -23,6 +23,7 @@ import androidx.fragment.app.Fragment
 import androidx.health.connect.client.HealthConnectClient
 import androidx.health.connect.client.PermissionController
 import androidx.lifecycle.lifecycleScope
+import androidx.work.WorkManager
 import com.github.thiagokokada.omronsyncer.data.MeasurementStore
 import com.github.thiagokokada.omronsyncer.databinding.ActivityMainBinding
 import com.github.thiagokokada.omronsyncer.export.MeasurementCsvExporter
@@ -33,7 +34,6 @@ import com.github.thiagokokada.omronsyncer.omron.OmronDeviceRegistry
 import com.github.thiagokokada.omronsyncer.omron.OmronSyncClient
 import com.github.thiagokokada.omronsyncer.omron.OmronSyncClient.SyncException
 import com.github.thiagokokada.omronsyncer.omron.VerificationLevel
-import com.github.thiagokokada.omronsyncer.sync.BackgroundSyncScheduler
 import com.github.thiagokokada.omronsyncer.sync.MissingBluetoothPermissionException
 import com.github.thiagokokada.omronsyncer.sync.NearbySyncRegistrar
 import com.github.thiagokokada.omronsyncer.sync.SyncExecutionResult
@@ -57,7 +57,6 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, SettingsFragment
     private val syncClient by lazy { OmronSyncClient(this) }
     private val csvExporter by lazy { MeasurementCsvExporter() }
     private val healthConnectExporter by lazy { HealthConnectBloodPressureExporter(this) }
-    private val backgroundSyncScheduler by lazy { BackgroundSyncScheduler(this) }
     private val nearbySyncRegistrar by lazy { NearbySyncRegistrar(this) }
     private val syncOrchestrator by lazy {
         SyncOrchestrator(
@@ -172,10 +171,7 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, SettingsFragment
         loadPersistedMeasurements()
         renderSyncLog(lastSyncLog)
         refreshHealthConnectState()
-        backgroundSyncScheduler.updateSchedule(
-            enabled = syncPreferences.backgroundSyncEnabled(),
-            intervalHours = syncPreferences.backgroundSyncIntervalHours(),
-        )
+        cancelLegacyPeriodicSync()
         refreshNearbySyncRegistration()
         updateStatus(getString(R.string.status_idle))
     }
@@ -211,12 +207,7 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, SettingsFragment
         }
         val healthConnectUserOptions = buildHealthConnectExportUserOptions(selectedModel)
         val selectedHealthConnectUser = resolveHealthConnectExportUserOption(selectedModel)
-        val backgroundSyncEnabled = syncPreferences.backgroundSyncEnabled()
         val nearbySyncEnabled = syncPreferences.nearbySyncEnabled()
-        val backgroundSyncIntervalHours = syncPreferences.backgroundSyncIntervalHours()
-        val backgroundSyncIntervalLabels = SyncPreferences.BACKGROUND_SYNC_INTERVAL_OPTIONS_HOURS.map(
-            ::formatBackgroundSyncInterval,
-        )
         val nearbySyncSummary = if (!nearbySyncEnabled) {
             getString(R.string.nearby_sync_summary_off)
         } else if (!hasBluetoothScanPermission()) {
@@ -227,28 +218,11 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, SettingsFragment
             syncPreferences.lastNearbySyncAtMillis()?.let { timestampMillis ->
                 getString(
                     R.string.nearby_sync_summary_with_time,
-                    formatBackgroundSyncTimestamp(timestampMillis),
+                    formatSyncTimestamp(timestampMillis),
                     rawSummary,
                 )
             } ?: rawSummary
         }
-        val backgroundSyncSummary = if (!backgroundSyncEnabled) {
-            getString(R.string.background_sync_summary_off)
-        } else {
-            val rawSummary = syncPreferences.lastBackgroundSyncSummary()?.takeIf { it.isNotBlank() }
-                ?: getString(
-                    R.string.background_sync_summary_pending,
-                    formatBackgroundSyncInterval(backgroundSyncIntervalHours),
-                )
-            syncPreferences.lastBackgroundSyncAtMillis()?.let { timestampMillis ->
-                getString(
-                    R.string.background_sync_summary_with_time,
-                    formatBackgroundSyncTimestamp(timestampMillis),
-                    rawSummary,
-                )
-            } ?: rawSummary
-        }
-
         return MainUiState(
             measurements = measurements,
             statusMessage = statusMessage,
@@ -273,14 +247,8 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, SettingsFragment
             healthConnectExportUserLabels = healthConnectUserOptions.map { it.label },
             selectedHealthConnectExportUserIndex =
                 healthConnectUserOptions.indexOfFirst { it.key == selectedHealthConnectUser.key },
-            backgroundSyncEnabled = backgroundSyncEnabled,
             nearbySyncEnabled = nearbySyncEnabled,
             nearbySyncSummary = nearbySyncSummary,
-            backgroundSyncIntervalLabels = backgroundSyncIntervalLabels,
-            selectedBackgroundSyncIntervalIndex =
-                SyncPreferences.BACKGROUND_SYNC_INTERVAL_OPTIONS_HOURS
-                    .indexOf(backgroundSyncIntervalHours),
-            backgroundSyncSummary = backgroundSyncSummary,
             showsMeasurementUserColumn = selectedModel.userCount > 1,
         )
     }
@@ -328,22 +296,6 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, SettingsFragment
         notifyCurrentFragment()
     }
 
-    override fun onBackgroundSyncChanged(enabled: Boolean) {
-        syncPreferences.setBackgroundSyncEnabled(enabled)
-        backgroundSyncScheduler.updateSchedule(
-            enabled = enabled,
-            intervalHours = syncPreferences.backgroundSyncIntervalHours(),
-        )
-        updateStatus(
-            if (enabled) {
-                getString(R.string.status_background_sync_enabled)
-            } else {
-                getString(R.string.status_background_sync_disabled)
-            },
-        )
-        notifyCurrentFragment()
-    }
-
     override fun onNearbySyncChanged(enabled: Boolean) {
         if (enabled) {
             if (selectedDeviceAddress() == null) {
@@ -360,24 +312,6 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, SettingsFragment
         }
 
         setNearbySyncEnabled(enabled)
-    }
-
-    override fun onBackgroundSyncIntervalSelected(position: Int) {
-        val hours = SyncPreferences.BACKGROUND_SYNC_INTERVAL_OPTIONS_HOURS.getOrNull(position) ?: return
-        syncPreferences.setBackgroundSyncIntervalHours(hours)
-        if (syncPreferences.backgroundSyncEnabled()) {
-            backgroundSyncScheduler.updateSchedule(
-                enabled = true,
-                intervalHours = hours,
-            )
-        }
-        updateStatus(
-            getString(
-                R.string.status_background_sync_interval_updated,
-                formatBackgroundSyncInterval(hours),
-            ),
-        )
-        notifyCurrentFragment()
     }
 
     override fun onSyncLogRequested() {
@@ -777,6 +711,10 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, SettingsFragment
         )
     }
 
+    private fun cancelLegacyPeriodicSync() {
+        WorkManager.getInstance(this).cancelUniqueWork(LEGACY_PERIODIC_SYNC_WORK_NAME)
+    }
+
     private fun resolveHealthConnectExportUserOption(
         model: OmronDeviceDefinition,
     ): HealthConnectExportUserOption {
@@ -839,16 +777,8 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, SettingsFragment
         return "${model.modelCode} - $status"
     }
 
-    private fun formatBackgroundSyncInterval(hours: Int): String {
-        return resources.getQuantityString(
-            R.plurals.background_sync_interval_option,
-            hours,
-            hours,
-        )
-    }
-
-    private fun formatBackgroundSyncTimestamp(timestampMillis: Long): String {
-        return BACKGROUND_SYNC_TIME_FORMATTER.format(
+    private fun formatSyncTimestamp(timestampMillis: Long): String {
+        return SYNC_TIME_FORMATTER.format(
             Instant.ofEpochMilli(timestampMillis).atZone(ZoneId.systemDefault()),
         )
     }
@@ -922,7 +852,8 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, SettingsFragment
     private companion object {
         const val BACKSTACK_SYNC_LOG = "sync_log"
         const val KEY_SELECTED_TAB = "selected_tab"
-        val BACKGROUND_SYNC_TIME_FORMATTER: DateTimeFormatter =
+        const val LEGACY_PERIODIC_SYNC_WORK_NAME = "background_sync"
+        val SYNC_TIME_FORMATTER: DateTimeFormatter =
             DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")
     }
 }

@@ -56,16 +56,6 @@ class SyncPreferences(context: Context) {
         }
     }
 
-    fun backgroundSyncEnabled(): Boolean {
-        return preferences.getBoolean(PREF_BACKGROUND_SYNC_ENABLED, false)
-    }
-
-    fun setBackgroundSyncEnabled(enabled: Boolean) {
-        preferences.edit {
-            putBoolean(PREF_BACKGROUND_SYNC_ENABLED, enabled)
-        }
-    }
-
     fun nearbySyncEnabled(): Boolean {
         return preferences.getBoolean(PREF_NEARBY_SYNC_ENABLED, false)
     }
@@ -73,57 +63,6 @@ class SyncPreferences(context: Context) {
     fun setNearbySyncEnabled(enabled: Boolean) {
         preferences.edit {
             putBoolean(PREF_NEARBY_SYNC_ENABLED, enabled)
-        }
-    }
-
-    fun backgroundSyncIntervalHours(): Int {
-        val storedValue = preferences.getInt(
-            PREF_BACKGROUND_SYNC_INTERVAL_HOURS,
-            DEFAULT_BACKGROUND_SYNC_INTERVAL_HOURS,
-        )
-        return if (storedValue in BACKGROUND_SYNC_INTERVAL_OPTIONS_HOURS) {
-            storedValue
-        } else {
-            DEFAULT_BACKGROUND_SYNC_INTERVAL_HOURS
-        }
-    }
-
-    fun setBackgroundSyncIntervalHours(hours: Int) {
-        val normalizedHours = if (hours in BACKGROUND_SYNC_INTERVAL_OPTIONS_HOURS) {
-            hours
-        } else {
-            DEFAULT_BACKGROUND_SYNC_INTERVAL_HOURS
-        }
-        preferences.edit {
-            putInt(PREF_BACKGROUND_SYNC_INTERVAL_HOURS, normalizedHours)
-        }
-    }
-
-    fun lastBackgroundSyncSummary(): String? {
-        return preferences.getString(PREF_LAST_BACKGROUND_SYNC_SUMMARY, null)
-    }
-
-    fun setLastBackgroundSyncSummary(summary: String) {
-        preferences.edit {
-            putString(PREF_LAST_BACKGROUND_SYNC_SUMMARY, summary)
-        }
-    }
-
-    fun persistLastBackgroundSyncStatus(timestampMillis: Long, summary: String) {
-        preferences.edit(commit = true) {
-            putLong(PREF_LAST_BACKGROUND_SYNC_AT_MILLIS, timestampMillis)
-            putString(PREF_LAST_BACKGROUND_SYNC_SUMMARY, summary)
-        }
-    }
-
-    fun lastBackgroundSyncAtMillis(): Long? {
-        val value = preferences.getLong(PREF_LAST_BACKGROUND_SYNC_AT_MILLIS, -1L)
-        return if (value > 0L) value else null
-    }
-
-    fun setLastBackgroundSyncAtMillis(timestampMillis: Long) {
-        preferences.edit {
-            putLong(PREF_LAST_BACKGROUND_SYNC_AT_MILLIS, timestampMillis)
         }
     }
 
@@ -172,16 +111,10 @@ class SyncPreferences(context: Context) {
         const val PREF_SELECTED_DEVICE_ADDRESS = "selected_device_address"
         const val PREF_HEALTH_CONNECT_AUTO_EXPORT = "health_connect_auto_export"
         const val PREF_HEALTH_CONNECT_EXPORT_USER = "health_connect_export_user"
-        const val PREF_BACKGROUND_SYNC_ENABLED = "background_sync_enabled"
         const val PREF_NEARBY_SYNC_ENABLED = "nearby_sync_enabled"
-        const val PREF_BACKGROUND_SYNC_INTERVAL_HOURS = "background_sync_interval_hours"
-        const val PREF_LAST_BACKGROUND_SYNC_SUMMARY = "last_background_sync_summary"
-        const val PREF_LAST_BACKGROUND_SYNC_AT_MILLIS = "last_background_sync_at_millis"
         const val PREF_LAST_NEARBY_SYNC_SUMMARY = "last_nearby_sync_summary"
         const val PREF_LAST_NEARBY_SYNC_AT_MILLIS = "last_nearby_sync_at_millis"
         const val PREF_LAST_NEARBY_SYNC_TRIGGER_AT_MILLIS = "last_nearby_sync_trigger_at_millis"
         const val HEALTH_CONNECT_EXPORT_USER_ALL = "all"
-        val BACKGROUND_SYNC_INTERVAL_OPTIONS_HOURS = listOf(1, 3, 6, 12, 24)
-        const val DEFAULT_BACKGROUND_SYNC_INTERVAL_HOURS = 12
     }
 }
