@@ -395,6 +395,18 @@ class OmronSyncClient(
             expectedPacketType: Int?,
             expectedAddress: Int?,
         ): OmronResponse = withTimeout(RESPONSE_TIMEOUT_MS) {
+            awaitMatchingResponse(
+                attempt = attempt,
+                expectedPacketType = expectedPacketType,
+                expectedAddress = expectedAddress,
+            )
+        }
+
+        private suspend fun awaitMatchingResponse(
+            attempt: Int,
+            expectedPacketType: Int?,
+            expectedAddress: Int?,
+        ): OmronResponse {
             while (true) {
                 val payload = notificationChannel.receive()
                 val response = parseResponse(payload)
@@ -418,9 +430,8 @@ class OmronSyncClient(
                     )
                     continue
                 }
-                return@withTimeout response
+                return response
             }
-            error("Unreachable")
         }
 
         private fun requireCharacteristic(
