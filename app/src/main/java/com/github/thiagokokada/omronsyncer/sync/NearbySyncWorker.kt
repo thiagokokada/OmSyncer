@@ -64,14 +64,6 @@ class NearbySyncWorker(
                 timestampMillis = System.currentTimeMillis(),
                 summary = summary,
             )
-            SyncWorkerNotifications.showSuccessfulSync(
-                context = applicationContext,
-                notificationId = SUCCESS_NOTIFICATION_ID,
-                fetched = result.imported,
-                inserted = result.inserted,
-                duplicates = result.duplicates,
-                exportedToHealthConnect = result.healthConnectExportSummary != null,
-            )
             Log.d(TAG, "Nearby sync completed: $summary")
         }.fold(
             onSuccess = { Result.success() },
@@ -133,7 +125,6 @@ class NearbySyncWorker(
         const val UNIQUE_WORK_NAME = "nearby_sync"
         private const val TAG = "OmSyncerNearby"
         private const val NOTIFICATION_ID = 1002
-        private const val SUCCESS_NOTIFICATION_ID = 1003
         private const val MAX_SYNC_ATTEMPTS = 3
         private const val INITIAL_SYNC_DELAY_MS = 4_000L
         private const val RETRY_DELAY_MS = 5_000L

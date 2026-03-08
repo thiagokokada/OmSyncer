@@ -1,22 +1,14 @@
 package com.github.thiagokokada.omronsyncer.sync
 
-import android.Manifest
 import android.app.NotificationChannel
 import android.app.NotificationManager
-import android.app.PendingIntent
 import android.content.Context
-import android.content.Intent
 import android.os.Build
 import android.util.Log
 import androidx.core.app.NotificationCompat
-import androidx.core.app.NotificationManagerCompat
-import androidx.core.content.ContextCompat
 import androidx.work.CoroutineWorker
 import androidx.work.ForegroundInfo
 import com.github.thiagokokada.omronsyncer.R
-import java.time.Instant
-import java.time.ZoneId
-import java.time.format.DateTimeFormatter
 
 object SyncWorkerNotifications {
     const val CHANNEL_ID = "background_sync"
@@ -66,44 +58,6 @@ object SyncWorkerNotifications {
         }.isSuccess
     }
 
-    fun showSuccessfulSync(
-        context: Context,
-        notificationId: Int,
-        fetched: Int,
-        inserted: Int,
-        duplicates: Int,
-        exportedToHealthConnect: Boolean,
-    ) {
-        if (!hasNotificationPermission(context)) {
-            return
-        }
-        ensureNotificationChannel(context)
-        val timestamp = timestampText()
-        val body = context.getString(
-            if (exportedToHealthConnect) {
-                R.string.sync_success_notification_body_health_connect
-            } else {
-                R.string.sync_success_notification_body
-            },
-            timestamp,
-            fetched,
-            inserted,
-            duplicates,
-        )
-        val notification = NotificationCompat.Builder(context, CHANNEL_ID)
-            .setSmallIcon(android.R.drawable.stat_notify_sync_noanim)
-            .setContentTitle(context.getString(R.string.sync_success_notification_title))
-            .setContentText(body)
-            .setStyle(NotificationCompat.BigTextStyle().bigText(body))
-            .setPriority(NotificationCompat.PRIORITY_LOW)
-            .setOnlyAlertOnce(true)
-            .setAutoCancel(true)
-            .setContentIntent(launchPendingIntent(context))
-            .build()
-
-        NotificationManagerCompat.from(context).notify(notificationId, notification)
-    }
-
     private fun ensureNotificationChannel(context: Context) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
             return
@@ -123,31 +77,4 @@ object SyncWorkerNotifications {
             ),
         )
     }
-
-    private fun launchPendingIntent(context: Context): PendingIntent? {
-        val launchIntent = context.packageManager.getLaunchIntentForPackage(context.packageName)
-            ?.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
-            ?: return null
-        return PendingIntent.getActivity(
-            context,
-            0,
-            launchIntent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
-        )
-    }
-
-    private fun timestampText(): String {
-        return SUCCESS_TIME_FORMATTER.format(Instant.now().atZone(ZoneId.systemDefault()))
-    }
-
-    private fun hasNotificationPermission(context: Context): Boolean {
-        return Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
-            ContextCompat.checkSelfPermission(
-                context,
-                Manifest.permission.POST_NOTIFICATIONS,
-            ) == android.content.pm.PackageManager.PERMISSION_GRANTED
-    }
-
-    private val SUCCESS_TIME_FORMATTER: DateTimeFormatter =
-        DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")
 }
