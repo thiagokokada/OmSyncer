@@ -24,24 +24,26 @@ class MeasurementStore(context: Context) {
             null,
             "$COLUMN_RECORDED_AT DESC",
         ).use { cursor ->
-            val measurements = mutableListOf<Measurement>()
-            while (cursor.moveToNext()) {
-                measurements += Measurement(
-                    user = cursor.getInt(cursor.getColumnIndexOrThrow(COLUMN_USER)),
-                    recordedAt = LocalDateTime.parse(
-                        cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_RECORDED_AT)),
-                        STORED_TIME_FORMATTER,
-                    ),
-                    systolic = cursor.getInt(cursor.getColumnIndexOrThrow(COLUMN_SYSTOLIC)),
-                    diastolic = cursor.getInt(cursor.getColumnIndexOrThrow(COLUMN_DIASTOLIC)),
-                    pulse = cursor.getInt(cursor.getColumnIndexOrThrow(COLUMN_PULSE)),
-                    irregularHeartbeat = cursor.getInt(
-                        cursor.getColumnIndexOrThrow(COLUMN_IRREGULAR_HEARTBEAT),
-                    ) == 1,
-                    movement = cursor.getInt(cursor.getColumnIndexOrThrow(COLUMN_MOVEMENT)) == 1,
-                )
+            return buildList {
+                while (cursor.moveToNext()) {
+                    add(
+                        Measurement(
+                            user = cursor.getInt(cursor.getColumnIndexOrThrow(COLUMN_USER)),
+                            recordedAt = LocalDateTime.parse(
+                                cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_RECORDED_AT)),
+                                STORED_TIME_FORMATTER,
+                            ),
+                            systolic = cursor.getInt(cursor.getColumnIndexOrThrow(COLUMN_SYSTOLIC)),
+                            diastolic = cursor.getInt(cursor.getColumnIndexOrThrow(COLUMN_DIASTOLIC)),
+                            pulse = cursor.getInt(cursor.getColumnIndexOrThrow(COLUMN_PULSE)),
+                            irregularHeartbeat = cursor.getInt(
+                                cursor.getColumnIndexOrThrow(COLUMN_IRREGULAR_HEARTBEAT),
+                            ) == 1,
+                            movement = cursor.getInt(cursor.getColumnIndexOrThrow(COLUMN_MOVEMENT)) == 1,
+                        ),
+                    )
+                }
             }
-            return measurements
         }
     }
 
@@ -56,48 +58,37 @@ class MeasurementStore(context: Context) {
         }
 
         val db = helper.writableDatabase
-        var inserted = 0
-        val insertedMeasurements = mutableListOf<Measurement>()
-        db.transaction {
-            try {
-                measurements.forEach { measurement ->
-                    val values = ContentValues().apply {
-                        put(COLUMN_USER, measurement.user)
-                        put(
-                            COLUMN_RECORDED_AT,
-                            STORED_TIME_FORMATTER.format(measurement.recordedAt)
-                        )
-                        put(COLUMN_SYSTOLIC, measurement.systolic)
-                        put(COLUMN_DIASTOLIC, measurement.diastolic)
-                        put(COLUMN_PULSE, measurement.pulse)
-                        put(
-                            COLUMN_IRREGULAR_HEARTBEAT,
-                            if (measurement.irregularHeartbeat) 1 else 0
-                        )
-                        put(COLUMN_MOVEMENT, if (measurement.movement) 1 else 0)
-                    }
-
-                    val rowId = insertWithOnConflict(
-                        TABLE_MEASUREMENTS,
-                        null,
-                        values,
-                        SQLiteDatabase.CONFLICT_IGNORE,
-                    )
-                    if (rowId != -1L) {
-                        inserted += 1
-                        insertedMeasurements += measurement
-                    }
-                }
-            } finally {
+        val insertedMeasurements = db.transaction {
+            measurements.mapNotNull { measurement ->
+                val rowId = insertWithOnConflict(
+                    TABLE_MEASUREMENTS,
+                    null,
+                    measurement.toContentValues(),
+                    SQLiteDatabase.CONFLICT_IGNORE,
+                )
+                measurement.takeIf { rowId != -1L }
             }
         }
+        val insertedCount = insertedMeasurements.size
 
         return SaveSummary(
             imported = measurements.size,
-            inserted = inserted,
-            duplicates = measurements.size - inserted,
+            inserted = insertedCount,
+            duplicates = measurements.size - insertedCount,
             insertedMeasurements = insertedMeasurements,
         )
+    }
+
+    private fun Measurement.toContentValues(): ContentValues {
+        return ContentValues().apply {
+            put(COLUMN_USER, user)
+            put(COLUMN_RECORDED_AT, STORED_TIME_FORMATTER.format(recordedAt))
+            put(COLUMN_SYSTOLIC, systolic)
+            put(COLUMN_DIASTOLIC, diastolic)
+            put(COLUMN_PULSE, pulse)
+            put(COLUMN_IRREGULAR_HEARTBEAT, if (irregularHeartbeat) 1 else 0)
+            put(COLUMN_MOVEMENT, if (movement) 1 else 0)
+        }
     }
 
     data class SaveSummary(
