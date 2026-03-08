@@ -66,6 +66,20 @@ class SyncPreferences(context: Context) {
         }
     }
 
+    fun nearbySyncCooldownMinutes(): Int {
+        return preferences.getInt(PREF_NEARBY_SYNC_COOLDOWN_MINUTES, DEFAULT_NEARBY_SYNC_COOLDOWN_MINUTES)
+    }
+
+    fun setNearbySyncCooldownMinutes(minutes: Int) {
+        preferences.edit {
+            putInt(PREF_NEARBY_SYNC_COOLDOWN_MINUTES, minutes)
+        }
+    }
+
+    fun nearbySyncCooldownMillis(): Long {
+        return nearbySyncCooldownMinutes() * 60_000L
+    }
+
     fun lastNearbySyncSummary(): String? {
         return preferences.getString(PREF_LAST_NEARBY_SYNC_SUMMARY, null)
     }
@@ -112,9 +126,11 @@ class SyncPreferences(context: Context) {
         const val PREF_HEALTH_CONNECT_AUTO_EXPORT = "health_connect_auto_export"
         const val PREF_HEALTH_CONNECT_EXPORT_USER = "health_connect_export_user"
         const val PREF_NEARBY_SYNC_ENABLED = "nearby_sync_enabled"
+        const val PREF_NEARBY_SYNC_COOLDOWN_MINUTES = "nearby_sync_cooldown_minutes"
         const val PREF_LAST_NEARBY_SYNC_SUMMARY = "last_nearby_sync_summary"
         const val PREF_LAST_NEARBY_SYNC_AT_MILLIS = "last_nearby_sync_at_millis"
         const val PREF_LAST_NEARBY_SYNC_TRIGGER_AT_MILLIS = "last_nearby_sync_trigger_at_millis"
         const val HEALTH_CONNECT_EXPORT_USER_ALL = "all"
+        const val DEFAULT_NEARBY_SYNC_COOLDOWN_MINUTES = 5
     }
 }

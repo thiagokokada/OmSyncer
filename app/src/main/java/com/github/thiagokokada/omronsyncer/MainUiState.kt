@@ -25,5 +25,7 @@ data class MainUiState(
     val selectedHealthConnectExportUserIndex: Int,
     val nearbySyncEnabled: Boolean,
     val nearbySyncSummary: String,
+    val nearbySyncCooldownLabels: List<String>,
+    val selectedNearbySyncCooldownIndex: Int,
     val showsMeasurementUserColumn: Boolean,
 )

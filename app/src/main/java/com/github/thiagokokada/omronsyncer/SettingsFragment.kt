@@ -22,6 +22,7 @@ class SettingsFragment : Fragment() {
         fun onHealthConnectAutoExportChanged(enabled: Boolean)
         fun onHealthConnectExportUserSelected(position: Int)
         fun onNearbySyncChanged(enabled: Boolean)
+        fun onNearbySyncCooldownSelected(position: Int)
         fun onSyncLogRequested()
         fun onDeviceSelected(position: Int)
     }
@@ -32,11 +33,13 @@ class SettingsFragment : Fragment() {
     private lateinit var modelAdapter: ArrayAdapter<String>
     private lateinit var deviceAdapter: ArrayAdapter<String>
     private lateinit var healthConnectUserAdapter: ArrayAdapter<String>
+    private lateinit var nearbySyncCooldownAdapter: ArrayAdapter<String>
     private var suppressModelSelectionCallback = false
     private var suppressSelectionCallback = false
     private var suppressHealthConnectUserCallback = false
     private var suppressAutoExportCallback = false
     private var suppressNearbySyncCallback = false
+    private var suppressNearbySyncCooldownCallback = false
 
     override fun onAttach(context: Context) {
         super.onAttach(context)
@@ -80,6 +83,14 @@ class SettingsFragment : Fragment() {
             it.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
             binding.healthConnectUserSpinner.adapter = it
         }
+        nearbySyncCooldownAdapter = ArrayAdapter(
+            requireContext(),
+            android.R.layout.simple_spinner_item,
+            mutableListOf<String>(),
+        ).also {
+            it.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+            binding.nearbySyncCooldownSpinner.adapter = it
+        }
         binding.modelSpinner.onItemSelectedListener = SimpleItemSelectedListener { position ->
             if (!suppressModelSelectionCallback) {
                 host.onModelSelected(position)
@@ -93,6 +104,11 @@ class SettingsFragment : Fragment() {
         binding.healthConnectUserSpinner.onItemSelectedListener = SimpleItemSelectedListener { position ->
             if (!suppressHealthConnectUserCallback) {
                 host.onHealthConnectExportUserSelected(position)
+            }
+        }
+        binding.nearbySyncCooldownSpinner.onItemSelectedListener = SimpleItemSelectedListener { position ->
+            if (!suppressNearbySyncCooldownCallback) {
+                host.onNearbySyncCooldownSelected(position)
             }
         }
         binding.bluetoothSettingsButton.setOnClickListener {
@@ -186,6 +202,22 @@ class SettingsFragment : Fragment() {
         suppressAutoExportCallback = false
         binding.healthConnectAutoExportSwitch.isEnabled = !state.isWorking
         binding.nearbySyncSummaryValue.text = state.nearbySyncSummary
+        suppressNearbySyncCooldownCallback = true
+        nearbySyncCooldownAdapter.clear()
+        nearbySyncCooldownAdapter.addAll(state.nearbySyncCooldownLabels)
+        nearbySyncCooldownAdapter.notifyDataSetChanged()
+        binding.nearbySyncCooldownLabel.visibility = if (state.nearbySyncEnabled) View.VISIBLE else View.GONE
+        binding.nearbySyncCooldownSpinner.visibility = if (state.nearbySyncEnabled) View.VISIBLE else View.GONE
+        binding.nearbySyncCooldownDescription.visibility =
+            if (state.nearbySyncEnabled) View.VISIBLE else View.GONE
+        binding.nearbySyncCooldownSpinner.isEnabled = state.nearbySyncEnabled && !state.isWorking
+        if (
+            state.selectedNearbySyncCooldownIndex >= 0 &&
+            state.selectedNearbySyncCooldownIndex < state.nearbySyncCooldownLabels.size
+        ) {
+            binding.nearbySyncCooldownSpinner.setSelection(state.selectedNearbySyncCooldownIndex)
+        }
+        suppressNearbySyncCooldownCallback = false
         suppressNearbySyncCallback = true
         binding.nearbySyncSwitch.isChecked = state.nearbySyncEnabled
         suppressNearbySyncCallback = false

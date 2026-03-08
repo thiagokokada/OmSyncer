@@ -44,7 +44,7 @@ class NearbySyncReceiver : BroadcastReceiver() {
 
         val now = System.currentTimeMillis()
         val lastTriggerAt = preferences.lastNearbySyncTriggerAtMillis()
-        if (lastTriggerAt != null && now - lastTriggerAt < TRIGGER_COOLDOWN_MS) {
+        if (lastTriggerAt != null && now - lastTriggerAt < preferences.nearbySyncCooldownMillis()) {
             Log.d(TAG, "Ignoring nearby scan callback during cooldown window.")
             return
         }
@@ -66,6 +66,5 @@ class NearbySyncReceiver : BroadcastReceiver() {
     companion object {
         const val ACTION_SCAN_RESULT = "com.github.thiagokokada.omronsyncer.action.NEARBY_SCAN_RESULT"
         private const val TAG = "OmSyncerNearby"
-        private const val TRIGGER_COOLDOWN_MS = 5 * 60_000L
     }
 }

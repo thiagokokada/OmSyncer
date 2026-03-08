@@ -20,6 +20,14 @@
     <string name="health_connect_auto_export_label">Auto-export after sync</string>
     <string name="nearby_sync_section_title">When monitor is nearby</string>
     <string name="nearby_sync_label">Sync when monitor is nearby</string>
+    <string name="nearby_sync_cooldown_label">Cooldown between automatic sync attempts</string>
+    <string name="nearby_sync_cooldown_description">Shorter cooldowns can catch new measurements sooner, but they may use more battery.</string>
+    <string name="nearby_sync_cooldown_immediately">Immediately (Debug)</string>
+    <string name="nearby_sync_cooldown_1_minute">1 minute</string>
+    <string name="nearby_sync_cooldown_2_minutes">2 minutes</string>
+    <string name="nearby_sync_cooldown_3_minutes">3 minutes</string>
+    <string name="nearby_sync_cooldown_5_minutes">5 minutes</string>
+    <string name="nearby_sync_cooldown_10_minutes">10 minutes</string>
     <string name="open_sync_log">Open sync log</string>
     <string name="refresh_devices">Refresh devices</string>
     <string name="sync_now">Sync now</string>

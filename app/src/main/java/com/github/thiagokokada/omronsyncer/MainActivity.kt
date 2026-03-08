@@ -215,6 +215,10 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, SettingsFragment
         }
         val healthConnectUserOptions = buildHealthConnectExportUserOptions(selectedModel)
         val selectedHealthConnectUser = resolveHealthConnectExportUserOption(selectedModel)
+        val nearbySyncCooldownOptions = nearbySyncCooldownOptions()
+        val selectedNearbySyncCooldownMinutes = syncPreferences.nearbySyncCooldownMinutes()
+            .takeIf { minutes -> nearbySyncCooldownOptions.any { it.minutes == minutes } }
+            ?: SyncPreferences.DEFAULT_NEARBY_SYNC_COOLDOWN_MINUTES
         val nearbySyncEnabled = syncPreferences.nearbySyncEnabled()
         val nearbySyncSummary = if (!nearbySyncEnabled) {
             getString(R.string.nearby_sync_summary_off)
@@ -257,6 +261,9 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, SettingsFragment
                 healthConnectUserOptions.indexOfFirst { it.key == selectedHealthConnectUser.key },
             nearbySyncEnabled = nearbySyncEnabled,
             nearbySyncSummary = nearbySyncSummary,
+            nearbySyncCooldownLabels = nearbySyncCooldownOptions.map { it.label },
+            selectedNearbySyncCooldownIndex =
+                nearbySyncCooldownOptions.indexOfFirst { it.minutes == selectedNearbySyncCooldownMinutes },
             showsMeasurementUserColumn = selectedModel.userCount > 1,
         )
     }
@@ -324,6 +331,13 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, SettingsFragment
         }
 
         setNearbySyncEnabled(enabled)
+    }
+
+    override fun onNearbySyncCooldownSelected(position: Int) {
+        nearbySyncCooldownOptions().getOrNull(position)?.let { option ->
+            syncPreferences.setNearbySyncCooldownMinutes(option.minutes)
+            notifyCurrentFragment()
+        }
     }
 
     override fun onSyncLogRequested() {
@@ -878,6 +892,22 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, SettingsFragment
         val user: Int?,
         val label: String,
     )
+
+    private data class NearbySyncCooldownOption(
+        val minutes: Int,
+        val label: String,
+    )
+
+    private fun nearbySyncCooldownOptions(): List<NearbySyncCooldownOption> {
+        return listOf(
+            NearbySyncCooldownOption(0, getString(R.string.nearby_sync_cooldown_immediately)),
+            NearbySyncCooldownOption(1, getString(R.string.nearby_sync_cooldown_1_minute)),
+            NearbySyncCooldownOption(2, getString(R.string.nearby_sync_cooldown_2_minutes)),
+            NearbySyncCooldownOption(3, getString(R.string.nearby_sync_cooldown_3_minutes)),
+            NearbySyncCooldownOption(5, getString(R.string.nearby_sync_cooldown_5_minutes)),
+            NearbySyncCooldownOption(10, getString(R.string.nearby_sync_cooldown_10_minutes)),
+        )
+    }
 
     private companion object {
         const val BACKSTACK_SYNC_LOG = "sync_log"
