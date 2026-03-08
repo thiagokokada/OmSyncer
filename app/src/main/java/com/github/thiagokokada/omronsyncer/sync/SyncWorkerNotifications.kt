@@ -4,7 +4,9 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.Context
 import android.os.Build
+import android.util.Log
 import androidx.core.app.NotificationCompat
+import androidx.work.CoroutineWorker
 import androidx.work.ForegroundInfo
 import com.github.thiagokokada.omronsyncer.R
 
@@ -32,6 +34,28 @@ object SyncWorkerNotifications {
             notification,
             android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC,
         )
+    }
+
+    suspend fun promoteToForegroundIfAllowed(
+        worker: CoroutineWorker,
+        context: Context,
+        notificationId: Int,
+        titleResId: Int,
+        bodyResId: Int,
+        logTag: String,
+    ): Boolean {
+        return runCatching {
+            worker.setForeground(
+                createForegroundInfo(
+                    context = context,
+                    notificationId = notificationId,
+                    titleResId = titleResId,
+                    bodyResId = bodyResId,
+                ),
+            )
+        }.onFailure { error ->
+            Log.w(logTag, "Foreground promotion not allowed; continuing without it.", error)
+        }.isSuccess
     }
 
     private fun ensureNotificationChannel(context: Context) {

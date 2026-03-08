@@ -15,13 +15,13 @@ class NearbySyncWorker(
 
     override suspend fun doWork(): Result {
         Log.d(TAG, "Nearby sync worker started.")
-        setForeground(
-            SyncWorkerNotifications.createForegroundInfo(
-                context = applicationContext,
-                notificationId = NOTIFICATION_ID,
-                titleResId = R.string.nearby_sync_notification_title,
-                bodyResId = R.string.nearby_sync_notification_body,
-            ),
+        SyncWorkerNotifications.promoteToForegroundIfAllowed(
+            worker = this,
+            context = applicationContext,
+            notificationId = NOTIFICATION_ID,
+            titleResId = R.string.nearby_sync_notification_title,
+            bodyResId = R.string.nearby_sync_notification_body,
+            logTag = TAG,
         )
 
         val preferences = SyncPreferences(applicationContext)

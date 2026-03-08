@@ -12,13 +12,13 @@ class BackgroundSyncWorker(
 ) : CoroutineWorker(appContext, workerParams) {
 
     override suspend fun doWork(): Result {
-        setForeground(
-            SyncWorkerNotifications.createForegroundInfo(
-                context = applicationContext,
-                notificationId = NOTIFICATION_ID,
-                titleResId = R.string.background_sync_notification_title,
-                bodyResId = R.string.background_sync_notification_body,
-            ),
+        SyncWorkerNotifications.promoteToForegroundIfAllowed(
+            worker = this,
+            context = applicationContext,
+            notificationId = NOTIFICATION_ID,
+            titleResId = R.string.background_sync_notification_title,
+            bodyResId = R.string.background_sync_notification_body,
+            logTag = TAG,
         )
 
         val preferences = SyncPreferences(applicationContext)
@@ -78,6 +78,7 @@ class BackgroundSyncWorker(
 
     companion object {
         const val UNIQUE_WORK_NAME = "background_sync"
+        private const val TAG = "OmSyncerBackground"
         private const val NOTIFICATION_ID = 1001
     }
 }
