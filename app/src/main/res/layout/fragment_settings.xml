@@ -231,12 +231,41 @@
                     android:textAppearance="?attr/textAppearanceBodyMedium" />
 
                 <TextView
-                    android:id="@+id/background_sync_summary_value"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="16dp"
+                    android:text="@string/nearby_sync_section_title"
+                    android:textAppearance="?attr/textAppearanceLabelLarge" />
+
+                <TextView
+                    android:id="@+id/nearby_sync_summary_value"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:textAppearance="?attr/textAppearanceBodyMedium"
+                    tools:text="Nearby sync is off." />
+
+                <com.google.android.material.materialswitch.MaterialSwitch
+                    android:id="@+id/nearby_sync_switch"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="12dp"
+                    android:text="@string/nearby_sync_label" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="16dp"
+                    android:text="@string/periodic_sync_section_title"
+                    android:textAppearance="?attr/textAppearanceLabelLarge" />
+
+                <TextView
+                    android:id="@+id/background_sync_summary_value"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
                     android:textAppearance="?attr/textAppearanceBodyMedium"
-                    tools:text="Background sync is off." />
+                    tools:text="Periodic sync is off." />
 
                 <TextView
                     android:layout_width="match_parent"

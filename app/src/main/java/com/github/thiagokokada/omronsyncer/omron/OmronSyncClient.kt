@@ -282,17 +282,17 @@ class OmronSyncClient(
         }
 
         suspend fun startTransmission() {
-            val response = sendCommand(START_TRANSMISSION_COMMAND)
-            require(response.packetType == RESPONSE_START) {
-                "Unexpected start response: 0x${response.packetType.toString(16)}"
-            }
+            sendCommand(
+                command = START_TRANSMISSION_COMMAND,
+                expectedPacketType = RESPONSE_START,
+            )
         }
 
         suspend fun endTransmission() {
-            val response = sendCommand(END_TRANSMISSION_COMMAND)
-            require(response.packetType == RESPONSE_END) {
-                "Unexpected end response: 0x${response.packetType.toString(16)}"
-            }
+            val response = sendCommand(
+                command = END_TRANSMISSION_COMMAND,
+                expectedPacketType = RESPONSE_END,
+            )
             if (response.data.firstOrNull()?.toInt() != 0) {
                 throw IllegalStateException(
                     "Device reported endTransmission error: ${response.data.first().toUByte().toInt()}",
@@ -301,13 +301,11 @@ class OmronSyncClient(
         }
 
         suspend fun readRecord(address: Int, recordSize: Int): ByteArray {
-            val response = sendCommand(buildReadCommand(address, recordSize))
-            require(response.packetType == RESPONSE_READ) {
-                "Unexpected read response: 0x${response.packetType.toString(16)}"
-            }
-            require(response.address == address) {
-                "Read response address mismatch: expected=0x${address.toString(16)} actual=0x${response.address.toString(16)}"
-            }
+            val response = sendCommand(
+                command = buildReadCommand(address, recordSize),
+                expectedPacketType = RESPONSE_READ,
+                expectedAddress = address,
+            )
             require(response.data.size == recordSize) {
                 "Read response size mismatch: expected=$recordSize actual=${response.data.size}"
             }
@@ -337,7 +335,11 @@ class OmronSyncClient(
             gatt = null
         }
 
-        private suspend fun sendCommand(command: ByteArray): OmronResponse {
+        private suspend fun sendCommand(
+            command: ByteArray,
+            expectedPacketType: Int? = null,
+            expectedAddress: Int? = null,
+        ): OmronResponse {
             var lastError: Exception? = null
             repeat(COMMAND_RETRY_COUNT) { retryIndex ->
                 val attempt = retryIndex + 1
@@ -365,13 +367,10 @@ class OmronSyncClient(
                         )
                     }
 
-                    val payload = withTimeout(RESPONSE_TIMEOUT_MS) {
-                        notificationChannel.receive()
-                    }
-                    val response = parseResponse(payload)
-                    log(
-                        "Packet[$attempt]: type=0x${response.packetType.toString(16)} " +
-                            "address=0x${response.address.toString(16)} bytes=${response.data.size}",
+                    val response = receiveExpectedResponse(
+                        attempt = attempt,
+                        expectedPacketType = expectedPacketType,
+                        expectedAddress = expectedAddress,
                     )
                     return response
                 } catch (error: Exception) {
@@ -389,6 +388,39 @@ class OmronSyncClient(
                 "Command failed after $COMMAND_RETRY_COUNT attempts.",
                 lastError,
             )
+        }
+
+        private suspend fun receiveExpectedResponse(
+            attempt: Int,
+            expectedPacketType: Int?,
+            expectedAddress: Int?,
+        ): OmronResponse = withTimeout(RESPONSE_TIMEOUT_MS) {
+            while (true) {
+                val payload = notificationChannel.receive()
+                val response = parseResponse(payload)
+                log(
+                    "Packet[$attempt]: type=0x${response.packetType.toString(16)} " +
+                        "address=0x${response.address.toString(16)} bytes=${response.data.size}",
+                )
+                if (expectedPacketType != null && response.packetType != expectedPacketType) {
+                    log(
+                        "Ignoring packet[$attempt]: expected type=0x" +
+                            expectedPacketType.toString(16) +
+                            " actual=0x${response.packetType.toString(16)}",
+                    )
+                    continue
+                }
+                if (expectedAddress != null && response.address != expectedAddress) {
+                    log(
+                        "Ignoring packet[$attempt]: expected address=0x" +
+                            expectedAddress.toString(16) +
+                            " actual=0x${response.address.toString(16)}",
+                    )
+                    continue
+                }
+                return@withTimeout response
+            }
+            error("Unreachable")
         }
 
         private fun requireCharacteristic(

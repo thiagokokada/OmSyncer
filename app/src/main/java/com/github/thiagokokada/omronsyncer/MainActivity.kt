@@ -35,6 +35,7 @@ import com.github.thiagokokada.omronsyncer.omron.OmronSyncClient.SyncException
 import com.github.thiagokokada.omronsyncer.omron.VerificationLevel
 import com.github.thiagokokada.omronsyncer.sync.BackgroundSyncScheduler
 import com.github.thiagokokada.omronsyncer.sync.MissingBluetoothPermissionException
+import com.github.thiagokokada.omronsyncer.sync.NearbySyncRegistrar
 import com.github.thiagokokada.omronsyncer.sync.SyncExecutionResult
 import com.github.thiagokokada.omronsyncer.sync.SyncOrchestrator
 import com.github.thiagokokada.omronsyncer.sync.SyncPreferences
@@ -57,6 +58,7 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, SettingsFragment
     private val csvExporter by lazy { MeasurementCsvExporter() }
     private val healthConnectExporter by lazy { HealthConnectBloodPressureExporter(this) }
     private val backgroundSyncScheduler by lazy { BackgroundSyncScheduler(this) }
+    private val nearbySyncRegistrar by lazy { NearbySyncRegistrar(this) }
     private val syncOrchestrator by lazy {
         SyncOrchestrator(
             context = this,
@@ -76,6 +78,7 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, SettingsFragment
     private var isHealthConnectSetupRequired: Boolean = false
     private var isHealthConnectConnected: Boolean = false
     private var healthConnectStatusMessage: String = ""
+    private var pendingEnableNearbySync: Boolean = false
 
     private val permissionLauncher =
         registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { result ->
@@ -83,6 +86,18 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, SettingsFragment
                 loadBondedDevices()
             } else {
                 updateStatus(getString(R.string.permission_denied))
+            }
+        }
+
+    private val nearbySyncPermissionLauncher =
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+            if (granted) {
+                pendingEnableNearbySync = false
+                setNearbySyncEnabled(true)
+            } else {
+                pendingEnableNearbySync = false
+                updateStatus(getString(R.string.nearby_sync_permission_denied))
+                notifyCurrentFragment()
             }
         }
 
@@ -161,13 +176,16 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, SettingsFragment
             enabled = syncPreferences.backgroundSyncEnabled(),
             intervalHours = syncPreferences.backgroundSyncIntervalHours(),
         )
+        refreshNearbySyncRegistration()
         updateStatus(getString(R.string.status_idle))
     }
 
     override fun onResume() {
         super.onResume()
+        loadPersistedMeasurements()
         loadBondedDevices()
         refreshHealthConnectState()
+        refreshNearbySyncRegistration()
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
@@ -194,10 +212,26 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, SettingsFragment
         val healthConnectUserOptions = buildHealthConnectExportUserOptions(selectedModel)
         val selectedHealthConnectUser = resolveHealthConnectExportUserOption(selectedModel)
         val backgroundSyncEnabled = syncPreferences.backgroundSyncEnabled()
+        val nearbySyncEnabled = syncPreferences.nearbySyncEnabled()
         val backgroundSyncIntervalHours = syncPreferences.backgroundSyncIntervalHours()
         val backgroundSyncIntervalLabels = SyncPreferences.BACKGROUND_SYNC_INTERVAL_OPTIONS_HOURS.map(
             ::formatBackgroundSyncInterval,
         )
+        val nearbySyncSummary = if (!nearbySyncEnabled) {
+            getString(R.string.nearby_sync_summary_off)
+        } else if (!hasBluetoothScanPermission()) {
+            getString(R.string.nearby_sync_summary_missing_permission)
+        } else {
+            val rawSummary = syncPreferences.lastNearbySyncSummary()?.takeIf { it.isNotBlank() }
+                ?: getString(R.string.nearby_sync_summary_waiting)
+            syncPreferences.lastNearbySyncAtMillis()?.let { timestampMillis ->
+                getString(
+                    R.string.nearby_sync_summary_with_time,
+                    formatBackgroundSyncTimestamp(timestampMillis),
+                    rawSummary,
+                )
+            } ?: rawSummary
+        }
         val backgroundSyncSummary = if (!backgroundSyncEnabled) {
             getString(R.string.background_sync_summary_off)
         } else {
@@ -240,6 +274,8 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, SettingsFragment
             selectedHealthConnectExportUserIndex =
                 healthConnectUserOptions.indexOfFirst { it.key == selectedHealthConnectUser.key },
             backgroundSyncEnabled = backgroundSyncEnabled,
+            nearbySyncEnabled = nearbySyncEnabled,
+            nearbySyncSummary = nearbySyncSummary,
             backgroundSyncIntervalLabels = backgroundSyncIntervalLabels,
             selectedBackgroundSyncIntervalIndex =
                 SyncPreferences.BACKGROUND_SYNC_INTERVAL_OPTIONS_HOURS
@@ -252,6 +288,7 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, SettingsFragment
     override fun onModelSelected(position: Int) {
         OmronDeviceRegistry.supportedModels.getOrNull(position)?.let { model ->
             syncPreferences.setSelectedModelId(model.id)
+            refreshNearbySyncRegistration()
             notifyCurrentFragment()
         }
     }
@@ -305,6 +342,24 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, SettingsFragment
             },
         )
         notifyCurrentFragment()
+    }
+
+    override fun onNearbySyncChanged(enabled: Boolean) {
+        if (enabled) {
+            if (selectedDeviceAddress() == null) {
+                updateStatus(getString(R.string.status_no_devices))
+                notifyCurrentFragment()
+                return
+            }
+            if (!hasBluetoothScanPermission()) {
+                pendingEnableNearbySync = true
+                updateStatus(getString(R.string.nearby_sync_permission_required))
+                nearbySyncPermissionLauncher.launch(Manifest.permission.BLUETOOTH_SCAN)
+                return
+            }
+        }
+
+        setNearbySyncEnabled(enabled)
     }
 
     override fun onBackgroundSyncIntervalSelected(position: Int) {
@@ -688,11 +743,38 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, SettingsFragment
         return granted
     }
 
+    private fun hasBluetoothScanPermission(): Boolean {
+        return ContextCompat.checkSelfPermission(
+            this,
+            Manifest.permission.BLUETOOTH_SCAN,
+        ) == PackageManager.PERMISSION_GRANTED
+    }
+
     private fun hasBluetoothPermission(): Boolean {
         return ContextCompat.checkSelfPermission(
             this,
             Manifest.permission.BLUETOOTH_CONNECT,
         ) == PackageManager.PERMISSION_GRANTED
+    }
+
+    private fun setNearbySyncEnabled(enabled: Boolean) {
+        syncPreferences.setNearbySyncEnabled(enabled)
+        refreshNearbySyncRegistration()
+        updateStatus(
+            if (enabled) {
+                getString(R.string.status_nearby_sync_enabled)
+            } else {
+                getString(R.string.status_nearby_sync_disabled)
+            },
+        )
+        notifyCurrentFragment()
+    }
+
+    private fun refreshNearbySyncRegistration() {
+        nearbySyncRegistrar.updateRegistration(
+            enabled = syncPreferences.nearbySyncEnabled() && hasBluetoothScanPermission(),
+            model = selectedModel(),
+        )
     }
 
     private fun resolveHealthConnectExportUserOption(

@@ -22,6 +22,7 @@ class SettingsFragment : Fragment() {
         fun onHealthConnectAutoExportChanged(enabled: Boolean)
         fun onHealthConnectExportUserSelected(position: Int)
         fun onBackgroundSyncChanged(enabled: Boolean)
+        fun onNearbySyncChanged(enabled: Boolean)
         fun onBackgroundSyncIntervalSelected(position: Int)
         fun onSyncLogRequested()
         fun onDeviceSelected(position: Int)
@@ -39,6 +40,7 @@ class SettingsFragment : Fragment() {
     private var suppressHealthConnectUserCallback = false
     private var suppressAutoExportCallback = false
     private var suppressBackgroundSyncCallback = false
+    private var suppressNearbySyncCallback = false
     private var suppressBackgroundSyncIntervalCallback = false
 
     override fun onAttach(context: Context) {
@@ -139,6 +141,11 @@ class SettingsFragment : Fragment() {
                 host.onBackgroundSyncChanged(isChecked)
             }
         }
+        binding.nearbySyncSwitch.setOnCheckedChangeListener { _, isChecked ->
+            if (!suppressNearbySyncCallback) {
+                host.onNearbySyncChanged(isChecked)
+            }
+        }
         binding.syncLogButton.setOnClickListener {
             host.onSyncLogRequested()
         }
@@ -204,6 +211,11 @@ class SettingsFragment : Fragment() {
         binding.healthConnectAutoExportSwitch.isChecked = state.autoExportHealthConnect
         suppressAutoExportCallback = false
         binding.healthConnectAutoExportSwitch.isEnabled = !state.isWorking
+        binding.nearbySyncSummaryValue.text = state.nearbySyncSummary
+        suppressNearbySyncCallback = true
+        binding.nearbySyncSwitch.isChecked = state.nearbySyncEnabled
+        suppressNearbySyncCallback = false
+        binding.nearbySyncSwitch.isEnabled = !state.isWorking
         binding.backgroundSyncSummaryValue.text = state.backgroundSyncSummary
         suppressBackgroundSyncIntervalCallback = true
         backgroundSyncIntervalAdapter.clear()
