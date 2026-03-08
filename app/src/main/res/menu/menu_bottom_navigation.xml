@@ -5,6 +5,10 @@
         android:icon="@android:drawable/ic_menu_agenda"
         android:title="@string/results_title" />
     <item
+        android:id="@+id/navigation_trends"
+        android:icon="@android:drawable/ic_menu_week"
+        android:title="@string/trends_title" />
+    <item
         android:id="@+id/navigation_settings"
         android:icon="@android:drawable/ic_menu_manage"
         android:title="@string/settings_title" />

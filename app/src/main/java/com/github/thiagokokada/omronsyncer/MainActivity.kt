@@ -48,7 +48,7 @@ import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
-class MainActivity : AppCompatActivity(), ResultsFragment.Host, SettingsFragment.Host, SyncLogFragment.Host {
+class MainActivity : AppCompatActivity(), ResultsFragment.Host, TrendsFragment.Host, SettingsFragment.Host, SyncLogFragment.Host {
 
     private lateinit var binding: ActivityMainBinding
     private lateinit var syncPreferences: SyncPreferences
@@ -173,10 +173,6 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, SettingsFragment
         binding.toolbar.setNavigationOnClickListener {
             onBackPressedDispatcher.onBackPressed()
         }
-        binding.bottomNavigation.setOnItemSelectedListener { item ->
-            showScreen(item.itemId)
-            true
-        }
         supportFragmentManager.addOnBackStackChangedListener {
             updateTopLevelUi()
             notifyCurrentFragment()
@@ -185,6 +181,16 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, SettingsFragment
         selectedTabId = savedInstanceState?.getInt(KEY_SELECTED_TAB, R.id.navigation_results)
             ?: R.id.navigation_results
         binding.bottomNavigation.selectedItemId = selectedTabId
+        if (savedInstanceState == null || supportFragmentManager.findFragmentById(R.id.fragment_container) == null) {
+            showScreen(selectedTabId)
+        } else {
+            updateTopLevelUi()
+            binding.root.post { notifyCurrentFragment() }
+        }
+        binding.bottomNavigation.setOnItemSelectedListener { item ->
+            showScreen(item.itemId)
+            true
+        }
 
         loadPersistedMeasurements()
         renderSyncLog(lastSyncLog)
@@ -371,6 +377,7 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, SettingsFragment
             androidx.fragment.app.FragmentManager.POP_BACK_STACK_INCLUSIVE,
         )
         val fragment: Fragment = when (itemId) {
+            R.id.navigation_trends -> TrendsFragment()
             R.id.navigation_settings -> SettingsFragment()
             else -> ResultsFragment()
         }
@@ -676,6 +683,7 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, SettingsFragment
     private fun notifyCurrentFragment() {
         when (val fragment = supportFragmentManager.findFragmentById(R.id.fragment_container)) {
             is ResultsFragment -> fragment.render(currentUiState())
+            is TrendsFragment -> fragment.render(currentUiState())
             is SettingsFragment -> fragment.render(currentUiState())
             is SyncLogFragment -> fragment.render(currentUiState())
         }
@@ -962,6 +970,7 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, SettingsFragment
 
         binding.screenTitle.text = when {
             isLogScreen -> getString(R.string.sync_log_title)
+            selectedTabId == R.id.navigation_trends -> getString(R.string.trends_title)
             selectedTabId == R.id.navigation_settings -> getString(R.string.settings_title)
             else -> getString(R.string.results_title)
         }

@@ -1,7 +1,17 @@
 <resources>
     <string name="app_name">OmSyncer</string>
     <string name="results_title">Results</string>
+    <string name="trends_title">Trends</string>
     <string name="settings_title">Settings</string>
+    <string name="trends_chart_title">Blood pressure trends</string>
+    <string name="trends_chart_body">Track systolic and diastolic readings over time.</string>
+    <string name="trends_range_7d">7D</string>
+    <string name="trends_range_30d">30D</string>
+    <string name="trends_range_all">All</string>
+    <string name="trends_user_filter_label">User</string>
+    <string name="trends_systolic_legend">Systolic</string>
+    <string name="trends_diastolic_legend">Diastolic</string>
+    <string name="trends_empty_state">Sync more measurements to see a trend chart.</string>
     <string name="settings_device_title">Device configuration</string>
     <string name="settings_device_body">Choose the monitor model and bonded Bluetooth device to sync. Pair the monitor in Android settings before using it here.</string>
     <string name="settings_export_title">Data export</string>
