@@ -32,7 +32,10 @@ class SyncOrchestrator(
         val persistedMeasurements = withContext(Dispatchers.IO) {
             measurementStore.loadAll()
         }
-        val healthConnectSummary = maybeExportToHealthConnect(syncResult.measurements, model)
+        val healthConnectSummary = maybeExportToHealthConnect(
+            saveSummary.insertedMeasurements,
+            model,
+        )
 
         return SyncExecutionResult(
             persistedMeasurements = persistedMeasurements,

@@ -47,11 +47,17 @@ class MeasurementStore(context: Context) {
 
     fun saveAll(measurements: List<Measurement>): SaveSummary {
         if (measurements.isEmpty()) {
-            return SaveSummary(imported = 0, inserted = 0, duplicates = 0)
+            return SaveSummary(
+                imported = 0,
+                inserted = 0,
+                duplicates = 0,
+                insertedMeasurements = emptyList(),
+            )
         }
 
         val db = helper.writableDatabase
         var inserted = 0
+        val insertedMeasurements = mutableListOf<Measurement>()
         db.transaction {
             try {
                 measurements.forEach { measurement ->
@@ -79,6 +85,7 @@ class MeasurementStore(context: Context) {
                     )
                     if (rowId != -1L) {
                         inserted += 1
+                        insertedMeasurements += measurement
                     }
                 }
             } finally {
@@ -89,6 +96,7 @@ class MeasurementStore(context: Context) {
             imported = measurements.size,
             inserted = inserted,
             duplicates = measurements.size - inserted,
+            insertedMeasurements = insertedMeasurements,
         )
     }
 
@@ -96,6 +104,7 @@ class MeasurementStore(context: Context) {
         val imported: Int,
         val inserted: Int,
         val duplicates: Int,
+        val insertedMeasurements: List<Measurement>,
     )
 
     private class MeasurementDatabaseHelper(context: Context) :
