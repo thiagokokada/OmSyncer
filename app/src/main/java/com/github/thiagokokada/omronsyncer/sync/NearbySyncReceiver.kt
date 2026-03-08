@@ -66,6 +66,6 @@ class NearbySyncReceiver : BroadcastReceiver() {
     companion object {
         const val ACTION_SCAN_RESULT = "com.github.thiagokokada.omronsyncer.action.NEARBY_SCAN_RESULT"
         private const val TAG = "OmSyncerNearby"
-        private const val TRIGGER_COOLDOWN_MS = 90_000L
+        private const val TRIGGER_COOLDOWN_MS = 5 * 60_000L
     }
 }
