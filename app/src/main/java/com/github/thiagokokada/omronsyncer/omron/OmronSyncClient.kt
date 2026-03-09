@@ -457,16 +457,23 @@ class OmronSyncClient(
             }
         }
 
-        private fun bluetoothConnectFailed(status: Int): BluetoothConnectFailedException {
-            return BluetoothConnectFailedException(
-                status = status,
-                description = describeGattStatus(status),
-            )
+        private fun bluetoothConnectFailed(status: Int): IllegalStateException {
+            val description = describeGattStatus(status)
+            return if (description == "UNKNOWN") {
+                UnknownGattStatusException("Bluetooth connect failed", status)
+            } else {
+                BluetoothConnectFailedException(
+                    status = status,
+                    description = description,
+                )
+            }
         }
 
         private fun gattFailure(operation: String, status: Int): IllegalStateException {
             return if (status == BluetoothGatt.GATT_INSUFFICIENT_AUTHORIZATION) {
                 GattInsufficientAuthorizationException(operation)
+            } else if (describeGattStatus(status) == "UNKNOWN") {
+                UnknownGattStatusException(operation, status)
             } else {
                 IllegalStateException("$operation: status=$status (${describeGattStatus(status)})")
             }
@@ -538,7 +545,7 @@ class OmronSyncClient(
         description: String,
     ) : IllegalStateException(
         "Bluetooth connect failed: status=$status ($description)",
-    ), RetryableSyncFailure
+    )
 
     class BluetoothDeviceDisconnectedException :
         IllegalStateException("Bluetooth device disconnected."),
@@ -547,6 +554,13 @@ class OmronSyncClient(
     class GattInsufficientAuthorizationException(operation: String) :
         IllegalStateException("$operation: status=8 (GATT_INSUFFICIENT_AUTHORIZATION)"),
         RetryableSyncFailure
+
+    class UnknownGattStatusException(
+        operation: String,
+        val status: Int,
+    ) : IllegalStateException(
+        "$operation: status=$status (UNKNOWN)",
+    ), RetryableSyncFailure
 
     class ProfileServiceNotBoundException(operation: String) :
         IllegalStateException("$operation: PROFILE_SERVICE_NOT_BOUND"),

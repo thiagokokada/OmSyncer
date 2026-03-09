@@ -8,12 +8,12 @@ import org.junit.Test
 class RetryableSyncFailureClassifierTest {
 
     @Test
-    fun bluetoothConnectFailure_isRetryable() {
+    fun unknownGattStatus_isRetryable() {
         assertTrue(
             RetryableSyncFailureClassifier.isRetryable(
-                OmronSyncClient.BluetoothConnectFailedException(
+                OmronSyncClient.UnknownGattStatusException(
+                    operation = "Bluetooth connect failed",
                     status = 147,
-                    description = "UNKNOWN",
                 ),
             ),
         )
@@ -30,6 +30,30 @@ class RetryableSyncFailureClassifierTest {
         )
 
         assertTrue(RetryableSyncFailureClassifier.isRetryable(error))
+    }
+
+    @Test
+    fun knownConnectFailure_isNotRetryable() {
+        assertFalse(
+            RetryableSyncFailureClassifier.isRetryable(
+                OmronSyncClient.BluetoothConnectFailedException(
+                    status = 8,
+                    description = "GATT_INSUFFICIENT_AUTHORIZATION",
+                ),
+            ),
+        )
+    }
+
+    @Test
+    fun unknownGattOperationFailure_isRetryable() {
+        assertTrue(
+            RetryableSyncFailureClassifier.isRetryable(
+                OmronSyncClient.UnknownGattStatusException(
+                    operation = "Descriptor write failed",
+                    status = 133,
+                ),
+            ),
+        )
     }
 
     @Test
