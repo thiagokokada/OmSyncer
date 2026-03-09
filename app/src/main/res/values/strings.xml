@@ -130,7 +130,7 @@
     <string name="sync_log_empty">No sync log yet.</string>
     <string name="delete_measurement">Delete measurement</string>
     <string name="delete_measurement_title">Delete measurement?</string>
-    <string name="delete_measurement_message">This hides the measurement in OmSyncer so it does not reappear on the next sync. The monitor still keeps the original reading.</string>
+    <string name="delete_measurement_message">This hides the measurement in OmSyncer so it does not reappear on the next sync. The monitor still keeps the original reading.\n\nYou can restore it later in Settings under Deleted measurements.</string>
     <string name="delete_measurement_message_health_connect_warning">Health Connect is not available right now, so its copy may remain until the next Health Connect export.</string>
     <string name="delete_measurement_confirm">Delete</string>
     <string name="deleted_measurements_title">Deleted measurements</string>

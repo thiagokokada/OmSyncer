@@ -123,7 +123,7 @@ class ResultsFragment : Fragment() {
 
     private inner class DeleteMeasurementSwipeCallback : ItemTouchHelper.SimpleCallback(
         0,
-        ItemTouchHelper.LEFT,
+        ItemTouchHelper.LEFT or ItemTouchHelper.RIGHT,
     ) {
         private val deleteIcon = AppCompatResources.getDrawable(
             requireContext(),
@@ -180,6 +180,24 @@ class ResultsFragment : Fragment() {
                     val iconBottom = iconTop + icon.intrinsicHeight
                     val iconRight = itemView.right - iconMargin
                     val iconLeft = iconRight - icon.intrinsicWidth
+                    icon.setBounds(iconLeft, iconTop, iconRight, iconBottom)
+                    icon.draw(c)
+                }
+            } else if (dX > 0f) {
+                deleteSwipeBackground.setBounds(
+                    itemView.left,
+                    itemView.top,
+                    itemView.left + dX.toInt(),
+                    itemView.bottom,
+                )
+                deleteSwipeBackground.draw(c)
+
+                deleteIcon?.let { icon ->
+                    val iconMargin = (itemView.height - icon.intrinsicHeight) / 2
+                    val iconTop = itemView.top + iconMargin
+                    val iconBottom = iconTop + icon.intrinsicHeight
+                    val iconLeft = itemView.left + iconMargin
+                    val iconRight = iconLeft + icon.intrinsicWidth
                     icon.setBounds(iconLeft, iconTop, iconRight, iconBottom)
                     icon.draw(c)
                 }
