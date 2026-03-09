@@ -49,13 +49,17 @@ class SyncOrchestrator(
 
     suspend fun exportStoredMeasurementsToHealthConnect(): HealthConnectBloodPressureExporter.ExportSummary {
         val model = syncPreferences.selectedModel()
-        val storedMeasurements = withContext(Dispatchers.IO) {
-            measurementStore.loadAll(resolveSelectedMeasurementUser(model))
+        val selectedUser = resolveSelectedMeasurementUser(model)
+        val measurementState = withContext(Dispatchers.IO) {
+            measurementStore.loadAll(selectedUser) to measurementStore.loadDeleted(selectedUser)
         }
-        require(storedMeasurements.isNotEmpty()) {
+        require(measurementState.first.isNotEmpty() || measurementState.second.isNotEmpty()) {
             "No measurements match the selected user."
         }
-        return healthConnectExporter.export(storedMeasurements)
+        return healthConnectExporter.sync(
+            activeMeasurements = measurementState.first,
+            deletedMeasurements = measurementState.second,
+        )
     }
 
     private suspend fun maybeExportToHealthConnect(
@@ -72,12 +76,19 @@ class SyncOrchestrator(
             return null
         }
 
+        val selectedUser = resolveSelectedMeasurementUser(model)
         val filteredMeasurements = filterMeasurementsForHealthConnect(measurements, model)
-        if (filteredMeasurements.isEmpty()) {
+        val deletedMeasurements = withContext(Dispatchers.IO) {
+            measurementStore.loadDeleted(selectedUser)
+        }
+        if (filteredMeasurements.isEmpty() && deletedMeasurements.isEmpty()) {
             return null
         }
 
-        return healthConnectExporter.export(filteredMeasurements)
+        return healthConnectExporter.sync(
+            activeMeasurements = filteredMeasurements,
+            deletedMeasurements = deletedMeasurements,
+        )
     }
 
     private fun requireSelectedBondedDevice(): BluetoothDevice {

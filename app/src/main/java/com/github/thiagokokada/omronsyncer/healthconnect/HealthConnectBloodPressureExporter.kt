@@ -48,14 +48,30 @@ class HealthConnectBloodPressureExporter(private val context: Context) {
     }
 
     suspend fun export(measurements: List<Measurement>): ExportSummary {
-        require(measurements.isNotEmpty()) {
-            "No measurements available to export."
+        return sync(
+            activeMeasurements = measurements,
+            deletedMeasurements = emptyList(),
+        )
+    }
+
+    suspend fun sync(
+        activeMeasurements: List<Measurement>,
+        deletedMeasurements: List<Measurement>,
+    ): ExportSummary {
+        require(activeMeasurements.isNotEmpty() || deletedMeasurements.isNotEmpty()) {
+            "No measurements available to sync."
         }
 
-        client().insertRecords(measurements.flatMap(::toHealthConnectRecords))
+        if (activeMeasurements.isNotEmpty()) {
+            client().insertRecords(activeMeasurements.flatMap(::toHealthConnectRecords))
+        }
+        deletedMeasurements.forEach { measurement ->
+            delete(measurement)
+        }
         return ExportSummary(
-            bloodPressureExported = measurements.size,
-            heartRateExported = measurements.size,
+            bloodPressureExported = activeMeasurements.size,
+            heartRateExported = activeMeasurements.size,
+            deletedMeasurements = deletedMeasurements.size,
         )
     }
 
@@ -162,6 +178,7 @@ class HealthConnectBloodPressureExporter(private val context: Context) {
     data class ExportSummary(
         val bloodPressureExported: Int,
         val heartRateExported: Int,
+        val deletedMeasurements: Int,
     )
 
     private companion object {

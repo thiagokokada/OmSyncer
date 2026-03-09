@@ -282,7 +282,9 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, TrendsFragment.H
             healthConnectStatusMessage = healthConnectStatusMessage,
             canOpenHealthConnect = isHealthConnectAvailable || isHealthConnectSetupRequired,
             canExportHealthConnect =
-                measurements.isNotEmpty() && isHealthConnectAvailable && isHealthConnectConnected,
+                (measurements.isNotEmpty() || deletedMeasurements.isNotEmpty()) &&
+                    isHealthConnectAvailable &&
+                    isHealthConnectConnected,
             autoExportHealthConnect = syncPreferences.healthConnectAutoExportEnabled(),
             nearbySyncEnabled = nearbySyncEnabled,
             nearbySyncSummary = nearbySyncSummary,
@@ -639,24 +641,7 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, TrendsFragment.H
         MaterialAlertDialogBuilder(this)
             .setTitle(R.string.deleted_measurements_title)
             .setItems(items) { _, which ->
-                deletedMeasurements.getOrNull(which)?.let(::showDeletedMeasurementActions)
-            }
-            .setNegativeButton(R.string.close_label, null)
-            .show()
-    }
-
-    private fun showDeletedMeasurementActions(measurement: Measurement) {
-        val items = arrayOf(
-            getString(R.string.restore_measurement_action),
-            getString(R.string.retry_health_connect_delete_action),
-        )
-        MaterialAlertDialogBuilder(this)
-            .setTitle(restoreMeasurementLabel(measurement))
-            .setItems(items) { _, which ->
-                when (which) {
-                    0 -> restoreMeasurement(measurement)
-                    1 -> retryHealthConnectDelete(measurement)
-                }
+                deletedMeasurements.getOrNull(which)?.let(::restoreMeasurement)
             }
             .setNegativeButton(R.string.close_label, null)
             .show()
@@ -699,37 +684,6 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, TrendsFragment.H
                 updateStatus(error.message ?: error.javaClass.simpleName)
             }
 
-            setWorking(false)
-            notifyCurrentFragment()
-        }
-    }
-
-    private fun retryHealthConnectDelete(measurement: Measurement) {
-        setWorking(true)
-        updateStatus(getString(R.string.status_retry_health_connect_delete))
-
-        launchUi {
-            val message = when {
-                !canDeleteFromHealthConnect() -> {
-                    getString(R.string.status_retry_health_connect_delete_unavailable)
-                }
-
-                else -> {
-                    runCatching {
-                        healthConnectExporter.delete(measurement)
-                    }.fold(
-                        onSuccess = {
-                            getString(R.string.status_retry_health_connect_delete_success)
-                        },
-                        onFailure = {
-                            getString(R.string.status_retry_health_connect_delete_failed)
-                        },
-                    )
-                }
-            }
-
-            updateStatus(message)
-            showToast(message)
             setWorking(false)
             notifyCurrentFragment()
         }
@@ -821,8 +775,8 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, TrendsFragment.H
             updateStatus(getString(R.string.health_connect_status_not_connected))
             return
         }
-        if (measurements.isEmpty()) {
-            showToast(getString(R.string.empty_measurements))
+        if (measurements.isEmpty() && deletedMeasurements.isEmpty()) {
+            showToast(getString(R.string.status_health_connect_no_matching_measurements))
             return
         }
 
@@ -834,13 +788,7 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, TrendsFragment.H
                 syncOrchestrator.exportStoredMeasurementsToHealthConnect()
             }.onSuccess { summary ->
                 updateStatus(getString(R.string.health_connect_status_connected))
-                showToast(
-                    getString(
-                        R.string.status_health_connect_exported,
-                        summary.bloodPressureExported,
-                        summary.heartRateExported,
-                    ),
-                )
+                showToast(healthConnectExportMessage(summary))
             }.onFailure { error ->
                 updateStatus(error.message ?: error.javaClass.simpleName)
             }
@@ -1173,6 +1121,36 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, TrendsFragment.H
                     inserted,
                     inserted,
                 )
+        }
+    }
+
+    private fun healthConnectExportMessage(
+        summary: HealthConnectBloodPressureExporter.ExportSummary,
+    ): String {
+        return when {
+            summary.deletedMeasurements > 0 && summary.bloodPressureExported > 0 -> {
+                getString(
+                    R.string.status_health_connect_exported_with_deletions,
+                    summary.bloodPressureExported,
+                    summary.heartRateExported,
+                    summary.deletedMeasurements,
+                )
+            }
+
+            summary.deletedMeasurements > 0 -> {
+                getString(
+                    R.string.status_health_connect_deleted_measurements,
+                    summary.deletedMeasurements,
+                )
+            }
+
+            else -> {
+                getString(
+                    R.string.status_health_connect_exported,
+                    summary.bloodPressureExported,
+                    summary.heartRateExported,
+                )
+            }
         }
     }
 

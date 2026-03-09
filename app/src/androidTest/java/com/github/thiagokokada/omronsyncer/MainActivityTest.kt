@@ -27,6 +27,7 @@ import androidx.test.rule.GrantPermissionRule
 import androidx.recyclerview.widget.RecyclerView
 import com.github.thiagokokada.omronsyncer.data.MeasurementStore
 import com.github.thiagokokada.omronsyncer.model.Measurement
+import com.github.thiagokokada.omronsyncer.sync.SyncPreferences
 import org.hamcrest.CoreMatchers.`is`
 import org.hamcrest.Matcher
 import org.hamcrest.Matchers.allOf
@@ -46,6 +47,7 @@ class MainActivityTest {
         GrantPermissionRule.grant(
             Manifest.permission.BLUETOOTH_CONNECT,
             Manifest.permission.BLUETOOTH_SCAN,
+            Manifest.permission.POST_NOTIFICATIONS,
         )
 
     private val context: Context = ApplicationProvider.getApplicationContext()
@@ -54,6 +56,7 @@ class MainActivityTest {
     fun setUp() {
         clearPreferences()
         clearMeasurements()
+        suppressInitialPermissionPrompt()
     }
 
     @After
@@ -247,28 +250,9 @@ class MainActivityTest {
             onView(withId(R.id.navigation_settings)).perform(click())
             onView(withId(R.id.restore_measurements_button)).perform(scrollTo(), click())
             onView(withText("2026-03-08 09:30 · 121/81, pulse 65, flags -")).perform(click())
-            onView(withText(R.string.restore_measurement_action)).perform(click())
 
             onView(withId(R.id.navigation_results)).perform(click())
             onView(withId(R.id.measurement_count)).check(matches(withText("1 measurement")))
-        }
-    }
-
-    @Test
-    fun deletedMeasurementManager_allowsRetryHealthConnectDeletionAfterDelete() {
-        seedMeasurements(listOf(measurement(user = 1, day = 8)))
-
-        ActivityScenario.launch(MainActivity::class.java).use {
-            onView(withId(R.id.measurements_list)).perform(swipeRecyclerItemLeftAtPosition(0))
-            onView(withText(R.string.delete_measurement_confirm)).perform(click())
-
-            onView(withId(R.id.navigation_settings)).perform(click())
-            onView(withId(R.id.restore_measurements_button)).perform(scrollTo(), click())
-            onView(withText("2026-03-08 09:30 · 121/81, pulse 65, flags -")).perform(click())
-            onView(withText(R.string.retry_health_connect_delete_action)).perform(click())
-
-            onView(withId(R.id.status_value))
-                .check(matches(withText(R.string.status_retry_health_connect_delete_unavailable)))
         }
     }
 
@@ -285,6 +269,10 @@ class MainActivityTest {
 
     private fun seedMeasurements(measurements: List<Measurement>) {
         MeasurementStore(context).saveAll(measurements)
+    }
+
+    private fun suppressInitialPermissionPrompt() {
+        SyncPreferences(context).setInitialBluetoothPermissionPromptShown(true)
     }
 
     private fun measurement(user: Int, day: Int): Measurement {
