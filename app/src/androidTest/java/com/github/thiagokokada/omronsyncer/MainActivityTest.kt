@@ -209,6 +209,19 @@ class MainActivityTest {
         }
     }
 
+    @Test
+    fun seedSampleMeasurements_populatesResultsInDebugBuild() {
+        ActivityScenario.launch(MainActivity::class.java).use {
+            onView(withId(R.id.measurement_count)).check(matches(withText("0 measurements")))
+
+            onView(withId(R.id.navigation_settings)).perform(click())
+            onView(withId(R.id.seed_measurements_button)).perform(scrollTo(), click())
+
+            onView(withId(R.id.navigation_results)).perform(click())
+            onView(withId(R.id.measurement_count)).check(matches(withText("12 measurements")))
+        }
+    }
+
     private fun clearPreferences() {
         context.getSharedPreferences("om_syncer_prefs", Context.MODE_PRIVATE)
             .edit()

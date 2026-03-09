@@ -45,6 +45,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.time.Instant
+import java.time.LocalDateTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
@@ -286,6 +287,8 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, TrendsFragment.H
             nearbySyncCooldownLabels = nearbySyncCooldownOptions.map { it.label },
             selectedNearbySyncCooldownIndex =
                 nearbySyncCooldownOptions.indexOfFirst { it.minutes == selectedNearbySyncCooldownMinutes },
+            showsSeedSampleMeasurements = BuildConfig.DEBUG,
+            canSeedSampleMeasurements = BuildConfig.DEBUG && !isWorking,
             selectedTrendRange = syncPreferences.selectedTrendRange(),
             showsMeasurementUserColumn = selectedModel.userCount > 1,
         )
@@ -368,6 +371,10 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, TrendsFragment.H
             syncPreferences.setNearbySyncCooldownMinutes(option.minutes)
             notifyCurrentFragment()
         }
+    }
+
+    override fun onSeedSampleMeasurementsRequested() {
+        seedSampleMeasurements()
     }
 
     override fun onSyncLogRequested() {
@@ -538,6 +545,32 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, TrendsFragment.H
             measurements = withContext(Dispatchers.IO) {
                 measurementStore.loadAll(selectedMeasurementUser())
             }
+            notifyCurrentFragment()
+        }
+    }
+
+    private fun seedSampleMeasurements() {
+        val model = selectedModel()
+        setWorking(true)
+        updateStatus(getString(R.string.status_seed_measurements))
+
+        launchUi {
+            runCatching {
+                val seededMeasurements = sampleMeasurementsForModel(model)
+                val storedMeasurements = withContext(Dispatchers.IO) {
+                    measurementStore.saveAll(seededMeasurements)
+                    measurementStore.loadAll(selectedMeasurementUser(model))
+                }
+                storedMeasurements to seededMeasurements.size
+            }.onSuccess { (storedMeasurements, seededCount) ->
+                measurements = storedMeasurements
+                updateStatus(getString(R.string.status_seeded_measurements, seededCount))
+                showToast(getString(R.string.status_seeded_measurements, seededCount))
+            }.onFailure { error ->
+                updateStatus(error.message ?: error.javaClass.simpleName)
+            }
+
+            setWorking(false)
             notifyCurrentFragment()
         }
     }
@@ -896,6 +929,27 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, TrendsFragment.H
         return syncPreferences.selectedModel()
     }
 
+    private fun sampleMeasurementsForModel(model: OmronDeviceDefinition): List<Measurement> {
+        val users = model.userLayouts.map { it.user }.ifEmpty { listOf(1) }
+        val baseTime = LocalDateTime.now().withNano(0)
+        return users.flatMapIndexed { userIndex, user ->
+            List(SAMPLE_MEASUREMENTS_PER_USER) { offset ->
+                val recordedAt = baseTime
+                    .minusDays(offset.toLong())
+                    .minusHours((userIndex * 2L) + (offset % 2L))
+                Measurement(
+                    user = user,
+                    recordedAt = recordedAt,
+                    systolic = 118 + userIndex + (offset * 2),
+                    diastolic = 76 + userIndex + offset,
+                    pulse = 60 + userIndex + offset,
+                    irregularHeartbeat = offset % 4 == 0,
+                    movement = offset % 3 == 0,
+                )
+            }
+        }.sortedByDescending { it.recordedAt }
+    }
+
     private fun modelLabel(model: OmronDeviceDefinition): String {
         val status = when (model.verificationLevel) {
             VerificationLevel.VERIFIED -> getString(R.string.model_support_verified)
@@ -976,20 +1030,23 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, TrendsFragment.H
     )
 
     private fun nearbySyncCooldownOptions(): List<NearbySyncCooldownOption> {
-        return listOf(
-            NearbySyncCooldownOption(0, getString(R.string.nearby_sync_cooldown_immediately)),
-            NearbySyncCooldownOption(1, getString(R.string.nearby_sync_cooldown_1_minute)),
-            NearbySyncCooldownOption(2, getString(R.string.nearby_sync_cooldown_2_minutes)),
-            NearbySyncCooldownOption(3, getString(R.string.nearby_sync_cooldown_3_minutes)),
-            NearbySyncCooldownOption(5, getString(R.string.nearby_sync_cooldown_5_minutes)),
-            NearbySyncCooldownOption(10, getString(R.string.nearby_sync_cooldown_10_minutes)),
-        )
+        return buildList {
+            if (BuildConfig.DEBUG) {
+                add(NearbySyncCooldownOption(0, getString(R.string.nearby_sync_cooldown_immediately)))
+            }
+            add(NearbySyncCooldownOption(1, getString(R.string.nearby_sync_cooldown_1_minute)))
+            add(NearbySyncCooldownOption(2, getString(R.string.nearby_sync_cooldown_2_minutes)))
+            add(NearbySyncCooldownOption(3, getString(R.string.nearby_sync_cooldown_3_minutes)))
+            add(NearbySyncCooldownOption(5, getString(R.string.nearby_sync_cooldown_5_minutes)))
+            add(NearbySyncCooldownOption(10, getString(R.string.nearby_sync_cooldown_10_minutes)))
+        }
     }
 
     private companion object {
         const val BACKSTACK_SYNC_LOG = "sync_log"
         const val KEY_SELECTED_TAB = "selected_tab"
         const val LEGACY_PERIODIC_SYNC_WORK_NAME = "background_sync"
+        const val SAMPLE_MEASUREMENTS_PER_USER = 6
         val SYNC_TIME_FORMATTER: DateTimeFormatter =
             DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")
     }

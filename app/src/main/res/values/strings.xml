@@ -42,6 +42,7 @@
     <string name="nearby_sync_cooldown_5_minutes">5 minutes</string>
     <string name="nearby_sync_cooldown_10_minutes">10 minutes</string>
     <string name="open_sync_log">Open sync log</string>
+    <string name="seed_sample_measurements">Seed sample measurements</string>
     <string name="refresh_devices">Refresh devices</string>
     <string name="sync_now">Sync now</string>
     <string name="syncing_button_label">Syncing...</string>
@@ -76,6 +77,8 @@
     <string name="status_health_connect_exported">Exported %1$d blood pressure and %2$d pulse records to Health Connect.</string>
     <string name="status_health_connect_no_matching_measurements">No measurements match the selected user.</string>
     <string name="status_log_exported">Sync log exported.</string>
+    <string name="status_seed_measurements">Seeding sample measurements...</string>
+    <string name="status_seeded_measurements">Seeded %1$d sample measurements.</string>
     <string name="status_pair_device">This monitor is not bonded yet. Pair it in Android Bluetooth settings first.</string>
     <string name="status_nearby_sync_enabled">Nearby sync enabled.</string>
     <string name="status_nearby_sync_disabled">Nearby sync disabled.</string>
