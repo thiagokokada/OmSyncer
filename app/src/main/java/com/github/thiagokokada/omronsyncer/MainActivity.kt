@@ -288,7 +288,7 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, TrendsFragment.H
             selectedNearbySyncCooldownIndex =
                 nearbySyncCooldownOptions.indexOfFirst { it.minutes == selectedNearbySyncCooldownMinutes },
             showsSeedSampleMeasurements = BuildConfig.DEBUG,
-            canSeedSampleMeasurements = BuildConfig.DEBUG && !isWorking,
+            canSeedSampleMeasurements = BuildConfig.DEBUG && !isWorking && measurements.isEmpty(),
             selectedTrendRange = syncPreferences.selectedTrendRange(),
             showsMeasurementUserColumn = selectedModel.userCount > 1,
         )

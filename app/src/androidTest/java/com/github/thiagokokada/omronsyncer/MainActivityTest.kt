@@ -11,6 +11,7 @@ import androidx.test.espresso.action.ViewActions.scrollTo
 import androidx.test.espresso.assertion.ViewAssertions.matches
 import androidx.test.espresso.matcher.ViewMatchers.isChecked
 import androidx.test.espresso.matcher.ViewMatchers.isDisplayed
+import androidx.test.espresso.matcher.ViewMatchers.isEnabled
 import androidx.test.espresso.matcher.ViewMatchers.isNotChecked
 import androidx.test.espresso.matcher.ViewMatchers.withEffectiveVisibility
 import androidx.test.espresso.matcher.ViewMatchers.withId
@@ -23,6 +24,7 @@ import com.github.thiagokokada.omronsyncer.data.MeasurementStore
 import com.github.thiagokokada.omronsyncer.model.Measurement
 import org.hamcrest.CoreMatchers.`is`
 import org.hamcrest.Matchers.allOf
+import org.hamcrest.Matchers.not
 import org.junit.After
 import org.junit.Before
 import org.junit.Rule
@@ -219,6 +221,10 @@ class MainActivityTest {
 
             onView(withId(R.id.navigation_results)).perform(click())
             onView(withId(R.id.measurement_count)).check(matches(withText("12 measurements")))
+
+            onView(withId(R.id.navigation_settings)).perform(click())
+            onView(withId(R.id.seed_measurements_button)).perform(scrollTo())
+            onView(withId(R.id.seed_measurements_button)).check(matches(not(isEnabled())))
         }
     }
 
