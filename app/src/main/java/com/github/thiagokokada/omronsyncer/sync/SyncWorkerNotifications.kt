@@ -38,8 +38,10 @@ object SyncWorkerNotifications {
             .setContentTitle(context.getString(titleResId))
             .setContentText(context.getString(bodyResId))
             .setPriority(NotificationCompat.PRIORITY_LOW)
+            .setCategory(NotificationCompat.CATEGORY_PROGRESS)
             .setOngoing(true)
             .setOnlyAlertOnce(true)
+            .setProgress(0, 0, true)
             .setContentIntent(launchPendingIntent(context))
             .build()
 
@@ -58,8 +60,10 @@ object SyncWorkerNotifications {
             .setContentTitle(context.getString(titleResId))
             .setContentText(context.getString(bodyResId))
             .setPriority(NotificationCompat.PRIORITY_LOW)
+            .setCategory(NotificationCompat.CATEGORY_PROGRESS)
             .setOngoing(true)
             .setOnlyAlertOnce(true)
+            .setProgress(0, 0, true)
             .build()
 
         return ForegroundInfo(
