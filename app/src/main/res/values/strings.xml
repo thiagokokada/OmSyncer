@@ -23,6 +23,8 @@
     <string name="settings_health_connect_body">Write synced blood pressure and pulse measurements into Health Connect.</string>
     <string name="settings_automatic_sync_title">Automatic sync</string>
     <string name="settings_automatic_sync_body">Sync the selected monitor automatically when it advertises nearby after a measurement.</string>
+    <string name="settings_deleted_measurements_title">Deleted measurements</string>
+    <string name="settings_deleted_measurements_body">Review measurements hidden in OmSyncer and restore any entries you want back.</string>
     <string name="settings_diagnostics_title">Diagnostics</string>
     <string name="settings_log_body">Open the latest BLE session log and export it when you need to inspect a failed sync.</string>
     <string name="open_bluetooth_settings">Bluetooth</string>
@@ -131,6 +133,7 @@
     <string name="delete_measurement_confirm">Delete</string>
     <string name="deleted_measurements_title">Deleted measurements</string>
     <string name="deleted_measurements_empty">There are no deleted measurements for the current selection.</string>
+    <string name="restore_measurement_button">Restore</string>
     <string name="restore_measurement_item">%1$s · %2$d/%3$d, pulse %4$d, flags %5$s</string>
     <string name="empty_measurements">Synced measurements will appear here.</string>
     <string name="empty_measurements_filtered">No synced measurements for the selected user.</string>

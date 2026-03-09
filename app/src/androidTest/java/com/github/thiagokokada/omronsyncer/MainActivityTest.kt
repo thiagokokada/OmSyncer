@@ -7,6 +7,7 @@ import androidx.test.core.app.ActivityScenario
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.espresso.Espresso.onView
 import androidx.test.espresso.Espresso.onData
+import androidx.test.espresso.Espresso.pressBack
 import androidx.test.espresso.action.ViewActions.click
 import androidx.test.espresso.action.ViewActions.swipeLeft
 import androidx.test.espresso.action.ViewActions.scrollTo
@@ -249,7 +250,8 @@ class MainActivityTest {
 
             onView(withId(R.id.navigation_settings)).perform(click())
             onView(withId(R.id.restore_measurements_button)).perform(scrollTo(), click())
-            onView(withText("2026-03-08 09:30 · 121/81, pulse 65, flags -")).perform(click())
+            onView(withId(R.id.restore_measurement_button)).perform(click())
+            pressBack()
 
             onView(withId(R.id.navigation_results)).perform(click())
             onView(withId(R.id.measurement_count)).check(matches(withText("1 measurement")))

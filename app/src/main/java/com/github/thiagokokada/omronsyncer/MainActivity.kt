@@ -49,7 +49,12 @@ import java.time.LocalDateTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
-class MainActivity : AppCompatActivity(), ResultsFragment.Host, TrendsFragment.Host, SettingsFragment.Host, SyncLogFragment.Host {
+class MainActivity : AppCompatActivity(),
+    ResultsFragment.Host,
+    TrendsFragment.Host,
+    SettingsFragment.Host,
+    SyncLogFragment.Host,
+    DeletedMeasurementsFragment.Host {
 
     private lateinit var binding: ActivityMainBinding
     private lateinit var syncPreferences: SyncPreferences
@@ -260,6 +265,7 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, TrendsFragment.H
         }
         return MainUiState(
             measurements = measurements,
+            deletedMeasurements = deletedMeasurements,
             measurementUserOptions = measurementUserOptions,
             measurementUserLabels = measurementUserLabels,
             selectedMeasurementUser = selectedMeasurementUser,
@@ -391,6 +397,10 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, TrendsFragment.H
 
     override fun onSyncLogRequested() {
         showSyncLog()
+    }
+
+    override fun onDeletedMeasurementRestoreRequested(measurement: Measurement) {
+        restoreMeasurement(measurement)
     }
 
     override fun onExportSyncLogRequested() {
@@ -632,19 +642,15 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, TrendsFragment.H
     }
 
     private fun showDeletedMeasurements() {
-        if (deletedMeasurements.isEmpty()) {
-            updateStatus(getString(R.string.deleted_measurements_empty))
-            return
-        }
+        supportFragmentManager.beginTransaction()
+            .replace(R.id.fragment_container, DeletedMeasurementsFragment())
+            .addToBackStack(BACKSTACK_DELETED_MEASUREMENTS)
+            .commit()
 
-        val items = deletedMeasurements.map(::restoreMeasurementLabel).toTypedArray()
-        MaterialAlertDialogBuilder(this)
-            .setTitle(R.string.deleted_measurements_title)
-            .setItems(items) { _, which ->
-                deletedMeasurements.getOrNull(which)?.let(::restoreMeasurement)
-            }
-            .setNegativeButton(R.string.close_label, null)
-            .show()
+        binding.root.post {
+            updateTopLevelUi()
+            notifyCurrentFragment()
+        }
     }
 
     private fun restoreMeasurement(measurement: Measurement) {
@@ -866,6 +872,7 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, TrendsFragment.H
             is TrendsFragment -> fragment.render(currentUiState())
             is SettingsFragment -> fragment.render(currentUiState())
             is SyncLogFragment -> fragment.render(currentUiState())
+            is DeletedMeasurementsFragment -> fragment.render(currentUiState())
         }
     }
 
@@ -1163,18 +1170,6 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, TrendsFragment.H
         return isHealthConnectAvailable && isHealthConnectConnected
     }
 
-    private fun restoreMeasurementLabel(measurement: Measurement): String {
-        val timestamp = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm").format(measurement.recordedAt)
-        return getString(
-            R.string.restore_measurement_item,
-            timestamp,
-            measurement.systolic,
-            measurement.diastolic,
-            measurement.pulse,
-            measurement.flagsLabel(),
-        )
-    }
-
     private fun launchUi(block: suspend CoroutineScope.() -> Unit) {
         lifecycleScope.launch(block = block)
     }
@@ -1186,15 +1181,18 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, TrendsFragment.H
     private fun updateTopLevelUi() {
         val currentFragment = supportFragmentManager.findFragmentById(R.id.fragment_container)
         val isLogScreen = currentFragment is SyncLogFragment
+        val isDeletedMeasurementsScreen = currentFragment is DeletedMeasurementsFragment
+        val isDetailScreen = isLogScreen || isDeletedMeasurementsScreen
 
         binding.screenTitle.text = when {
             isLogScreen -> getString(R.string.sync_log_title)
+            isDeletedMeasurementsScreen -> getString(R.string.deleted_measurements_title)
             selectedTabId == R.id.navigation_trends -> getString(R.string.trends_title)
             selectedTabId == R.id.navigation_settings -> getString(R.string.settings_title)
             else -> getString(R.string.results_title)
         }
         binding.toolbar.navigationIcon =
-            if (isLogScreen) {
+            if (isDetailScreen) {
                 AppCompatResources.getDrawable(
                     this,
                     androidx.appcompat.R.drawable.abc_ic_ab_back_material,
@@ -1202,7 +1200,7 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, TrendsFragment.H
             } else {
                 null
             }
-        binding.bottomNavigation.visibility = if (isLogScreen) View.GONE else View.VISIBLE
+        binding.bottomNavigation.visibility = if (isDetailScreen) View.GONE else View.VISIBLE
     }
     private data class NearbySyncCooldownOption(
         val minutes: Int,
@@ -1223,6 +1221,7 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, TrendsFragment.H
     }
 
     private companion object {
+        const val BACKSTACK_DELETED_MEASUREMENTS = "deleted_measurements"
         const val BACKSTACK_SYNC_LOG = "sync_log"
         const val KEY_SELECTED_TAB = "selected_tab"
         const val LEGACY_PERIODIC_SYNC_WORK_NAME = "background_sync"
