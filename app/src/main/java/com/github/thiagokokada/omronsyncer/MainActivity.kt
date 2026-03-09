@@ -541,13 +541,13 @@ class MainActivity : AppCompatActivity(),
                 if (error is SyncException) {
                     renderSyncLog(error.diagnostics.asText())
                 }
-                updateStatus(
-                    if (error is MissingBluetoothPermissionException) {
-                        getString(R.string.status_missing_permission)
-                    } else {
-                        error.message ?: error.javaClass.simpleName
-                    },
-                )
+                val message = if (error is MissingBluetoothPermissionException) {
+                    getString(R.string.status_missing_permission)
+                } else {
+                    error.message ?: error.javaClass.simpleName
+                }
+                updateStatus(message)
+                showToast(getString(R.string.toast_sync_failed, message))
             }
 
             setWorking(false)
