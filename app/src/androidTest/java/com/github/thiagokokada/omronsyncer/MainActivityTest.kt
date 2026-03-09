@@ -123,6 +123,8 @@ class MainActivityTest {
 
     @Test
     fun nearbySyncSwitch_persistsAcrossActivityRestart() {
+        setSelectedDeviceAddress("00:11:22:33:44:55")
+
         ActivityScenario.launch(MainActivity::class.java).use {
             onView(withId(R.id.navigation_settings)).perform(click())
             onView(withId(R.id.nearby_sync_switch)).perform(scrollTo())
@@ -275,6 +277,10 @@ class MainActivityTest {
 
     private fun suppressInitialPermissionPrompt() {
         SyncPreferences(context).setInitialBluetoothPermissionPromptShown(true)
+    }
+
+    private fun setSelectedDeviceAddress(address: String) {
+        SyncPreferences(context).setSelectedDeviceAddress(address)
     }
 
     private fun measurement(user: Int, day: Int): Measurement {

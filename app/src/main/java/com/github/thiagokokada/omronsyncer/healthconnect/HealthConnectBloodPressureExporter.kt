@@ -16,14 +16,14 @@ import com.github.thiagokokada.omronsyncer.model.Measurement
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
-class HealthConnectBloodPressureExporter(private val context: Context) {
+class HealthConnectBloodPressureExporter(private val context: Context) : HealthConnectExporter {
 
     val requiredPermissions: Set<String> = setOf(
         HealthPermission.getWritePermission(BloodPressureRecord::class),
         HealthPermission.getWritePermission(HeartRateRecord::class),
     )
 
-    fun sdkStatus(): Int {
+    override fun sdkStatus(): Int {
         return HealthConnectClient.getSdkStatus(context)
     }
 
@@ -42,7 +42,7 @@ class HealthConnectBloodPressureExporter(private val context: Context) {
         }
     }
 
-    suspend fun hasAllPermissions(): Boolean {
+    override suspend fun hasAllPermissions(): Boolean {
         return sdkStatus() == HealthConnectClient.SDK_AVAILABLE &&
             client().permissionController.getGrantedPermissions().containsAll(requiredPermissions)
     }
@@ -54,7 +54,7 @@ class HealthConnectBloodPressureExporter(private val context: Context) {
         )
     }
 
-    suspend fun sync(
+    override suspend fun sync(
         activeMeasurements: List<Measurement>,
         deletedMeasurements: List<Measurement>,
     ): ExportSummary {

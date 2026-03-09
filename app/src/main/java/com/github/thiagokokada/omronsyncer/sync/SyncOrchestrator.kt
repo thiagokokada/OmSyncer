@@ -1,10 +1,12 @@
 package com.github.thiagokokada.omronsyncer.sync
 
+import androidx.health.connect.client.HealthConnectClient
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothManager
 import android.content.Context
 import com.github.thiagokokada.omronsyncer.data.MeasurementStore
+import com.github.thiagokokada.omronsyncer.healthconnect.HealthConnectExporter
 import com.github.thiagokokada.omronsyncer.healthconnect.HealthConnectBloodPressureExporter
 import com.github.thiagokokada.omronsyncer.model.Measurement
 import com.github.thiagokokada.omronsyncer.omron.OmronDeviceDefinition
@@ -16,7 +18,7 @@ class SyncOrchestrator(
     private val context: Context,
     private val syncClient: OmronSyncClient = OmronSyncClient(context),
     private val measurementStore: MeasurementStore = MeasurementStore(context),
-    private val healthConnectExporter: HealthConnectBloodPressureExporter =
+    private val healthConnectExporter: HealthConnectExporter =
         HealthConnectBloodPressureExporter(context),
     private val syncPreferences: SyncPreferences = SyncPreferences(context),
 ) {
@@ -69,7 +71,7 @@ class SyncOrchestrator(
         if (!syncPreferences.healthConnectAutoExportEnabled()) {
             return null
         }
-        if (healthConnectExporter.sdkStatus() != androidx.health.connect.client.HealthConnectClient.SDK_AVAILABLE) {
+        if (healthConnectExporter.sdkStatus() != HealthConnectClient.SDK_AVAILABLE) {
             return null
         }
         if (!healthConnectExporter.hasAllPermissions()) {
