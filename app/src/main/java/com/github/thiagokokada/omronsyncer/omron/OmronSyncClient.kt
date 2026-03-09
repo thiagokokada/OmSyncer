@@ -12,6 +12,7 @@ import com.github.thiagokokada.omronsyncer.model.Measurement
 import com.github.thiagokokada.omronsyncer.sync.MissingBluetoothPermissionException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.channels.trySendBlocking
 import kotlinx.coroutines.delay
@@ -124,18 +125,12 @@ class OmronSyncClient(
                 )
                 when {
                     status != BluetoothGatt.GATT_SUCCESS -> {
-                        deferred?.completeExceptionally(
-                            IllegalStateException(
-                                "Bluetooth connect failed: status=$status (${describeGattStatus(status)})",
-                            ),
-                        )
+                        deferred?.completeExceptionally(bluetoothConnectFailed(status))
                     }
 
                     newState == BluetoothGatt.STATE_CONNECTED -> deferred?.complete(Unit)
                     newState == BluetoothGatt.STATE_DISCONNECTED -> {
-                        deferred?.completeExceptionally(
-                            IllegalStateException("Bluetooth device disconnected."),
-                        )
+                        deferred?.completeExceptionally(BluetoothDeviceDisconnectedException())
                     }
                 }
             }
@@ -147,9 +142,7 @@ class OmronSyncClient(
                     deferred.complete(Unit)
                 } else {
                     deferred.completeExceptionally(
-                        IllegalStateException(
-                            "Service discovery failed: status=$status (${describeGattStatus(status)})",
-                        ),
+                        gattFailure("Service discovery failed", status),
                     )
                 }
             }
@@ -160,11 +153,7 @@ class OmronSyncClient(
                 if (status == BluetoothGatt.GATT_SUCCESS) {
                     deferred.complete(Unit)
                 } else {
-                    deferred.completeExceptionally(
-                        IllegalStateException(
-                            "MTU request failed: status=$status (${describeGattStatus(status)})",
-                        ),
-                    )
+                    deferred.completeExceptionally(gattFailure("MTU request failed", status))
                 }
             }
 
@@ -179,9 +168,7 @@ class OmronSyncClient(
                     deferred.complete(Unit)
                 } else {
                     deferred.completeExceptionally(
-                        IllegalStateException(
-                            "Descriptor write failed: status=$status (${describeGattStatus(status)})",
-                        ),
+                        gattFailure("Descriptor write failed", status),
                     )
                 }
             }
@@ -275,8 +262,9 @@ class OmronSyncClient(
             }
             if (writeStatus != BluetoothStatusCodes.SUCCESS) {
                 descriptorDeferred = null
-                throw IllegalStateException(
-                    "Failed to write notification descriptor: ${describeBluetoothStatusCode(writeStatus)}",
+                throw bluetoothStatusFailure(
+                    operation = "Failed to write notification descriptor",
+                    statusCode = writeStatus,
                 )
             }
 
@@ -365,8 +353,9 @@ class OmronSyncClient(
                         throw MissingBluetoothPermissionException()
                     }
                     if (writeStatus != BluetoothStatusCodes.SUCCESS) {
-                        throw IllegalStateException(
-                            "Characteristic write failed: ${describeBluetoothStatusCode(writeStatus)}",
+                        throw bluetoothStatusFailure(
+                            operation = "Characteristic write failed",
+                            statusCode = writeStatus,
                         )
                     }
 
@@ -377,18 +366,19 @@ class OmronSyncClient(
                     )
                     return response
                 } catch (error: Exception) {
-                    lastError = error
+                    val normalizedError = normalizeCommandError(error)
+                    lastError = normalizedError
                     log(
                         "Command attempt $attempt/$COMMAND_RETRY_COUNT failed: " +
-                            "${error.message ?: error.javaClass.simpleName}",
+                            "${normalizedError.message ?: normalizedError.javaClass.simpleName}",
                     )
                     if (attempt < COMMAND_RETRY_COUNT) {
                         delay(COMMAND_RETRY_DELAY_MS)
                     }
                 }
             }
-            throw IllegalStateException(
-                "Command failed after $COMMAND_RETRY_COUNT attempts.",
+            throw CommandFailedException(
+                attempts = COMMAND_RETRY_COUNT,
                 lastError,
             )
         }
@@ -459,6 +449,37 @@ class OmronSyncClient(
             return gatt ?: throw IllegalStateException("BluetoothGatt is not connected.")
         }
 
+        private fun normalizeCommandError(error: Exception): Exception {
+            return if (error is TimeoutCancellationException) {
+                CommandTimeoutException(error)
+            } else {
+                error
+            }
+        }
+
+        private fun bluetoothConnectFailed(status: Int): BluetoothConnectFailedException {
+            return BluetoothConnectFailedException(
+                status = status,
+                description = describeGattStatus(status),
+            )
+        }
+
+        private fun gattFailure(operation: String, status: Int): IllegalStateException {
+            return if (status == BluetoothGatt.GATT_INSUFFICIENT_AUTHORIZATION) {
+                GattInsufficientAuthorizationException(operation)
+            } else {
+                IllegalStateException("$operation: status=$status (${describeGattStatus(status)})")
+            }
+        }
+
+        private fun bluetoothStatusFailure(operation: String, statusCode: Int): IllegalStateException {
+            return if (statusCode == BluetoothStatusCodes.ERROR_PROFILE_SERVICE_NOT_BOUND) {
+                ProfileServiceNotBoundException(operation)
+            } else {
+                IllegalStateException("$operation: ${describeBluetoothStatusCode(statusCode)}")
+            }
+        }
+
         private fun parseResponse(rawPacket: ByteArray): OmronResponse {
             require(rawPacket.size >= 8) {
                 "Packet too short: ${rawPacket.size} bytes"
@@ -509,6 +530,36 @@ class OmronSyncClient(
         val diagnostics: SyncDiagnostics,
         cause: Throwable? = null,
     ) : IllegalStateException(message, cause)
+
+    interface RetryableSyncFailure
+
+    class BluetoothConnectFailedException(
+        val status: Int,
+        description: String,
+    ) : IllegalStateException(
+        "Bluetooth connect failed: status=$status ($description)",
+    ), RetryableSyncFailure
+
+    class BluetoothDeviceDisconnectedException :
+        IllegalStateException("Bluetooth device disconnected."),
+        RetryableSyncFailure
+
+    class GattInsufficientAuthorizationException(operation: String) :
+        IllegalStateException("$operation: status=8 (GATT_INSUFFICIENT_AUTHORIZATION)"),
+        RetryableSyncFailure
+
+    class ProfileServiceNotBoundException(operation: String) :
+        IllegalStateException("$operation: PROFILE_SERVICE_NOT_BOUND"),
+        RetryableSyncFailure
+
+    class CommandTimeoutException(cause: TimeoutCancellationException) :
+        IllegalStateException("Timed out waiting for response.", cause),
+        RetryableSyncFailure
+
+    class CommandFailedException(
+        attempts: Int,
+        cause: Throwable?,
+    ) : IllegalStateException("Command failed after $attempts attempts.", cause), RetryableSyncFailure
 
     private companion object {
         const val MTU = 185

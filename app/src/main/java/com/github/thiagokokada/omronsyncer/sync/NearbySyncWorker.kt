@@ -132,22 +132,7 @@ class NearbySyncWorker(
     }
 
     private fun isRetryableBackgroundFailure(error: Throwable): Boolean {
-        var current: Throwable? = error
-        while (current != null) {
-            val message = current.message.orEmpty()
-            if (
-                "status=133" in message ||
-                "Bluetooth device disconnected." in message ||
-                "status=8 (GATT_INSUFFICIENT_AUTHORIZATION)" in message ||
-                "Timed out waiting for" in message ||
-                "Command failed after" in message ||
-                "PROFILE_SERVICE_NOT_BOUND" in message
-            ) {
-                return true
-            }
-            current = current.cause
-        }
-        return false
+        return RetryableSyncFailureClassifier.isRetryable(error)
     }
 
     companion object {
