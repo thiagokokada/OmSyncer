@@ -10,8 +10,7 @@ import com.github.thiagokokada.omronsyncer.databinding.ItemMeasurementBinding
 import com.github.thiagokokada.omronsyncer.model.Measurement
 import java.time.format.DateTimeFormatter
 
-class MeasurementAdapter :
-    ListAdapter<Measurement, MeasurementAdapter.MeasurementViewHolder>(DiffCallback) {
+class MeasurementAdapter : ListAdapter<Measurement, MeasurementAdapter.MeasurementViewHolder>(DiffCallback) {
 
     private var showUserColumn: Boolean = true
 

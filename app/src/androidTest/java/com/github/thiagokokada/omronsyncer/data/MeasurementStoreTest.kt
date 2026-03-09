@@ -45,6 +45,22 @@ class MeasurementStoreTest {
         assertEquals(listOf(newerUserTwo, olderUserTwo), filtered)
     }
 
+    @Test
+    fun softDelete_hidesMeasurementUntilUndeleted() {
+        val measurement = measurement(user = 1, day = 8, hour = 9)
+        measurementStore.saveAll(listOf(measurement))
+
+        measurementStore.softDelete(measurement)
+
+        assertEquals(emptyList<Measurement>(), measurementStore.loadAll(user = 1))
+        assertEquals(listOf(measurement), measurementStore.loadDeleted(user = 1))
+
+        measurementStore.undelete(measurement)
+
+        assertEquals(listOf(measurement), measurementStore.loadAll(user = 1))
+        assertEquals(emptyList<Measurement>(), measurementStore.loadDeleted(user = 1))
+    }
+
     private fun measurement(user: Int, day: Int, hour: Int = 9): Measurement {
         return Measurement(
             user = user,

@@ -23,6 +23,7 @@ class SettingsFragment : Fragment() {
         fun onHealthConnectAutoExportChanged(enabled: Boolean)
         fun onNearbySyncChanged(enabled: Boolean)
         fun onNearbySyncCooldownSelected(position: Int)
+        fun onRestoreDeletedMeasurementsRequested()
         fun onSeedSampleMeasurementsRequested()
         fun onSyncLogRequested()
         fun onDeviceSelected(position: Int)
@@ -142,6 +143,9 @@ class SettingsFragment : Fragment() {
         binding.seedMeasurementsButton.setOnClickListener {
             host.onSeedSampleMeasurementsRequested()
         }
+        binding.restoreMeasurementsButton.setOnClickListener {
+            host.onRestoreDeletedMeasurementsRequested()
+        }
         binding.syncLogButton.setOnClickListener {
             host.onSyncLogRequested()
         }
@@ -233,6 +237,8 @@ class SettingsFragment : Fragment() {
         binding.nearbySyncSwitch.isChecked = state.nearbySyncEnabled
         suppressNearbySyncCallback = false
         binding.nearbySyncSwitch.isEnabled = !state.isWorking
+        binding.restoreMeasurementsButton.isEnabled =
+            state.canRestoreDeletedMeasurements && !state.isWorking
         binding.seedMeasurementsButton.visibility =
             if (state.showsSeedSampleMeasurements) View.VISIBLE else View.GONE
         binding.seedMeasurementsButton.isEnabled = state.canSeedSampleMeasurements

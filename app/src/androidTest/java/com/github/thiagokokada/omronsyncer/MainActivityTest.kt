@@ -2,12 +2,17 @@ package com.github.thiagokokada.omronsyncer
 
 import android.Manifest
 import android.content.Context
+import android.view.View
 import androidx.test.core.app.ActivityScenario
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.espresso.Espresso.onView
 import androidx.test.espresso.Espresso.onData
+import androidx.test.espresso.Espresso.pressBack
 import androidx.test.espresso.action.ViewActions.click
+import androidx.test.espresso.action.ViewActions.swipeLeft
 import androidx.test.espresso.action.ViewActions.scrollTo
+import androidx.test.espresso.UiController
+import androidx.test.espresso.ViewAction
 import androidx.test.espresso.assertion.ViewAssertions.matches
 import androidx.test.espresso.matcher.ViewMatchers.isChecked
 import androidx.test.espresso.matcher.ViewMatchers.isDisplayed
@@ -20,9 +25,12 @@ import androidx.test.espresso.matcher.ViewMatchers.withText
 import androidx.test.espresso.matcher.ViewMatchers.Visibility
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.rule.GrantPermissionRule
+import androidx.recyclerview.widget.RecyclerView
 import com.github.thiagokokada.omronsyncer.data.MeasurementStore
 import com.github.thiagokokada.omronsyncer.model.Measurement
+import com.github.thiagokokada.omronsyncer.sync.SyncPreferences
 import org.hamcrest.CoreMatchers.`is`
+import org.hamcrest.Matcher
 import org.hamcrest.Matchers.allOf
 import org.hamcrest.Matchers.not
 import org.junit.After
@@ -40,6 +48,7 @@ class MainActivityTest {
         GrantPermissionRule.grant(
             Manifest.permission.BLUETOOTH_CONNECT,
             Manifest.permission.BLUETOOTH_SCAN,
+            Manifest.permission.POST_NOTIFICATIONS,
         )
 
     private val context: Context = ApplicationProvider.getApplicationContext()
@@ -48,6 +57,7 @@ class MainActivityTest {
     fun setUp() {
         clearPreferences()
         clearMeasurements()
+        suppressInitialPermissionPrompt()
     }
 
     @After
@@ -113,6 +123,8 @@ class MainActivityTest {
 
     @Test
     fun nearbySyncSwitch_persistsAcrossActivityRestart() {
+        setSelectedDeviceAddress("00:11:22:33:44:55")
+
         ActivityScenario.launch(MainActivity::class.java).use {
             onView(withId(R.id.navigation_settings)).perform(click())
             onView(withId(R.id.nearby_sync_switch)).perform(scrollTo())
@@ -220,11 +232,31 @@ class MainActivityTest {
             onView(withId(R.id.seed_measurements_button)).perform(scrollTo(), click())
 
             onView(withId(R.id.navigation_results)).perform(click())
-            onView(withId(R.id.measurement_count)).check(matches(withText("12 measurements")))
+            onView(withId(R.id.measurement_count)).check(matches(withText("100 measurements")))
 
             onView(withId(R.id.navigation_settings)).perform(click())
             onView(withId(R.id.seed_measurements_button)).perform(scrollTo())
             onView(withId(R.id.seed_measurements_button)).check(matches(not(isEnabled())))
+        }
+    }
+
+    @Test
+    fun deleteAndRestoreMeasurement_updatesResultsAndSettings() {
+        seedMeasurements(listOf(measurement(user = 1, day = 8)))
+
+        ActivityScenario.launch(MainActivity::class.java).use {
+            onView(withId(R.id.measurement_count)).check(matches(withText("1 measurement")))
+            onView(withId(R.id.measurements_list)).perform(swipeRecyclerItemLeftAtPosition(0))
+            onView(withText(R.string.delete_measurement_confirm)).perform(click())
+            onView(withId(R.id.measurement_count)).check(matches(withText("0 measurements")))
+
+            onView(withId(R.id.navigation_settings)).perform(click())
+            onView(withId(R.id.restore_measurements_button)).perform(scrollTo(), click())
+            onView(withId(R.id.restore_measurement_button)).perform(click())
+            pressBack()
+
+            onView(withId(R.id.navigation_results)).perform(click())
+            onView(withId(R.id.measurement_count)).check(matches(withText("1 measurement")))
         }
     }
 
@@ -243,6 +275,14 @@ class MainActivityTest {
         MeasurementStore(context).saveAll(measurements)
     }
 
+    private fun suppressInitialPermissionPrompt() {
+        SyncPreferences(context).setInitialBluetoothPermissionPromptShown(true)
+    }
+
+    private fun setSelectedDeviceAddress(address: String) {
+        SyncPreferences(context).setSelectedDeviceAddress(address)
+    }
+
     private fun measurement(user: Int, day: Int): Measurement {
         return Measurement(
             user = user,
@@ -257,5 +297,22 @@ class MainActivityTest {
 
     private fun allUsersLabel(): String {
         return context.getString(R.string.measurement_user_all)
+    }
+
+    private fun swipeRecyclerItemLeftAtPosition(position: Int): ViewAction {
+        return object : ViewAction {
+            override fun getConstraints(): Matcher<View> = withId(R.id.measurements_list)
+
+            override fun getDescription(): String {
+                return "swipe left on recycler item at position $position"
+            }
+
+            override fun perform(uiController: UiController, view: View) {
+                val recyclerView = view as RecyclerView
+                val viewHolder = recyclerView.findViewHolderForAdapterPosition(position)
+                    ?: error("No ViewHolder at position $position")
+                swipeLeft().perform(uiController, viewHolder.itemView)
+            }
+        }
     }
 }

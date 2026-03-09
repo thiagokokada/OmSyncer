@@ -49,7 +49,12 @@ import java.time.LocalDateTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
-class MainActivity : AppCompatActivity(), ResultsFragment.Host, TrendsFragment.Host, SettingsFragment.Host, SyncLogFragment.Host {
+class MainActivity : AppCompatActivity(),
+    ResultsFragment.Host,
+    TrendsFragment.Host,
+    SettingsFragment.Host,
+    SyncLogFragment.Host,
+    DeletedMeasurementsFragment.Host {
 
     private lateinit var binding: ActivityMainBinding
     private lateinit var syncPreferences: SyncPreferences
@@ -71,6 +76,7 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, TrendsFragment.H
     }
 
     private var measurements: List<Measurement> = emptyList()
+    private var deletedMeasurements: List<Measurement> = emptyList()
     private var statusMessage: String = ""
     private var lastSyncLog: String = ""
     private var isWorking: Boolean = false
@@ -259,6 +265,7 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, TrendsFragment.H
         }
         return MainUiState(
             measurements = measurements,
+            deletedMeasurements = deletedMeasurements,
             measurementUserOptions = measurementUserOptions,
             measurementUserLabels = measurementUserLabels,
             selectedMeasurementUser = selectedMeasurementUser,
@@ -274,13 +281,16 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, TrendsFragment.H
             canSync = bondedDevices.isNotEmpty(),
             canExport = measurements.isNotEmpty(),
             canExportLog = lastSyncLog.isNotBlank(),
+            canRestoreDeletedMeasurements = deletedMeasurements.isNotEmpty(),
             healthConnectAvailable = isHealthConnectAvailable,
             healthConnectNeedsSetup = isHealthConnectSetupRequired,
             healthConnectConnected = isHealthConnectConnected,
             healthConnectStatusMessage = healthConnectStatusMessage,
             canOpenHealthConnect = isHealthConnectAvailable || isHealthConnectSetupRequired,
             canExportHealthConnect =
-                measurements.isNotEmpty() && isHealthConnectAvailable && isHealthConnectConnected,
+                (measurements.isNotEmpty() || deletedMeasurements.isNotEmpty()) &&
+                    isHealthConnectAvailable &&
+                    isHealthConnectConnected,
             autoExportHealthConnect = syncPreferences.healthConnectAutoExportEnabled(),
             nearbySyncEnabled = nearbySyncEnabled,
             nearbySyncSummary = nearbySyncSummary,
@@ -312,6 +322,10 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, TrendsFragment.H
     override fun onMeasurementUserSelected(user: Int?) {
         syncPreferences.setSelectedMeasurementUser(user)
         loadPersistedMeasurements()
+    }
+
+    override fun onMeasurementDeleteRequested(measurement: Measurement) {
+        confirmDeleteMeasurement(measurement)
     }
 
     override fun onTrendRangeSelected(range: TrendRange) {
@@ -373,12 +387,20 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, TrendsFragment.H
         }
     }
 
+    override fun onRestoreDeletedMeasurementsRequested() {
+        showDeletedMeasurements()
+    }
+
     override fun onSeedSampleMeasurementsRequested() {
         seedSampleMeasurements()
     }
 
     override fun onSyncLogRequested() {
         showSyncLog()
+    }
+
+    override fun onDeletedMeasurementRestoreRequested(measurement: Measurement) {
+        restoreMeasurement(measurement)
     }
 
     override fun onExportSyncLogRequested() {
@@ -538,13 +560,137 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, TrendsFragment.H
     private fun renderSyncResult(result: SyncExecutionResult) {
         measurements = result.persistedMeasurements
         renderSyncLog(result.syncLog)
+        launchUi {
+            deletedMeasurements = withContext(Dispatchers.IO) {
+                measurementStore.loadDeleted(selectedMeasurementUser())
+            }
+            notifyCurrentFragment()
+        }
     }
 
     private fun loadPersistedMeasurements() {
         launchUi {
-            measurements = withContext(Dispatchers.IO) {
-                measurementStore.loadAll(selectedMeasurementUser())
+            val selectedUser = selectedMeasurementUser()
+            val measurementState = withContext(Dispatchers.IO) {
+                measurementStore.loadAll(selectedUser) to measurementStore.loadDeleted(selectedUser)
             }
+            measurements = measurementState.first
+            deletedMeasurements = measurementState.second
+            notifyCurrentFragment()
+        }
+    }
+
+    private fun confirmDeleteMeasurement(measurement: Measurement) {
+        val message = buildString {
+            append(getString(R.string.delete_measurement_message))
+            if (!canDeleteFromHealthConnect()) {
+                append("\n\n")
+                append(getString(R.string.delete_measurement_message_health_connect_warning))
+            }
+        }
+        MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.delete_measurement_title)
+            .setMessage(message)
+            .setNegativeButton(R.string.close_label, null)
+            .setPositiveButton(R.string.delete_measurement_confirm) { _, _ ->
+                deleteMeasurement(measurement)
+            }
+            .show()
+    }
+
+    private fun deleteMeasurement(measurement: Measurement) {
+        setWorking(true)
+        updateStatus(getString(R.string.status_delete_measurement))
+
+        launchUi {
+            var healthConnectWarning = false
+            runCatching {
+                withContext(Dispatchers.IO) {
+                    measurementStore.softDelete(measurement)
+                }
+                if (canDeleteFromHealthConnect()) {
+                    runCatching {
+                        healthConnectExporter.delete(measurement)
+                    }.onFailure {
+                        healthConnectWarning = true
+                    }
+                } else {
+                    healthConnectWarning = true
+                }
+
+                val selectedUser = selectedMeasurementUser()
+                withContext(Dispatchers.IO) {
+                    measurementStore.loadAll(selectedUser) to measurementStore.loadDeleted(selectedUser)
+                }
+            }.onSuccess { (activeMeasurements, removedMeasurements) ->
+                measurements = activeMeasurements
+                deletedMeasurements = removedMeasurements
+                val message = if (healthConnectWarning) {
+                    getString(R.string.status_measurement_deleted_health_connect_warning)
+                } else {
+                    getString(R.string.status_measurement_deleted)
+                }
+                updateStatus(message)
+                showToast(message)
+            }.onFailure { error ->
+                updateStatus(error.message ?: error.javaClass.simpleName)
+            }
+
+            setWorking(false)
+            notifyCurrentFragment()
+        }
+    }
+
+    private fun showDeletedMeasurements() {
+        supportFragmentManager.beginTransaction()
+            .replace(R.id.fragment_container, DeletedMeasurementsFragment())
+            .addToBackStack(BACKSTACK_DELETED_MEASUREMENTS)
+            .commit()
+
+        binding.root.post {
+            updateTopLevelUi()
+            notifyCurrentFragment()
+        }
+    }
+
+    private fun restoreMeasurement(measurement: Measurement) {
+        setWorking(true)
+
+        launchUi {
+            var healthConnectWarning = false
+            runCatching {
+                withContext(Dispatchers.IO) {
+                    measurementStore.undelete(measurement)
+                }
+                if (isHealthConnectAvailable && isHealthConnectConnected) {
+                    runCatching {
+                        healthConnectExporter.export(listOf(measurement))
+                    }.onFailure {
+                        healthConnectWarning = true
+                    }
+                } else {
+                    healthConnectWarning = true
+                }
+
+                val selectedUser = selectedMeasurementUser()
+                withContext(Dispatchers.IO) {
+                    measurementStore.loadAll(selectedUser) to measurementStore.loadDeleted(selectedUser)
+                }
+            }.onSuccess { (activeMeasurements, removedMeasurements) ->
+                measurements = activeMeasurements
+                deletedMeasurements = removedMeasurements
+                val message = if (healthConnectWarning) {
+                    getString(R.string.status_measurement_restored_health_connect_warning)
+                } else {
+                    getString(R.string.status_measurement_restored)
+                }
+                updateStatus(message)
+                showToast(message)
+            }.onFailure { error ->
+                updateStatus(error.message ?: error.javaClass.simpleName)
+            }
+
+            setWorking(false)
             notifyCurrentFragment()
         }
     }
@@ -635,8 +781,8 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, TrendsFragment.H
             updateStatus(getString(R.string.health_connect_status_not_connected))
             return
         }
-        if (measurements.isEmpty()) {
-            showToast(getString(R.string.empty_measurements))
+        if (measurements.isEmpty() && deletedMeasurements.isEmpty()) {
+            showToast(getString(R.string.status_health_connect_no_matching_measurements))
             return
         }
 
@@ -648,13 +794,7 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, TrendsFragment.H
                 syncOrchestrator.exportStoredMeasurementsToHealthConnect()
             }.onSuccess { summary ->
                 updateStatus(getString(R.string.health_connect_status_connected))
-                showToast(
-                    getString(
-                        R.string.status_health_connect_exported,
-                        summary.bloodPressureExported,
-                        summary.heartRateExported,
-                    ),
-                )
+                showToast(healthConnectExportMessage(summary))
             }.onFailure { error ->
                 updateStatus(error.message ?: error.javaClass.simpleName)
             }
@@ -732,6 +872,7 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, TrendsFragment.H
             is TrendsFragment -> fragment.render(currentUiState())
             is SettingsFragment -> fragment.render(currentUiState())
             is SyncLogFragment -> fragment.render(currentUiState())
+            is DeletedMeasurementsFragment -> fragment.render(currentUiState())
         }
     }
 
@@ -932,21 +1073,23 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, TrendsFragment.H
     private fun sampleMeasurementsForModel(model: OmronDeviceDefinition): List<Measurement> {
         val users = model.userLayouts.map { it.user }.ifEmpty { listOf(1) }
         val baseTime = LocalDateTime.now().withNano(0)
-        return users.flatMapIndexed { userIndex, user ->
-            List(SAMPLE_MEASUREMENTS_PER_USER) { offset ->
-                val recordedAt = baseTime
-                    .minusDays(offset.toLong())
-                    .minusHours((userIndex * 2L) + (offset % 2L))
-                Measurement(
-                    user = user,
-                    recordedAt = recordedAt,
-                    systolic = 118 + userIndex + (offset * 2),
-                    diastolic = 76 + userIndex + offset,
-                    pulse = 60 + userIndex + offset,
-                    irregularHeartbeat = offset % 4 == 0,
-                    movement = offset % 3 == 0,
-                )
-            }
+        return List(SAMPLE_MEASUREMENTS_TOTAL) { index ->
+            val userIndex = index % users.size
+            val user = users[userIndex]
+            val dayOffset = ((index.toLong() * SAMPLE_MEASUREMENTS_DAY_SPAN) / SAMPLE_MEASUREMENTS_TOTAL)
+            val recordedAt = baseTime
+                .minusDays(dayOffset)
+                .minusHours((index % 4).toLong() + (userIndex * 2L))
+                .minusMinutes((index % 3 * 10).toLong())
+            Measurement(
+                user = user,
+                recordedAt = recordedAt,
+                systolic = 118 + userIndex + ((index % 15) * 2),
+                diastolic = 76 + userIndex + (index % 10),
+                pulse = 60 + userIndex + (index % 12),
+                irregularHeartbeat = index % 9 == 0,
+                movement = index % 7 == 0,
+            )
         }.sortedByDescending { it.recordedAt }
     }
 
@@ -990,9 +1133,43 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, TrendsFragment.H
         }
     }
 
+    private fun healthConnectExportMessage(
+        summary: HealthConnectBloodPressureExporter.ExportSummary,
+    ): String {
+        return when {
+            summary.deletedMeasurements > 0 && summary.bloodPressureExported > 0 -> {
+                getString(
+                    R.string.status_health_connect_exported_with_deletions,
+                    summary.bloodPressureExported,
+                    summary.heartRateExported,
+                    summary.deletedMeasurements,
+                )
+            }
+
+            summary.deletedMeasurements > 0 -> {
+                getString(
+                    R.string.status_health_connect_deleted_measurements,
+                    summary.deletedMeasurements,
+                )
+            }
+
+            else -> {
+                getString(
+                    R.string.status_health_connect_exported,
+                    summary.bloodPressureExported,
+                    summary.heartRateExported,
+                )
+            }
+        }
+    }
+
     private fun bluetoothAdapter(): BluetoothAdapter? {
         val manager = getSystemService(BLUETOOTH_SERVICE) as? BluetoothManager
         return manager?.adapter
+    }
+
+    private fun canDeleteFromHealthConnect(): Boolean {
+        return isHealthConnectAvailable && isHealthConnectConnected
     }
 
     private fun launchUi(block: suspend CoroutineScope.() -> Unit) {
@@ -1006,15 +1183,18 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, TrendsFragment.H
     private fun updateTopLevelUi() {
         val currentFragment = supportFragmentManager.findFragmentById(R.id.fragment_container)
         val isLogScreen = currentFragment is SyncLogFragment
+        val isDeletedMeasurementsScreen = currentFragment is DeletedMeasurementsFragment
+        val isDetailScreen = isLogScreen || isDeletedMeasurementsScreen
 
         binding.screenTitle.text = when {
             isLogScreen -> getString(R.string.sync_log_title)
+            isDeletedMeasurementsScreen -> getString(R.string.deleted_measurements_title)
             selectedTabId == R.id.navigation_trends -> getString(R.string.trends_title)
             selectedTabId == R.id.navigation_settings -> getString(R.string.settings_title)
             else -> getString(R.string.results_title)
         }
         binding.toolbar.navigationIcon =
-            if (isLogScreen) {
+            if (isDetailScreen) {
                 AppCompatResources.getDrawable(
                     this,
                     androidx.appcompat.R.drawable.abc_ic_ab_back_material,
@@ -1022,7 +1202,7 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, TrendsFragment.H
             } else {
                 null
             }
-        binding.bottomNavigation.visibility = if (isLogScreen) View.GONE else View.VISIBLE
+        binding.bottomNavigation.visibility = if (isDetailScreen) View.GONE else View.VISIBLE
     }
     private data class NearbySyncCooldownOption(
         val minutes: Int,
@@ -1043,10 +1223,12 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, TrendsFragment.H
     }
 
     private companion object {
+        const val BACKSTACK_DELETED_MEASUREMENTS = "deleted_measurements"
         const val BACKSTACK_SYNC_LOG = "sync_log"
         const val KEY_SELECTED_TAB = "selected_tab"
         const val LEGACY_PERIODIC_SYNC_WORK_NAME = "background_sync"
-        const val SAMPLE_MEASUREMENTS_PER_USER = 6
+        const val SAMPLE_MEASUREMENTS_TOTAL = 100
+        const val SAMPLE_MEASUREMENTS_DAY_SPAN = 90L
         val SYNC_TIME_FORMATTER: DateTimeFormatter =
             DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")
     }

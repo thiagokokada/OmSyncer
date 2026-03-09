@@ -1,10 +1,12 @@
 package com.github.thiagokokada.omronsyncer.sync
 
+import androidx.health.connect.client.HealthConnectClient
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothManager
 import android.content.Context
 import com.github.thiagokokada.omronsyncer.data.MeasurementStore
+import com.github.thiagokokada.omronsyncer.healthconnect.HealthConnectExporter
 import com.github.thiagokokada.omronsyncer.healthconnect.HealthConnectBloodPressureExporter
 import com.github.thiagokokada.omronsyncer.model.Measurement
 import com.github.thiagokokada.omronsyncer.omron.OmronDeviceDefinition
@@ -16,7 +18,7 @@ class SyncOrchestrator(
     private val context: Context,
     private val syncClient: OmronSyncClient = OmronSyncClient(context),
     private val measurementStore: MeasurementStore = MeasurementStore(context),
-    private val healthConnectExporter: HealthConnectBloodPressureExporter =
+    private val healthConnectExporter: HealthConnectExporter =
         HealthConnectBloodPressureExporter(context),
     private val syncPreferences: SyncPreferences = SyncPreferences(context),
 ) {
@@ -49,13 +51,17 @@ class SyncOrchestrator(
 
     suspend fun exportStoredMeasurementsToHealthConnect(): HealthConnectBloodPressureExporter.ExportSummary {
         val model = syncPreferences.selectedModel()
-        val storedMeasurements = withContext(Dispatchers.IO) {
-            measurementStore.loadAll(resolveSelectedMeasurementUser(model))
+        val selectedUser = resolveSelectedMeasurementUser(model)
+        val measurementState = withContext(Dispatchers.IO) {
+            measurementStore.loadAll(selectedUser) to measurementStore.loadDeleted(selectedUser)
         }
-        require(storedMeasurements.isNotEmpty()) {
+        require(measurementState.first.isNotEmpty() || measurementState.second.isNotEmpty()) {
             "No measurements match the selected user."
         }
-        return healthConnectExporter.export(storedMeasurements)
+        return healthConnectExporter.sync(
+            activeMeasurements = measurementState.first,
+            deletedMeasurements = measurementState.second,
+        )
     }
 
     private suspend fun maybeExportToHealthConnect(
@@ -65,19 +71,26 @@ class SyncOrchestrator(
         if (!syncPreferences.healthConnectAutoExportEnabled()) {
             return null
         }
-        if (healthConnectExporter.sdkStatus() != androidx.health.connect.client.HealthConnectClient.SDK_AVAILABLE) {
+        if (healthConnectExporter.sdkStatus() != HealthConnectClient.SDK_AVAILABLE) {
             return null
         }
         if (!healthConnectExporter.hasAllPermissions()) {
             return null
         }
 
+        val selectedUser = resolveSelectedMeasurementUser(model)
         val filteredMeasurements = filterMeasurementsForHealthConnect(measurements, model)
-        if (filteredMeasurements.isEmpty()) {
+        val deletedMeasurements = withContext(Dispatchers.IO) {
+            measurementStore.loadDeleted(selectedUser)
+        }
+        if (filteredMeasurements.isEmpty() && deletedMeasurements.isEmpty()) {
             return null
         }
 
-        return healthConnectExporter.export(filteredMeasurements)
+        return healthConnectExporter.sync(
+            activeMeasurements = filteredMeasurements,
+            deletedMeasurements = deletedMeasurements,
+        )
     }
 
     private fun requireSelectedBondedDevice(): BluetoothDevice {

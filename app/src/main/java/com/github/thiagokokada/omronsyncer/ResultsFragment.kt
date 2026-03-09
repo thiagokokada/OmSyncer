@@ -1,18 +1,27 @@
 package com.github.thiagokokada.omronsyncer
 
 import android.content.Context
+import android.graphics.Canvas
+import android.graphics.Color
+import android.graphics.drawable.ColorDrawable
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import androidx.fragment.app.Fragment
+import androidx.appcompat.content.res.AppCompatResources
+import androidx.core.graphics.drawable.DrawableCompat
+import androidx.recyclerview.widget.ItemTouchHelper
 import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.RecyclerView
 import com.github.thiagokokada.omronsyncer.databinding.FragmentResultsBinding
+import com.github.thiagokokada.omronsyncer.model.Measurement
 
 class ResultsFragment : Fragment() {
 
     interface Host {
         fun currentUiState(): MainUiState
+        fun onMeasurementDeleteRequested(measurement: Measurement)
         fun onSyncRequested()
     }
 
@@ -20,6 +29,7 @@ class ResultsFragment : Fragment() {
     private val binding get() = _binding!!
     private lateinit var host: Host
     private lateinit var adapter: MeasurementAdapter
+    private lateinit var deleteSwipeBackground: ColorDrawable
 
     override fun onAttach(context: Context) {
         super.onAttach(context)
@@ -40,8 +50,10 @@ class ResultsFragment : Fragment() {
         super.onViewCreated(view, savedInstanceState)
 
         adapter = MeasurementAdapter()
+        deleteSwipeBackground = ColorDrawable(Color.parseColor("#B3261E"))
         binding.measurementsList.layoutManager = LinearLayoutManager(requireContext())
         binding.measurementsList.adapter = adapter
+        ItemTouchHelper(DeleteMeasurementSwipeCallback()).attachToRecyclerView(binding.measurementsList)
 
         binding.syncButton.setOnClickListener {
             host.onSyncRequested()
@@ -105,5 +117,75 @@ class ResultsFragment : Fragment() {
     override fun onDestroyView() {
         super.onDestroyView()
         _binding = null
+    }
+
+    private inner class DeleteMeasurementSwipeCallback : ItemTouchHelper.SimpleCallback(
+        0,
+        ItemTouchHelper.LEFT,
+    ) {
+        private val deleteIcon = AppCompatResources.getDrawable(
+            requireContext(),
+            android.R.drawable.ic_menu_delete,
+        )?.mutate()?.also { DrawableCompat.setTint(it, Color.WHITE) }
+
+        override fun getSwipeDirs(
+            recyclerView: RecyclerView,
+            viewHolder: RecyclerView.ViewHolder,
+        ): Int {
+            return if (host.currentUiState().isWorking) 0 else super.getSwipeDirs(recyclerView, viewHolder)
+        }
+
+        override fun onMove(
+            recyclerView: RecyclerView,
+            viewHolder: RecyclerView.ViewHolder,
+            target: RecyclerView.ViewHolder,
+        ): Boolean = false
+
+        override fun onSwiped(viewHolder: RecyclerView.ViewHolder, direction: Int) {
+            val position = viewHolder.bindingAdapterPosition
+            if (position == RecyclerView.NO_POSITION) {
+                return
+            }
+            val measurement = adapter.currentList.getOrNull(position)
+            if (measurement != null) {
+                host.onMeasurementDeleteRequested(measurement)
+            }
+            adapter.notifyItemChanged(position)
+        }
+
+        override fun onChildDraw(
+            c: Canvas,
+            recyclerView: RecyclerView,
+            viewHolder: RecyclerView.ViewHolder,
+            dX: Float,
+            dY: Float,
+            actionState: Int,
+            isCurrentlyActive: Boolean,
+        ) {
+            val itemView = viewHolder.itemView
+            if (dX < 0f) {
+                deleteSwipeBackground.setBounds(
+                    itemView.right + dX.toInt(),
+                    itemView.top,
+                    itemView.right,
+                    itemView.bottom,
+                )
+                deleteSwipeBackground.draw(c)
+
+                deleteIcon?.let { icon ->
+                    val iconMargin = (itemView.height - icon.intrinsicHeight) / 2
+                    val iconTop = itemView.top + iconMargin
+                    val iconBottom = iconTop + icon.intrinsicHeight
+                    val iconRight = itemView.right - iconMargin
+                    val iconLeft = iconRight - icon.intrinsicWidth
+                    icon.setBounds(iconLeft, iconTop, iconRight, iconBottom)
+                    icon.draw(c)
+                }
+            } else {
+                deleteSwipeBackground.setBounds(0, 0, 0, 0)
+            }
+
+            super.onChildDraw(c, recyclerView, viewHolder, dX, dY, actionState, isCurrentlyActive)
+        }
     }
 }

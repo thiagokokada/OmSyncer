@@ -4,6 +4,7 @@ import com.github.thiagokokada.omronsyncer.model.Measurement
 
 data class MainUiState(
     val measurements: List<Measurement>,
+    val deletedMeasurements: List<Measurement>,
     val measurementUserOptions: List<Int?>,
     val measurementUserLabels: List<String>,
     val selectedMeasurementUser: Int?,
@@ -18,6 +19,7 @@ data class MainUiState(
     val canSync: Boolean,
     val canExport: Boolean,
     val canExportLog: Boolean,
+    val canRestoreDeletedMeasurements: Boolean,
     val healthConnectAvailable: Boolean,
     val healthConnectNeedsSetup: Boolean,
     val healthConnectConnected: Boolean,

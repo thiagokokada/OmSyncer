@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.Intent
 import androidx.core.net.toUri
 import androidx.health.connect.client.HealthConnectClient
+import androidx.health.connect.client.deleteRecords
 import androidx.health.connect.client.permission.HealthPermission
 import androidx.health.connect.client.records.BloodPressureRecord
 import androidx.health.connect.client.records.HeartRateRecord
@@ -15,14 +16,14 @@ import com.github.thiagokokada.omronsyncer.model.Measurement
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
-class HealthConnectBloodPressureExporter(private val context: Context) {
+class HealthConnectBloodPressureExporter(private val context: Context) : HealthConnectExporter {
 
     val requiredPermissions: Set<String> = setOf(
         HealthPermission.getWritePermission(BloodPressureRecord::class),
         HealthPermission.getWritePermission(HeartRateRecord::class),
     )
 
-    fun sdkStatus(): Int {
+    override fun sdkStatus(): Int {
         return HealthConnectClient.getSdkStatus(context)
     }
 
@@ -41,20 +42,47 @@ class HealthConnectBloodPressureExporter(private val context: Context) {
         }
     }
 
-    suspend fun hasAllPermissions(): Boolean {
+    override suspend fun hasAllPermissions(): Boolean {
         return sdkStatus() == HealthConnectClient.SDK_AVAILABLE &&
             client().permissionController.getGrantedPermissions().containsAll(requiredPermissions)
     }
 
     suspend fun export(measurements: List<Measurement>): ExportSummary {
-        require(measurements.isNotEmpty()) {
-            "No measurements available to export."
+        return sync(
+            activeMeasurements = measurements,
+            deletedMeasurements = emptyList(),
+        )
+    }
+
+    override suspend fun sync(
+        activeMeasurements: List<Measurement>,
+        deletedMeasurements: List<Measurement>,
+    ): ExportSummary {
+        require(activeMeasurements.isNotEmpty() || deletedMeasurements.isNotEmpty()) {
+            "No measurements available to sync."
         }
 
-        client().insertRecords(measurements.flatMap(::toHealthConnectRecords))
+        if (activeMeasurements.isNotEmpty()) {
+            client().insertRecords(activeMeasurements.flatMap(::toHealthConnectRecords))
+        }
+        deletedMeasurements.forEach { measurement ->
+            delete(measurement)
+        }
         return ExportSummary(
-            bloodPressureExported = measurements.size,
-            heartRateExported = measurements.size,
+            bloodPressureExported = activeMeasurements.size,
+            heartRateExported = activeMeasurements.size,
+            deletedMeasurements = deletedMeasurements.size,
+        )
+    }
+
+    suspend fun delete(measurement: Measurement) {
+        client().deleteRecords<BloodPressureRecord>(
+            recordIdsList = emptyList(),
+            clientRecordIdsList = listOf(clientRecordId(measurement)),
+        )
+        client().deleteRecords<HeartRateRecord>(
+            recordIdsList = emptyList(),
+            clientRecordIdsList = listOf(heartRateClientRecordId(measurement)),
         )
     }
 
@@ -150,6 +178,7 @@ class HealthConnectBloodPressureExporter(private val context: Context) {
     data class ExportSummary(
         val bloodPressureExported: Int,
         val heartRateExported: Int,
+        val deletedMeasurements: Int,
     )
 
     private companion object {
