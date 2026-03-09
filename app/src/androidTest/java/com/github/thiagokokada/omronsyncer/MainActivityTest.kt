@@ -10,6 +10,7 @@ import androidx.test.espresso.Espresso.onData
 import androidx.test.espresso.Espresso.pressBack
 import androidx.test.espresso.action.ViewActions.click
 import androidx.test.espresso.action.ViewActions.swipeLeft
+import androidx.test.espresso.action.ViewActions.swipeRight
 import androidx.test.espresso.action.ViewActions.scrollTo
 import androidx.test.espresso.UiController
 import androidx.test.espresso.ViewAction
@@ -260,6 +261,19 @@ class MainActivityTest {
         }
     }
 
+    @Test
+    fun swipeRightAlsoOpensDeleteFlow() {
+        seedMeasurements(listOf(measurement(user = 1, day = 8)))
+
+        ActivityScenario.launch(MainActivity::class.java).use {
+            onView(withId(R.id.measurement_count)).check(matches(withText("1 measurement")))
+            onView(withId(R.id.measurements_list)).perform(swipeRecyclerItemRightAtPosition(0))
+            onView(withText(R.string.delete_measurement_title)).check(matches(isDisplayed()))
+            onView(withText(R.string.delete_measurement_confirm)).perform(click())
+            onView(withId(R.id.measurement_count)).check(matches(withText("0 measurements")))
+        }
+    }
+
     private fun clearPreferences() {
         context.getSharedPreferences("om_syncer_prefs", Context.MODE_PRIVATE)
             .edit()
@@ -312,6 +326,23 @@ class MainActivityTest {
                 val viewHolder = recyclerView.findViewHolderForAdapterPosition(position)
                     ?: error("No ViewHolder at position $position")
                 swipeLeft().perform(uiController, viewHolder.itemView)
+            }
+        }
+    }
+
+    private fun swipeRecyclerItemRightAtPosition(position: Int): ViewAction {
+        return object : ViewAction {
+            override fun getConstraints(): Matcher<View> = withId(R.id.measurements_list)
+
+            override fun getDescription(): String {
+                return "swipe right on recycler item at position $position"
+            }
+
+            override fun perform(uiController: UiController, view: View) {
+                val recyclerView = view as RecyclerView
+                val viewHolder = recyclerView.findViewHolderForAdapterPosition(position)
+                    ?: error("No ViewHolder at position $position")
+                swipeRight().perform(uiController, viewHolder.itemView)
             }
         }
     }
