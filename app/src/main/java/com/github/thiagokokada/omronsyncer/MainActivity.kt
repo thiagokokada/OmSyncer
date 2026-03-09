@@ -71,6 +71,7 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, TrendsFragment.H
     }
 
     private var measurements: List<Measurement> = emptyList()
+    private var deletedMeasurements: List<Measurement> = emptyList()
     private var statusMessage: String = ""
     private var lastSyncLog: String = ""
     private var isWorking: Boolean = false
@@ -274,6 +275,7 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, TrendsFragment.H
             canSync = bondedDevices.isNotEmpty(),
             canExport = measurements.isNotEmpty(),
             canExportLog = lastSyncLog.isNotBlank(),
+            canRestoreDeletedMeasurements = deletedMeasurements.isNotEmpty(),
             healthConnectAvailable = isHealthConnectAvailable,
             healthConnectNeedsSetup = isHealthConnectSetupRequired,
             healthConnectConnected = isHealthConnectConnected,
@@ -312,6 +314,10 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, TrendsFragment.H
     override fun onMeasurementUserSelected(user: Int?) {
         syncPreferences.setSelectedMeasurementUser(user)
         loadPersistedMeasurements()
+    }
+
+    override fun onMeasurementDeleteRequested(measurement: Measurement) {
+        confirmDeleteMeasurement(measurement)
     }
 
     override fun onTrendRangeSelected(range: TrendRange) {
@@ -371,6 +377,10 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, TrendsFragment.H
             syncPreferences.setNearbySyncCooldownMinutes(option.minutes)
             notifyCurrentFragment()
         }
+    }
+
+    override fun onRestoreDeletedMeasurementsRequested() {
+        showDeletedMeasurements()
     }
 
     override fun onSeedSampleMeasurementsRequested() {
@@ -538,13 +548,189 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, TrendsFragment.H
     private fun renderSyncResult(result: SyncExecutionResult) {
         measurements = result.persistedMeasurements
         renderSyncLog(result.syncLog)
+        launchUi {
+            deletedMeasurements = withContext(Dispatchers.IO) {
+                measurementStore.loadDeleted(selectedMeasurementUser())
+            }
+            notifyCurrentFragment()
+        }
     }
 
     private fun loadPersistedMeasurements() {
         launchUi {
-            measurements = withContext(Dispatchers.IO) {
-                measurementStore.loadAll(selectedMeasurementUser())
+            val selectedUser = selectedMeasurementUser()
+            val measurementState = withContext(Dispatchers.IO) {
+                measurementStore.loadAll(selectedUser) to measurementStore.loadDeleted(selectedUser)
             }
+            measurements = measurementState.first
+            deletedMeasurements = measurementState.second
+            notifyCurrentFragment()
+        }
+    }
+
+    private fun confirmDeleteMeasurement(measurement: Measurement) {
+        val message = buildString {
+            append(getString(R.string.delete_measurement_message))
+            if (!canDeleteFromHealthConnect()) {
+                append("\n\n")
+                append(getString(R.string.delete_measurement_message_health_connect_warning))
+            }
+        }
+        MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.delete_measurement_title)
+            .setMessage(message)
+            .setNegativeButton(R.string.close_label, null)
+            .setPositiveButton(R.string.delete_measurement_confirm) { _, _ ->
+                deleteMeasurement(measurement)
+            }
+            .show()
+    }
+
+    private fun deleteMeasurement(measurement: Measurement) {
+        setWorking(true)
+        updateStatus(getString(R.string.status_delete_measurement))
+
+        launchUi {
+            var healthConnectWarning = false
+            runCatching {
+                withContext(Dispatchers.IO) {
+                    measurementStore.softDelete(measurement)
+                }
+                if (canDeleteFromHealthConnect()) {
+                    runCatching {
+                        healthConnectExporter.delete(measurement)
+                    }.onFailure {
+                        healthConnectWarning = true
+                    }
+                } else {
+                    healthConnectWarning = true
+                }
+
+                val selectedUser = selectedMeasurementUser()
+                withContext(Dispatchers.IO) {
+                    measurementStore.loadAll(selectedUser) to measurementStore.loadDeleted(selectedUser)
+                }
+            }.onSuccess { (activeMeasurements, removedMeasurements) ->
+                measurements = activeMeasurements
+                deletedMeasurements = removedMeasurements
+                val message = if (healthConnectWarning) {
+                    getString(R.string.status_measurement_deleted_health_connect_warning)
+                } else {
+                    getString(R.string.status_measurement_deleted)
+                }
+                updateStatus(message)
+                showToast(message)
+            }.onFailure { error ->
+                updateStatus(error.message ?: error.javaClass.simpleName)
+            }
+
+            setWorking(false)
+            notifyCurrentFragment()
+        }
+    }
+
+    private fun showDeletedMeasurements() {
+        if (deletedMeasurements.isEmpty()) {
+            updateStatus(getString(R.string.deleted_measurements_empty))
+            return
+        }
+
+        val items = deletedMeasurements.map(::restoreMeasurementLabel).toTypedArray()
+        MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.deleted_measurements_title)
+            .setItems(items) { _, which ->
+                deletedMeasurements.getOrNull(which)?.let(::showDeletedMeasurementActions)
+            }
+            .setNegativeButton(R.string.close_label, null)
+            .show()
+    }
+
+    private fun showDeletedMeasurementActions(measurement: Measurement) {
+        val items = arrayOf(
+            getString(R.string.restore_measurement_action),
+            getString(R.string.retry_health_connect_delete_action),
+        )
+        MaterialAlertDialogBuilder(this)
+            .setTitle(restoreMeasurementLabel(measurement))
+            .setItems(items) { _, which ->
+                when (which) {
+                    0 -> restoreMeasurement(measurement)
+                    1 -> retryHealthConnectDelete(measurement)
+                }
+            }
+            .setNegativeButton(R.string.close_label, null)
+            .show()
+    }
+
+    private fun restoreMeasurement(measurement: Measurement) {
+        setWorking(true)
+
+        launchUi {
+            var healthConnectWarning = false
+            runCatching {
+                withContext(Dispatchers.IO) {
+                    measurementStore.undelete(measurement)
+                }
+                if (isHealthConnectAvailable && isHealthConnectConnected) {
+                    runCatching {
+                        healthConnectExporter.export(listOf(measurement))
+                    }.onFailure {
+                        healthConnectWarning = true
+                    }
+                } else {
+                    healthConnectWarning = true
+                }
+
+                val selectedUser = selectedMeasurementUser()
+                withContext(Dispatchers.IO) {
+                    measurementStore.loadAll(selectedUser) to measurementStore.loadDeleted(selectedUser)
+                }
+            }.onSuccess { (activeMeasurements, removedMeasurements) ->
+                measurements = activeMeasurements
+                deletedMeasurements = removedMeasurements
+                val message = if (healthConnectWarning) {
+                    getString(R.string.status_measurement_restored_health_connect_warning)
+                } else {
+                    getString(R.string.status_measurement_restored)
+                }
+                updateStatus(message)
+                showToast(message)
+            }.onFailure { error ->
+                updateStatus(error.message ?: error.javaClass.simpleName)
+            }
+
+            setWorking(false)
+            notifyCurrentFragment()
+        }
+    }
+
+    private fun retryHealthConnectDelete(measurement: Measurement) {
+        setWorking(true)
+        updateStatus(getString(R.string.status_retry_health_connect_delete))
+
+        launchUi {
+            val message = when {
+                !canDeleteFromHealthConnect() -> {
+                    getString(R.string.status_retry_health_connect_delete_unavailable)
+                }
+
+                else -> {
+                    runCatching {
+                        healthConnectExporter.delete(measurement)
+                    }.fold(
+                        onSuccess = {
+                            getString(R.string.status_retry_health_connect_delete_success)
+                        },
+                        onFailure = {
+                            getString(R.string.status_retry_health_connect_delete_failed)
+                        },
+                    )
+                }
+            }
+
+            updateStatus(message)
+            showToast(message)
+            setWorking(false)
             notifyCurrentFragment()
         }
     }
@@ -993,6 +1179,22 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, TrendsFragment.H
     private fun bluetoothAdapter(): BluetoothAdapter? {
         val manager = getSystemService(BLUETOOTH_SERVICE) as? BluetoothManager
         return manager?.adapter
+    }
+
+    private fun canDeleteFromHealthConnect(): Boolean {
+        return isHealthConnectAvailable && isHealthConnectConnected
+    }
+
+    private fun restoreMeasurementLabel(measurement: Measurement): String {
+        val timestamp = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm").format(measurement.recordedAt)
+        return getString(
+            R.string.restore_measurement_item,
+            timestamp,
+            measurement.systolic,
+            measurement.diastolic,
+            measurement.pulse,
+            measurement.flagsLabel(),
+        )
     }
 
     private fun launchUi(block: suspend CoroutineScope.() -> Unit) {

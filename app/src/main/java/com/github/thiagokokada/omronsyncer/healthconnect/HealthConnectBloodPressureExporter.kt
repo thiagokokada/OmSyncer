@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.Intent
 import androidx.core.net.toUri
 import androidx.health.connect.client.HealthConnectClient
+import androidx.health.connect.client.deleteRecords
 import androidx.health.connect.client.permission.HealthPermission
 import androidx.health.connect.client.records.BloodPressureRecord
 import androidx.health.connect.client.records.HeartRateRecord
@@ -55,6 +56,17 @@ class HealthConnectBloodPressureExporter(private val context: Context) {
         return ExportSummary(
             bloodPressureExported = measurements.size,
             heartRateExported = measurements.size,
+        )
+    }
+
+    suspend fun delete(measurement: Measurement) {
+        client().deleteRecords<BloodPressureRecord>(
+            recordIdsList = emptyList(),
+            clientRecordIdsList = listOf(clientRecordId(measurement)),
+        )
+        client().deleteRecords<HeartRateRecord>(
+            recordIdsList = emptyList(),
+            clientRecordIdsList = listOf(heartRateClientRecordId(measurement)),
         )
     }
 

@@ -14,24 +14,11 @@ class MeasurementStore(context: Context) {
     private val helper = MeasurementDatabaseHelper(context)
 
     fun loadAll(user: Int? = null): List<Measurement> {
-        val db = helper.readableDatabase
-        val selection = if (user == null) null else "$COLUMN_USER = ?"
-        val selectionArgs = if (user == null) null else arrayOf(user.toString())
-        db.query(
-            TABLE_MEASUREMENTS,
-            PROJECTION,
-            selection,
-            selectionArgs,
-            null,
-            null,
-            "$COLUMN_RECORDED_AT DESC",
-        ).use { cursor ->
-            return buildList {
-                while (cursor.moveToNext()) {
-                    add(cursor.toMeasurement())
-                }
-            }
-        }
+        return loadByDeletedState(user = user, deleted = false)
+    }
+
+    fun loadDeleted(user: Int? = null): List<Measurement> {
+        return loadByDeletedState(user = user, deleted = true)
     }
 
     fun saveAll(measurements: List<Measurement>): SaveSummary {
@@ -66,6 +53,14 @@ class MeasurementStore(context: Context) {
         )
     }
 
+    fun softDelete(measurement: Measurement) {
+        updateDeletedState(listOf(measurement), deleted = true)
+    }
+
+    fun undelete(measurement: Measurement) {
+        updateDeletedState(listOf(measurement), deleted = false)
+    }
+
     private fun Measurement.toContentValues(): ContentValues {
         return ContentValues().apply {
             put(COLUMN_USER, user)
@@ -75,6 +70,75 @@ class MeasurementStore(context: Context) {
             put(COLUMN_PULSE, pulse)
             put(COLUMN_IRREGULAR_HEARTBEAT, if (irregularHeartbeat) 1 else 0)
             put(COLUMN_MOVEMENT, if (movement) 1 else 0)
+            put(COLUMN_DELETED, 0)
+            putNull(COLUMN_DELETED_AT)
+        }
+    }
+
+    private fun loadByDeletedState(user: Int?, deleted: Boolean): List<Measurement> {
+        val db = helper.readableDatabase
+        val selectionParts = mutableListOf("$COLUMN_DELETED = ?")
+        val selectionArgs = mutableListOf(if (deleted) "1" else "0")
+        if (user != null) {
+            selectionParts += "$COLUMN_USER = ?"
+            selectionArgs += user.toString()
+        }
+        db.query(
+            TABLE_MEASUREMENTS,
+            PROJECTION,
+            selectionParts.joinToString(" AND "),
+            selectionArgs.toTypedArray(),
+            null,
+            null,
+            "$COLUMN_RECORDED_AT DESC",
+        ).use { cursor ->
+            return buildList {
+                while (cursor.moveToNext()) {
+                    add(cursor.toMeasurement())
+                }
+            }
+        }
+    }
+
+    private fun updateDeletedState(measurements: List<Measurement>, deleted: Boolean) {
+        if (measurements.isEmpty()) {
+            return
+        }
+
+        val db = helper.writableDatabase
+        val deletedAt = if (deleted) STORED_TIME_FORMATTER.format(LocalDateTime.now()) else null
+        db.transaction {
+            measurements.forEach { measurement ->
+                update(
+                    TABLE_MEASUREMENTS,
+                    ContentValues().apply {
+                        put(COLUMN_DELETED, if (deleted) 1 else 0)
+                        if (deletedAt == null) {
+                            putNull(COLUMN_DELETED_AT)
+                        } else {
+                            put(COLUMN_DELETED_AT, deletedAt)
+                        }
+                    },
+                    """
+                    $COLUMN_USER = ? AND
+                    $COLUMN_RECORDED_AT = ? AND
+                    $COLUMN_SYSTOLIC = ? AND
+                    $COLUMN_DIASTOLIC = ? AND
+                    $COLUMN_PULSE = ? AND
+                    $COLUMN_IRREGULAR_HEARTBEAT = ? AND
+                    $COLUMN_MOVEMENT = ?
+                    """.trimIndent().replace("\n", " "),
+                    arrayOf(
+                        measurement.user.toString(),
+                        STORED_TIME_FORMATTER.format(measurement.recordedAt),
+                        measurement.systolic.toString(),
+                        measurement.diastolic.toString(),
+                        measurement.pulse.toString(),
+                        if (measurement.irregularHeartbeat) "1" else "0",
+                        if (measurement.movement) "1" else "0",
+                    ),
+                )
+            }
         }
     }
 
@@ -115,6 +179,8 @@ class MeasurementStore(context: Context) {
                     $COLUMN_PULSE INTEGER NOT NULL,
                     $COLUMN_IRREGULAR_HEARTBEAT INTEGER NOT NULL,
                     $COLUMN_MOVEMENT INTEGER NOT NULL,
+                    $COLUMN_DELETED INTEGER NOT NULL DEFAULT 0,
+                    $COLUMN_DELETED_AT TEXT,
                     UNIQUE (
                         $COLUMN_USER,
                         $COLUMN_RECORDED_AT,
@@ -130,14 +196,20 @@ class MeasurementStore(context: Context) {
         }
 
         override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
-            db.execSQL("DROP TABLE IF EXISTS $TABLE_MEASUREMENTS")
-            onCreate(db)
+            if (oldVersion < 2) {
+                db.execSQL(
+                    "ALTER TABLE $TABLE_MEASUREMENTS ADD COLUMN $COLUMN_DELETED INTEGER NOT NULL DEFAULT 0",
+                )
+                db.execSQL(
+                    "ALTER TABLE $TABLE_MEASUREMENTS ADD COLUMN $COLUMN_DELETED_AT TEXT",
+                )
+            }
         }
     }
 
     private companion object {
         const val DATABASE_NAME = "measurements.db"
-        const val DATABASE_VERSION = 1
+        const val DATABASE_VERSION = 2
 
         const val TABLE_MEASUREMENTS = "measurements"
         const val COLUMN_ID = "_id"
@@ -148,6 +220,8 @@ class MeasurementStore(context: Context) {
         const val COLUMN_PULSE = "pulse"
         const val COLUMN_IRREGULAR_HEARTBEAT = "irregular_heartbeat"
         const val COLUMN_MOVEMENT = "movement"
+        const val COLUMN_DELETED = "deleted"
+        const val COLUMN_DELETED_AT = "deleted_at"
 
         val PROJECTION = arrayOf(
             COLUMN_USER,
