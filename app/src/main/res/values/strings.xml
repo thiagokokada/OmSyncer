@@ -11,8 +11,9 @@
     <string name="trends_user_filter_label">User</string>
     <string name="trends_systolic_legend">Systolic</string>
     <string name="trends_diastolic_legend">Diastolic</string>
-    <string name="trends_selected_reading_title">Selected reading</string>
-    <string name="trends_selected_reading_summary">%1$d/%2$d, pulse %3$d, flags %4$s</string>
+    <string name="trends_selected_reading_title">Selected values</string>
+    <string name="trends_selected_reading_summary">Mean %1$d/%2$d, pulse %3$d across %4$d readings</string>
+    <string name="trends_selected_reading_value">%1$s - %2$d/%3$d, pulse %4$d, flags %5$s</string>
     <string name="trends_empty_state">Sync more measurements to see a trend chart.</string>
     <string name="settings_device_title">Device configuration</string>
     <string name="settings_device_body">Choose the monitor model and bonded Bluetooth device to sync. Pair the monitor in Android settings before using it here.</string>

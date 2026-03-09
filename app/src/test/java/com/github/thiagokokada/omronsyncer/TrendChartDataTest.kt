@@ -64,16 +64,41 @@ class TrendChartDataTest {
         assertEquals(measurements, filtered)
     }
 
+    @Test
+    fun chartBuckets_groupsMeasurementsByDayAndAveragesValues() {
+        val now = LocalDateTime.of(2026, 3, 8, 12, 0)
+        val measurements = listOf(
+            measurement(user = 1, daysAgo = 1, now = now, hour = 8, systolic = 120, diastolic = 80, pulse = 60),
+            measurement(user = 1, daysAgo = 1, now = now, hour = 20, systolic = 126, diastolic = 84, pulse = 66),
+            measurement(user = 1, daysAgo = 3, now = now, hour = 9, systolic = 118, diastolic = 78, pulse = 62),
+        )
+
+        val buckets = TrendChartData.chartBuckets(measurements)
+
+        assertEquals(2, buckets.size)
+        assertEquals(now.minusDays(3).toLocalDate(), buckets[0].date)
+        assertEquals(118, buckets[0].meanSystolic)
+        assertEquals(now.minusDays(1).toLocalDate(), buckets[1].date)
+        assertEquals(123, buckets[1].meanSystolic)
+        assertEquals(82, buckets[1].meanDiastolic)
+        assertEquals(63, buckets[1].meanPulse)
+        assertEquals(2, buckets[1].measurements.size)
+    }
+
     private fun measurement(
         user: Int,
         daysAgo: Long,
         now: LocalDateTime = LocalDateTime.of(2026, 3, 8, 12, 0),
+        hour: Int = 9,
+        systolic: Int = 120,
+        diastolic: Int = 80,
+        pulse: Int = 64,
     ) = Measurement(
         user = user,
-        recordedAt = now.minusDays(daysAgo),
-        systolic = 120,
-        diastolic = 80,
-        pulse = 64,
+        recordedAt = now.minusDays(daysAgo).withHour(hour),
+        systolic = systolic,
+        diastolic = diastolic,
+        pulse = pulse,
         irregularHeartbeat = false,
         movement = false,
     )

@@ -10,13 +10,11 @@ import android.view.MotionEvent
 import android.util.AttributeSet
 import android.view.View
 import androidx.core.graphics.withSave
-import com.github.thiagokokada.omronsyncer.model.Measurement
 import com.google.android.material.color.MaterialColors
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import kotlin.math.max
-import kotlin.math.min
 import kotlin.math.pow
 import kotlin.math.roundToInt
 
@@ -64,19 +62,19 @@ class BloodPressureChartView @JvmOverloads constructor(
     }
 
     private var chartPoints: List<ChartPoint> = emptyList()
-    private var selectedMeasurement: Measurement? = null
-    var onSelectionChanged: ((Measurement?) -> Unit)? = null
+    private var selectedBucket: TrendBucket? = null
+    var onSelectionChanged: ((TrendBucket?) -> Unit)? = null
 
-    fun setMeasurements(measurements: List<Measurement>, selectedMeasurement: Measurement?) {
-        chartPoints = measurements.sortedBy { it.recordedAt }.map {
+    fun setBuckets(buckets: List<TrendBucket>, selectedBucket: TrendBucket?) {
+        chartPoints = buckets.sortedBy { it.date }.map {
             ChartPoint(
-                measurement = it,
-                recordedAtMillis = it.recordedAt.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
-                systolic = it.systolic,
-                diastolic = it.diastolic,
+                bucket = it,
+                recordedAtMillis = it.date.atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                systolic = it.meanSystolic,
+                diastolic = it.meanDiastolic,
             )
         }
-        this.selectedMeasurement = selectedMeasurement
+        this.selectedBucket = selectedBucket
         invalidate()
     }
 
@@ -135,7 +133,7 @@ class BloodPressureChartView @JvmOverloads constructor(
                 diastolicPath.lineTo(x, diastolicY)
             }
 
-            if (point.measurement == selectedMeasurement) {
+            if (point.bucket == selectedBucket) {
                 canvas.drawLine(x, topPadding, x, bottomPadding, selectionPaint)
             }
 
@@ -144,7 +142,7 @@ class BloodPressureChartView @JvmOverloads constructor(
             pointPaint.color = diastolicPaint.color
             canvas.drawCircle(x, diastolicY, 3f * resources.displayMetrics.density, pointPaint)
 
-            if (point.measurement == selectedMeasurement) {
+            if (point.bucket == selectedBucket) {
                 val selectionRadius = 6f * resources.displayMetrics.density
                 canvas.drawCircle(x, systolicY, selectionRadius, selectedPointPaint)
                 canvas.drawCircle(x, diastolicY, selectionRadius, selectedPointPaint)
@@ -196,9 +194,9 @@ class BloodPressureChartView @JvmOverloads constructor(
         }
 
         val nearestPoint = nearestPoint(event.x)
-        if (nearestPoint.measurement != selectedMeasurement) {
-            selectedMeasurement = nearestPoint.measurement
-            onSelectionChanged?.invoke(selectedMeasurement)
+        if (nearestPoint.bucket != selectedBucket) {
+            selectedBucket = nearestPoint.bucket
+            onSelectionChanged?.invoke(selectedBucket)
             invalidate()
         }
         if (event.actionMasked == MotionEvent.ACTION_UP) {
@@ -232,7 +230,7 @@ class BloodPressureChartView @JvmOverloads constructor(
     }
 
     private data class ChartPoint(
-        val measurement: Measurement,
+        val bucket: TrendBucket,
         val recordedAtMillis: Long,
         val systolic: Int,
         val diastolic: Int,

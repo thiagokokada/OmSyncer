@@ -9,8 +9,6 @@ import android.widget.ArrayAdapter
 import androidx.core.view.isVisible
 import androidx.fragment.app.Fragment
 import com.github.thiagokokada.omronsyncer.databinding.FragmentTrendsBinding
-import com.github.thiagokokada.omronsyncer.model.Measurement
-import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
 class TrendsFragment : Fragment() {
@@ -26,7 +24,7 @@ class TrendsFragment : Fragment() {
     private lateinit var host: Host
     private lateinit var userAdapter: ArrayAdapter<String>
     private var suppressUserSelection = false
-    private var selectedMeasurement: Measurement? = null
+    private var selectedBucket: TrendBucket? = null
 
     override fun onAttach(context: Context) {
         super.onAttach(context)
@@ -70,9 +68,9 @@ class TrendsFragment : Fragment() {
                 )
             }
         }
-        binding.chartView.onSelectionChanged = { measurement ->
-            selectedMeasurement = measurement
-            renderSelectedMeasurement()
+        binding.chartView.onSelectionChanged = { bucket ->
+            selectedBucket = bucket
+            renderSelectedBucket()
         }
     }
 
@@ -116,14 +114,15 @@ class TrendsFragment : Fragment() {
             selectedUser = selectedUser,
             selectedRange = state.selectedTrendRange,
         )
-        if (selectedMeasurement !in filteredMeasurements) {
-            selectedMeasurement = null
+        val buckets = TrendChartData.chartBuckets(filteredMeasurements)
+        if (selectedBucket !in buckets) {
+            selectedBucket = null
         }
 
-        binding.chartView.setMeasurements(filteredMeasurements, selectedMeasurement)
-        renderSelectedMeasurement()
-        binding.emptyState.isVisible = filteredMeasurements.isEmpty()
-        binding.chartCard.isVisible = filteredMeasurements.isNotEmpty()
+        binding.chartView.setBuckets(buckets, selectedBucket)
+        renderSelectedBucket()
+        binding.emptyState.isVisible = buckets.isEmpty()
+        binding.chartCard.isVisible = buckets.isNotEmpty()
     }
 
     override fun onDestroyView() {
@@ -131,27 +130,37 @@ class TrendsFragment : Fragment() {
         _binding = null
     }
 
-    private fun renderSelectedMeasurement() {
-        val measurement = selectedMeasurement
-        binding.selectedReadingCard.isVisible = measurement != null
-        if (measurement == null) {
+    private fun renderSelectedBucket() {
+        val bucket = selectedBucket
+        binding.selectedReadingCard.isVisible = bucket != null
+        if (bucket == null) {
             return
         }
 
-        binding.selectedReadingTime.text = SELECTED_READING_TIME_FORMATTER.format(
-            measurement.recordedAt.atZone(ZoneId.systemDefault()),
-        )
+        binding.selectedReadingTime.text = SELECTED_READING_DATE_FORMATTER.format(bucket.date)
         binding.selectedReadingSummary.text = getString(
             R.string.trends_selected_reading_summary,
-            measurement.systolic,
-            measurement.diastolic,
-            measurement.pulse,
-            measurement.flagsLabel(),
+            bucket.meanSystolic,
+            bucket.meanDiastolic,
+            bucket.meanPulse,
+            bucket.measurements.size,
         )
+        binding.selectedReadingValues.text = bucket.measurements.joinToString(separator = "\n") { measurement ->
+            getString(
+                R.string.trends_selected_reading_value,
+                SELECTED_READING_VALUE_TIME_FORMATTER.format(measurement.recordedAt),
+                measurement.systolic,
+                measurement.diastolic,
+                measurement.pulse,
+                measurement.flagsLabel(),
+            )
+        }
     }
 
     private companion object {
-        val SELECTED_READING_TIME_FORMATTER: DateTimeFormatter =
-            DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")
+        val SELECTED_READING_DATE_FORMATTER: DateTimeFormatter =
+            DateTimeFormatter.ofPattern("yyyy-MM-dd")
+        val SELECTED_READING_VALUE_TIME_FORMATTER: DateTimeFormatter =
+            DateTimeFormatter.ofPattern("HH:mm")
     }
 }

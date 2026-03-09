@@ -164,7 +164,15 @@
                             android:layout_height="wrap_content"
                             android:layout_marginTop="4dp"
                             android:textAppearance="?attr/textAppearanceBodySmall"
-                            tools:text="122/81, pulse 65, flags -" />
+                            tools:text="Mean 122/81, pulse 65 across 3 readings" />
+
+                        <TextView
+                            android:id="@+id/selected_reading_values"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="8dp"
+                            android:textAppearance="?attr/textAppearanceBodySmall"
+                            tools:text="08:15 - 120/80, pulse 64, flags -&#10;18:20 - 124/82, pulse 66, flags IHB" />
                     </LinearLayout>
                 </com.google.android.material.card.MaterialCardView>
             </LinearLayout>

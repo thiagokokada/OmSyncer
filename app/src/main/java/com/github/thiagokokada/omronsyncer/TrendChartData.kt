@@ -1,7 +1,9 @@
 package com.github.thiagokokada.omronsyncer
 
 import com.github.thiagokokada.omronsyncer.model.Measurement
+import java.time.LocalDate
 import java.time.LocalDateTime
+import kotlin.math.roundToInt
 
 object TrendChartData {
 
@@ -24,7 +26,30 @@ object TrendChartData {
             .filter { measurement -> selectedUser == null || measurement.user == selectedUser }
             .filter { measurement -> selectedRange.includes(measurement.recordedAt, now) }
     }
+
+    fun chartBuckets(measurements: List<Measurement>): List<TrendBucket> {
+        return measurements
+            .groupBy { measurement -> measurement.recordedAt.toLocalDate() }
+            .toSortedMap()
+            .map { (date, values) ->
+                TrendBucket(
+                    date = date,
+                    meanSystolic = values.map { it.systolic }.average().roundToInt(),
+                    meanDiastolic = values.map { it.diastolic }.average().roundToInt(),
+                    meanPulse = values.map { it.pulse }.average().roundToInt(),
+                    measurements = values.sortedBy { it.recordedAt },
+                )
+            }
+    }
 }
+
+data class TrendBucket(
+    val date: LocalDate,
+    val meanSystolic: Int,
+    val meanDiastolic: Int,
+    val meanPulse: Int,
+    val measurements: List<Measurement>,
+)
 
 enum class TrendRange {
     SEVEN_DAYS,
