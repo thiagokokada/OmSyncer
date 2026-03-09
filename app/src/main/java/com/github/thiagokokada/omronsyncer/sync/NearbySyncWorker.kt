@@ -114,24 +114,34 @@ class NearbySyncWorker(
             } catch (error: Throwable) {
                 lastError = error
                 val hasRetryRemaining = attemptIndex + 1 < MAX_SYNC_ATTEMPTS
-                if (!hasRetryRemaining || !isTransientConnectFailure(error)) {
+                if (!hasRetryRemaining || !isRetryableBackgroundFailure(error)) {
                     throw error
                 }
-                delay(RETRY_DELAY_MS)
+                val retryDelayMillis = RETRY_DELAY_MS * (attemptIndex + 1L)
+                Log.w(
+                    TAG,
+                    "Nearby sync attempt ${attemptIndex + 1} failed, retrying in " +
+                        "${retryDelayMillis}ms: ${error.message ?: error.javaClass.simpleName}",
+                    error,
+                )
+                delay(retryDelayMillis)
             }
         }
 
         throw IllegalStateException("Nearby sync failed after retries.", lastError)
     }
 
-    private fun isTransientConnectFailure(error: Throwable): Boolean {
+    private fun isRetryableBackgroundFailure(error: Throwable): Boolean {
         var current: Throwable? = error
         while (current != null) {
             val message = current.message.orEmpty()
             if (
                 "status=133" in message ||
                 "Bluetooth device disconnected." in message ||
-                "status=8 (GATT_INSUFFICIENT_AUTHORIZATION)" in message
+                "status=8 (GATT_INSUFFICIENT_AUTHORIZATION)" in message ||
+                "Timed out waiting for" in message ||
+                "Command failed after" in message ||
+                "PROFILE_SERVICE_NOT_BOUND" in message
             ) {
                 return true
             }
@@ -145,8 +155,8 @@ class NearbySyncWorker(
         private const val TAG = "OmSyncerNearby"
         private const val NOTIFICATION_ID = 1002
         private const val SUCCESS_NOTIFICATION_ID = 1003
-        private const val MAX_SYNC_ATTEMPTS = 3
-        private const val INITIAL_SYNC_DELAY_MS = 4_000L
+        private const val MAX_SYNC_ATTEMPTS = 5
+        private const val INITIAL_SYNC_DELAY_MS = 6_000L
         private const val RETRY_DELAY_MS = 5_000L
     }
 }
