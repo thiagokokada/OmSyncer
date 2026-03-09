@@ -104,12 +104,6 @@ class SyncPreferences(context: Context) {
         return preferences.getString(PREF_LAST_NEARBY_SYNC_SUMMARY, null)
     }
 
-    fun setLastNearbySyncSummary(summary: String) {
-        preferences.edit {
-            putString(PREF_LAST_NEARBY_SYNC_SUMMARY, summary)
-        }
-    }
-
     fun persistLastNearbySyncStatus(timestampMillis: Long, summary: String) {
         preferences.edit(commit = true) {
             putLong(PREF_LAST_NEARBY_SYNC_AT_MILLIS, timestampMillis)
@@ -120,12 +114,6 @@ class SyncPreferences(context: Context) {
     fun lastNearbySyncAtMillis(): Long? {
         val value = preferences.getLong(PREF_LAST_NEARBY_SYNC_AT_MILLIS, -1L)
         return if (value > 0L) value else null
-    }
-
-    fun setLastNearbySyncAtMillis(timestampMillis: Long) {
-        preferences.edit {
-            putLong(PREF_LAST_NEARBY_SYNC_AT_MILLIS, timestampMillis)
-        }
     }
 
     fun lastNearbySyncTriggerAtMillis(): Long? {

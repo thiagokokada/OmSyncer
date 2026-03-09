@@ -16,6 +16,8 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.github.thiagokokada.omronsyncer.databinding.FragmentResultsBinding
 import com.github.thiagokokada.omronsyncer.model.Measurement
+import androidx.core.graphics.toColorInt
+import androidx.core.graphics.drawable.toDrawable
 
 class ResultsFragment : Fragment() {
 
@@ -50,7 +52,7 @@ class ResultsFragment : Fragment() {
         super.onViewCreated(view, savedInstanceState)
 
         adapter = MeasurementAdapter()
-        deleteSwipeBackground = ColorDrawable(Color.parseColor("#B3261E"))
+        deleteSwipeBackground = "#B3261E".toColorInt().toDrawable()
         binding.measurementsList.layoutManager = LinearLayoutManager(requireContext())
         binding.measurementsList.adapter = adapter
         ItemTouchHelper(DeleteMeasurementSwipeCallback()).attachToRecyclerView(binding.measurementsList)

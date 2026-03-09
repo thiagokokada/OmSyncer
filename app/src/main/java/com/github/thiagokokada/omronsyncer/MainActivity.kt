@@ -23,7 +23,6 @@ import androidx.fragment.app.Fragment
 import androidx.health.connect.client.HealthConnectClient
 import androidx.health.connect.client.PermissionController
 import androidx.lifecycle.lifecycleScope
-import androidx.work.WorkManager
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.github.thiagokokada.omronsyncer.data.MeasurementStore
 import com.github.thiagokokada.omronsyncer.databinding.ActivityMainBinding
@@ -202,7 +201,6 @@ class MainActivity : AppCompatActivity(),
         loadPersistedMeasurements()
         renderSyncLog(lastSyncLog)
         refreshHealthConnectState()
-        cancelLegacyPeriodicSync()
         refreshNearbySyncRegistration()
         updateStatus(getString(R.string.status_idle))
         maybeRequestInitialBluetoothPermission()
@@ -1040,10 +1038,6 @@ class MainActivity : AppCompatActivity(),
         requestBluetoothConnectPermission()
     }
 
-    private fun cancelLegacyPeriodicSync() {
-        WorkManager.getInstance(this).cancelUniqueWork(LEGACY_PERIODIC_SYNC_WORK_NAME)
-    }
-
     private fun buildMeasurementUserOptions(
         model: OmronDeviceDefinition,
     ): List<Int?> {
@@ -1226,7 +1220,6 @@ class MainActivity : AppCompatActivity(),
         const val BACKSTACK_DELETED_MEASUREMENTS = "deleted_measurements"
         const val BACKSTACK_SYNC_LOG = "sync_log"
         const val KEY_SELECTED_TAB = "selected_tab"
-        const val LEGACY_PERIODIC_SYNC_WORK_NAME = "background_sync"
         const val SAMPLE_MEASUREMENTS_TOTAL = 100
         const val SAMPLE_MEASUREMENTS_DAY_SPAN = 90L
         val SYNC_TIME_FORMATTER: DateTimeFormatter =
