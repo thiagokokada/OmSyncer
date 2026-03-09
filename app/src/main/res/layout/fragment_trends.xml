@@ -71,22 +71,6 @@
                         android:text="@string/trends_range_all" />
                 </com.google.android.material.button.MaterialButtonToggleGroup>
 
-                <TextView
-                    android:id="@+id/user_filter_label"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="16dp"
-                    android:text="@string/trends_user_filter_label"
-                    android:textAppearance="?attr/textAppearanceLabelLarge"
-                    android:visibility="gone" />
-
-                <Spinner
-                    android:id="@+id/user_spinner"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="8dp"
-                    android:visibility="gone" />
-
                 <LinearLayout
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"

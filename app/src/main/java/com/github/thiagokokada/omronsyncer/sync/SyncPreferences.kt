@@ -54,19 +54,6 @@ class SyncPreferences(context: Context) {
         }
     }
 
-    fun healthConnectExportUserKey(): String {
-        return preferences.getString(
-            PREF_HEALTH_CONNECT_EXPORT_USER,
-            HEALTH_CONNECT_EXPORT_USER_ALL,
-        ) ?: HEALTH_CONNECT_EXPORT_USER_ALL
-    }
-
-    fun setHealthConnectExportUserKey(key: String) {
-        preferences.edit {
-            putString(PREF_HEALTH_CONNECT_EXPORT_USER, key)
-        }
-    }
-
     fun nearbySyncEnabled(): Boolean {
         return preferences.getBoolean(PREF_NEARBY_SYNC_ENABLED, false)
     }
@@ -87,14 +74,14 @@ class SyncPreferences(context: Context) {
         }
     }
 
-    fun selectedTrendUser(): Int? {
-        val value = preferences.getInt(PREF_SELECTED_TREND_USER, TREND_USER_ALL)
-        return if (value == TREND_USER_ALL) null else value
+    fun selectedMeasurementUser(): Int? {
+        val value = preferences.getInt(PREF_SELECTED_MEASUREMENT_USER, MEASUREMENT_USER_ALL)
+        return if (value == MEASUREMENT_USER_ALL) null else value
     }
 
-    fun setSelectedTrendUser(user: Int?) {
+    fun setSelectedMeasurementUser(user: Int?) {
         preferences.edit {
-            putInt(PREF_SELECTED_TREND_USER, user ?: TREND_USER_ALL)
+            putInt(PREF_SELECTED_MEASUREMENT_USER, user ?: MEASUREMENT_USER_ALL)
         }
     }
 
@@ -159,16 +146,14 @@ class SyncPreferences(context: Context) {
         const val PREF_INITIAL_BLUETOOTH_PERMISSION_PROMPT_SHOWN =
             "initial_bluetooth_permission_prompt_shown"
         const val PREF_HEALTH_CONNECT_AUTO_EXPORT = "health_connect_auto_export"
-        const val PREF_HEALTH_CONNECT_EXPORT_USER = "health_connect_export_user"
         const val PREF_NEARBY_SYNC_ENABLED = "nearby_sync_enabled"
         const val PREF_NEARBY_SYNC_COOLDOWN_MINUTES = "nearby_sync_cooldown_minutes"
-        const val PREF_SELECTED_TREND_USER = "selected_trend_user"
+        const val PREF_SELECTED_MEASUREMENT_USER = "selected_measurement_user"
         const val PREF_SELECTED_TREND_RANGE = "selected_trend_range"
         const val PREF_LAST_NEARBY_SYNC_SUMMARY = "last_nearby_sync_summary"
         const val PREF_LAST_NEARBY_SYNC_AT_MILLIS = "last_nearby_sync_at_millis"
         const val PREF_LAST_NEARBY_SYNC_TRIGGER_AT_MILLIS = "last_nearby_sync_trigger_at_millis"
-        const val HEALTH_CONNECT_EXPORT_USER_ALL = "all"
         const val DEFAULT_NEARBY_SYNC_COOLDOWN_MINUTES = 5
-        const val TREND_USER_ALL = -1
+        const val MEASUREMENT_USER_ALL = -1
     }
 }

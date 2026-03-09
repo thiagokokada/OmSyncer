@@ -123,8 +123,7 @@ class SyncOrchestrator(
         return when {
             users.isEmpty() -> null
             users.size == 1 -> users.first()
-            syncPreferences.healthConnectExportUserKey() == SyncPreferences.HEALTH_CONNECT_EXPORT_USER_ALL -> null
-            else -> syncPreferences.healthConnectExportUserKey().toIntOrNull()
+            else -> syncPreferences.selectedMeasurementUser().takeIf { it in users }
         }
     }
 

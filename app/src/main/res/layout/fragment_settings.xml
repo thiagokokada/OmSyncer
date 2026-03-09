@@ -60,6 +60,22 @@
                     android:layout_marginTop="8dp" />
 
                 <TextView
+                    android:id="@+id/measurement_user_label"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="16dp"
+                    android:text="@string/measurement_user_label"
+                    android:textAppearance="?attr/textAppearanceLabelLarge"
+                    android:visibility="gone" />
+
+                <Spinner
+                    android:id="@+id/measurement_user_spinner"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:visibility="gone" />
+
+                <TextView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="16dp"
@@ -167,19 +183,6 @@
                     android:layout_marginTop="12dp"
                     android:textAppearance="?attr/textAppearanceBodyMedium"
                     tools:text="Ready to export blood pressure records." />
-
-                <TextView
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="16dp"
-                    android:text="@string/health_connect_export_user_label"
-                    android:textAppearance="?attr/textAppearanceLabelLarge" />
-
-                <Spinner
-                    android:id="@+id/health_connect_user_spinner"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="8dp" />
 
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/health_connect_action_button"

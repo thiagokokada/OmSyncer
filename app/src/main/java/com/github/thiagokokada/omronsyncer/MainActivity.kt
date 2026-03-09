@@ -217,6 +217,13 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, TrendsFragment.H
     @SuppressLint("MissingPermission")
     override fun currentUiState(): MainUiState {
         val selectedModel = selectedModel()
+        val measurementUserOptions = buildMeasurementUserOptions(selectedModel)
+        val selectedMeasurementUser = syncPreferences.selectedMeasurementUser()
+            .takeIf { it in measurementUserOptions }
+        val measurementUserLabels = measurementUserOptions.map { user ->
+            user?.let { getString(R.string.measurement_user_single, it) }
+                ?: getString(R.string.measurement_user_all)
+        }
         val deviceLabels = if (hasBluetoothPermission()) {
             bondedDevices.map { device ->
                 val displayName = device.name ?: getString(R.string.device_name_placeholder)
@@ -230,8 +237,6 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, TrendsFragment.H
         } else {
             -1
         }
-        val healthConnectUserOptions = buildHealthConnectExportUserOptions(selectedModel)
-        val selectedHealthConnectUser = resolveHealthConnectExportUserOption(selectedModel)
         val nearbySyncCooldownOptions = nearbySyncCooldownOptions()
         val selectedNearbySyncCooldownMinutes = syncPreferences.nearbySyncCooldownMinutes()
             .takeIf { minutes -> nearbySyncCooldownOptions.any { it.minutes == minutes } }
@@ -254,6 +259,11 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, TrendsFragment.H
         }
         return MainUiState(
             measurements = measurements,
+            measurementUserOptions = measurementUserOptions,
+            measurementUserLabels = measurementUserLabels,
+            selectedMeasurementUser = selectedMeasurementUser,
+            selectedMeasurementUserIndex =
+                measurementUserOptions.indexOf(selectedMeasurementUser).coerceAtLeast(0),
             statusMessage = statusMessage,
             syncLog = lastSyncLog,
             modelLabels = OmronDeviceRegistry.supportedModels.map(::modelLabel),
@@ -273,15 +283,11 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, TrendsFragment.H
             canExportHealthConnect =
                 measurements.isNotEmpty() && isHealthConnectAvailable && isHealthConnectConnected,
             autoExportHealthConnect = syncPreferences.healthConnectAutoExportEnabled(),
-            healthConnectExportUserLabels = healthConnectUserOptions.map { it.label },
-            selectedHealthConnectExportUserIndex =
-                healthConnectUserOptions.indexOfFirst { it.key == selectedHealthConnectUser.key },
             nearbySyncEnabled = nearbySyncEnabled,
             nearbySyncSummary = nearbySyncSummary,
             nearbySyncCooldownLabels = nearbySyncCooldownOptions.map { it.label },
             selectedNearbySyncCooldownIndex =
                 nearbySyncCooldownOptions.indexOfFirst { it.minutes == selectedNearbySyncCooldownMinutes },
-            selectedTrendUser = syncPreferences.selectedTrendUser(),
             selectedTrendRange = syncPreferences.selectedTrendRange(),
             showsMeasurementUserColumn = selectedModel.userCount > 1,
         )
@@ -290,6 +296,9 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, TrendsFragment.H
     override fun onModelSelected(position: Int) {
         OmronDeviceRegistry.supportedModels.getOrNull(position)?.let { model ->
             syncPreferences.setSelectedModelId(model.id)
+            if (syncPreferences.selectedMeasurementUser() !in buildMeasurementUserOptions(model)) {
+                syncPreferences.setSelectedMeasurementUser(null)
+            }
             refreshNearbySyncRegistration()
             notifyCurrentFragment()
         }
@@ -299,8 +308,8 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, TrendsFragment.H
         startSync()
     }
 
-    override fun onTrendUserSelected(user: Int?) {
-        syncPreferences.setSelectedTrendUser(user)
+    override fun onMeasurementUserSelected(user: Int?) {
+        syncPreferences.setSelectedMeasurementUser(user)
         notifyCurrentFragment()
     }
 
@@ -331,12 +340,6 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, TrendsFragment.H
 
     override fun onHealthConnectAutoExportChanged(enabled: Boolean) {
         syncPreferences.setHealthConnectAutoExportEnabled(enabled)
-        notifyCurrentFragment()
-    }
-
-    override fun onHealthConnectExportUserSelected(position: Int) {
-        val option = buildHealthConnectExportUserOptions(selectedModel()).getOrNull(position) ?: return
-        syncPreferences.setHealthConnectExportUserKey(option.key)
         notifyCurrentFragment()
     }
 
@@ -869,53 +872,14 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, TrendsFragment.H
         WorkManager.getInstance(this).cancelUniqueWork(LEGACY_PERIODIC_SYNC_WORK_NAME)
     }
 
-    private fun resolveHealthConnectExportUserOption(
+    private fun buildMeasurementUserOptions(
         model: OmronDeviceDefinition,
-    ): HealthConnectExportUserOption {
-        val options = buildHealthConnectExportUserOptions(model)
-        val selectedKey = syncPreferences.healthConnectExportUserKey()
-        return options.firstOrNull { it.key == selectedKey } ?: options.first()
-    }
-
-    private fun buildHealthConnectExportUserOptions(
-        model: OmronDeviceDefinition,
-    ): List<HealthConnectExportUserOption> {
+    ): List<Int?> {
         val users = model.userLayouts.map { it.user }
         return when {
-            users.isEmpty() -> listOf(
-                HealthConnectExportUserOption(
-                    key = SyncPreferences.HEALTH_CONNECT_EXPORT_USER_ALL,
-                    user = null,
-                    label = getString(R.string.health_connect_export_user_all),
-                ),
-            )
-
-            users.size == 1 -> listOf(
-                HealthConnectExportUserOption(
-                    key = users.first().toString(),
-                    user = users.first(),
-                    label = getString(R.string.health_connect_export_user_single, users.first()),
-                ),
-            )
-
-            else -> buildList {
-                add(
-                    HealthConnectExportUserOption(
-                        key = SyncPreferences.HEALTH_CONNECT_EXPORT_USER_ALL,
-                        user = null,
-                        label = getString(R.string.health_connect_export_user_all),
-                    ),
-                )
-                users.forEach { user ->
-                    add(
-                        HealthConnectExportUserOption(
-                            key = user.toString(),
-                            user = user,
-                            label = getString(R.string.health_connect_export_user_single, user),
-                        ),
-                    )
-                }
-            }
+            users.isEmpty() -> listOf(null)
+            users.size == 1 -> listOf(users.first())
+            else -> listOf(null) + users
         }
     }
 
@@ -997,13 +961,6 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, TrendsFragment.H
             }
         binding.bottomNavigation.visibility = if (isLogScreen) View.GONE else View.VISIBLE
     }
-
-    private data class HealthConnectExportUserOption(
-        val key: String,
-        val user: Int?,
-        val label: String,
-    )
-
     private data class NearbySyncCooldownOption(
         val minutes: Int,
         val label: String,

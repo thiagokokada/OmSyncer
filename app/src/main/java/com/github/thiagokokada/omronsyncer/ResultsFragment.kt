@@ -58,8 +58,12 @@ class ResultsFragment : Fragment() {
             return
         }
 
+        val filteredMeasurements = state.measurements.filter { measurement ->
+            state.selectedMeasurementUser == null || measurement.user == state.selectedMeasurementUser
+        }
+
         adapter.setShowUserColumn(state.showsMeasurementUserColumn)
-        adapter.submitList(state.measurements)
+        adapter.submitList(filteredMeasurements)
 
         binding.syncButton.isEnabled = state.canSync && !state.isWorking
         binding.syncButton.text = if (state.isWorking) {
@@ -70,11 +74,11 @@ class ResultsFragment : Fragment() {
 
         binding.measurementCount.text = resources.getQuantityString(
             R.plurals.measurement_count,
-            state.measurements.size,
-            state.measurements.size,
+            filteredMeasurements.size,
+            filteredMeasurements.size,
         )
 
-        val latestMeasurement = state.measurements.firstOrNull()
+        val latestMeasurement = filteredMeasurements.firstOrNull()
         binding.latestMeasurement.text = latestMeasurement?.let {
             getString(
                 R.string.latest_measurement_summary,
@@ -83,10 +87,19 @@ class ResultsFragment : Fragment() {
                 it.diastolic,
                 it.pulse,
             )
-        } ?: getString(R.string.no_measurement_summary)
+        } ?: if (state.measurements.isEmpty()) {
+            getString(R.string.no_measurement_summary)
+        } else {
+            getString(R.string.no_measurement_summary_filtered)
+        }
 
         binding.emptyState.visibility =
-            if (state.measurements.isEmpty()) View.VISIBLE else View.GONE
+            if (filteredMeasurements.isEmpty()) View.VISIBLE else View.GONE
+        binding.emptyState.text = if (state.measurements.isEmpty()) {
+            getString(R.string.empty_measurements)
+        } else {
+            getString(R.string.empty_measurements_filtered)
+        }
         binding.userColumnLabel.visibility =
             if (state.showsMeasurementUserColumn) View.VISIBLE else View.GONE
     }

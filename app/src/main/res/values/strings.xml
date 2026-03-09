@@ -29,8 +29,8 @@
     <string name="open_health_connect">Open Health Connect</string>
     <string name="manage_health_connect">Manage Health Connect</string>
     <string name="grant_health_connect_access">Grant Health Connect access</string>
-    <string name="health_connect_export_user_label">Export user</string>
     <string name="health_connect_auto_export_label">Auto-export after sync</string>
+    <string name="measurement_user_label">User</string>
     <string name="nearby_sync_section_title">When monitor is nearby</string>
     <string name="nearby_sync_label">Sync when monitor is nearby</string>
     <string name="nearby_sync_cooldown_label">Cooldown between automatic sync attempts</string>
@@ -114,8 +114,10 @@
     <string name="sync_log_title">Last sync log</string>
     <string name="sync_log_empty">No sync log yet.</string>
     <string name="empty_measurements">Synced measurements will appear here.</string>
+    <string name="empty_measurements_filtered">No synced measurements for the selected user.</string>
     <string name="latest_measurement_summary">Latest: %1$s, %2$d/%3$d, pulse %4$d</string>
     <string name="no_measurement_summary">No synced measurements yet.</string>
+    <string name="no_measurement_summary_filtered">No synced measurements for the selected user.</string>
     <string name="permission_denied">Bluetooth permission was denied.</string>
     <string name="permission_try_again">Try again</string>
     <string name="permission_open_settings">Open settings</string>
@@ -126,8 +128,8 @@
     <string name="device_name_placeholder">Unknown device</string>
     <string name="model_support_verified">Verified</string>
     <string name="model_support_experimental">Experimental</string>
-    <string name="health_connect_export_user_all">All users</string>
-    <string name="health_connect_export_user_single">User %1$d</string>
+    <string name="measurement_user_all">All users</string>
+    <string name="measurement_user_single">User %1$d</string>
     <plurals name="toast_sync_saved_new">
         <item quantity="one">Sync complete. Saved %d new measurement.</item>
         <item quantity="other">Sync complete. Saved %d new measurements.</item>

@@ -169,25 +169,32 @@ class MainActivityTest {
     }
 
     @Test
-    fun trendsUserSelection_persistsAcrossActivityRestart() {
+    fun measurementUserSelection_isSharedBetweenResultsAndTrendsAndPersists() {
         seedMeasurements(
             listOf(
                 measurement(user = 1, day = 7),
                 measurement(user = 2, day = 8),
             ),
         )
-        val userTwoLabel = context.getString(R.string.health_connect_export_user_single, 2)
+        val userTwoLabel = context.getString(R.string.measurement_user_single, 2)
 
         ActivityScenario.launch(MainActivity::class.java).use {
-            onView(withId(R.id.navigation_trends)).perform(click())
-            onView(withId(R.id.user_spinner)).perform(click())
+            onView(withId(R.id.navigation_settings)).perform(click())
+            onView(withId(R.id.measurement_user_spinner)).perform(scrollTo(), click())
             onData(`is`(userTwoLabel)).perform(click())
-            onView(withId(R.id.user_spinner)).check(matches(withSpinnerText(userTwoLabel)))
+            onView(withId(R.id.measurement_user_spinner)).check(matches(withSpinnerText(userTwoLabel)))
+
+            onView(withId(R.id.navigation_results)).perform(click())
+            onView(withId(R.id.measurement_count)).check(matches(withText("1 measurement")))
+
+            onView(withId(R.id.navigation_trends)).perform(click())
+            onView(withId(R.id.chart_card)).check(matches(isDisplayed()))
         }
 
         ActivityScenario.launch(MainActivity::class.java).use {
-            onView(withId(R.id.navigation_trends)).perform(click())
-            onView(withId(R.id.user_spinner)).check(matches(withSpinnerText(userTwoLabel)))
+            onView(withId(R.id.navigation_settings)).perform(click())
+            onView(withId(R.id.measurement_user_spinner)).perform(scrollTo())
+            onView(withId(R.id.measurement_user_spinner)).check(matches(withSpinnerText(userTwoLabel)))
         }
     }
 
