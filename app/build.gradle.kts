@@ -46,6 +46,8 @@ dependencies {
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.androidx.health.connect.client)
     implementation(libs.androidx.work.runtime.ktx)
+    implementation(libs.nordic.ble)
+    implementation(libs.nordic.ble.ktx)
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.test.core)

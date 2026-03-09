@@ -2,26 +2,23 @@ package com.github.thiagokokada.omronsyncer.omron
 
 import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothGatt
-import android.bluetooth.BluetoothGattCallback
 import android.bluetooth.BluetoothGattCharacteristic
-import android.bluetooth.BluetoothGattDescriptor
-import android.bluetooth.BluetoothGattService
-import android.bluetooth.BluetoothStatusCodes
 import android.content.Context
+import android.util.Log
 import com.github.thiagokokada.omronsyncer.model.Measurement
 import com.github.thiagokokada.omronsyncer.sync.MissingBluetoothPermissionException
-import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.TimeoutCancellationException
-import kotlinx.coroutines.channels.Channel
-import kotlinx.coroutines.channels.trySendBlocking
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
-import kotlinx.coroutines.withTimeout
+import no.nordicsemi.android.ble.BleManager
+import no.nordicsemi.android.ble.callback.FailCallback
+import no.nordicsemi.android.ble.error.GattError
+import no.nordicsemi.android.ble.exception.RequestFailedException
+import no.nordicsemi.android.ble.ktx.suspend
+import no.nordicsemi.android.ble.observer.ConnectionObserver
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
-import java.util.UUID
 
 class OmronSyncClient(
     private val context: Context,
@@ -45,16 +42,10 @@ class OmronSyncClient(
         log("Model: ${model.modelCode} (${model.marketedName})")
         log("Selected device: $deviceLabel")
 
-        val session = GattSession(context, device, model, ::log)
+        val session = OmronBleSession(context, model, ::log)
         try {
-            log("Connecting to GATT...")
-            session.connect()
-            log("Requesting MTU $MTU...")
-            session.requestMtu(MTU)
-            log("Discovering services...")
-            session.discoverServices()
-            log("Enabling RX notifications...")
-            session.enableNotifications()
+            log("Connecting with Nordic BLE Library...")
+            session.connect(device)
 
             session.startTransmission()
 
@@ -85,7 +76,7 @@ class OmronSyncClient(
     }
 
     private suspend fun readUser(
-        session: GattSession,
+        session: OmronBleSession,
         model: OmronDeviceDefinition,
         userLayout: OmronUserLayout,
     ): List<Measurement> {
@@ -101,175 +92,16 @@ class OmronSyncClient(
         return measurements
     }
 
-    private class GattSession(
-        private val context: Context,
-        private val device: BluetoothDevice,
+    private class OmronBleSession(
+        context: Context,
         private val model: OmronDeviceDefinition,
         private val log: (String) -> Unit,
     ) {
 
-        private val notificationChannel = Channel<ByteArray>(capacity = Channel.UNLIMITED)
+        private val manager = OmronBleManager(context, model, log)
 
-        private var gatt: BluetoothGatt? = null
-        private var connectDeferred: CompletableDeferred<Unit>? = null
-        private var mtuDeferred: CompletableDeferred<Unit>? = null
-        private var servicesDeferred: CompletableDeferred<Unit>? = null
-        private var descriptorDeferred: CompletableDeferred<Unit>? = null
-
-        private val callback = object : BluetoothGattCallback() {
-            override fun onConnectionStateChange(gatt: BluetoothGatt, status: Int, newState: Int) {
-                val deferred = connectDeferred
-                log(
-                    "Connection state changed: status=$status (${describeGattStatus(status)}), " +
-                        "newState=$newState",
-                )
-                when {
-                    status != BluetoothGatt.GATT_SUCCESS -> {
-                        deferred?.completeExceptionally(bluetoothConnectFailed(status))
-                    }
-
-                    newState == BluetoothGatt.STATE_CONNECTED -> deferred?.complete(Unit)
-                    newState == BluetoothGatt.STATE_DISCONNECTED -> {
-                        deferred?.completeExceptionally(BluetoothDeviceDisconnectedException())
-                    }
-                }
-            }
-
-            override fun onServicesDiscovered(gatt: BluetoothGatt, status: Int) {
-                val deferred = servicesDeferred ?: return
-                log("Services discovered: status=$status (${describeGattStatus(status)})")
-                if (status == BluetoothGatt.GATT_SUCCESS) {
-                    deferred.complete(Unit)
-                } else {
-                    deferred.completeExceptionally(
-                        gattFailure("Service discovery failed", status),
-                    )
-                }
-            }
-
-            override fun onMtuChanged(gatt: BluetoothGatt, mtu: Int, status: Int) {
-                val deferred = mtuDeferred ?: return
-                log("MTU callback: mtu=$mtu status=$status (${describeGattStatus(status)})")
-                if (status == BluetoothGatt.GATT_SUCCESS) {
-                    deferred.complete(Unit)
-                } else {
-                    deferred.completeExceptionally(gattFailure("MTU request failed", status))
-                }
-            }
-
-            override fun onDescriptorWrite(
-                gatt: BluetoothGatt,
-                descriptor: BluetoothGattDescriptor,
-                status: Int,
-            ) {
-                val deferred = descriptorDeferred ?: return
-                log("Descriptor write: status=$status (${describeGattStatus(status)})")
-                if (status == BluetoothGatt.GATT_SUCCESS) {
-                    deferred.complete(Unit)
-                } else {
-                    deferred.completeExceptionally(
-                        gattFailure("Descriptor write failed", status),
-                    )
-                }
-            }
-
-            override fun onCharacteristicChanged(
-                gatt: BluetoothGatt,
-                characteristic: BluetoothGattCharacteristic,
-                value: ByteArray,
-            ) {
-                log("RX: ${value.toHexString()}")
-                notificationChannel.trySendBlocking(value)
-            }
-        }
-
-        suspend fun connect() {
-            if (gatt != null) {
-                return
-            }
-
-            connectDeferred = CompletableDeferred()
-            gatt = try {
-                device.connectGatt(context, false, callback, BluetoothDevice.TRANSPORT_LE)
-            } catch (_: SecurityException) {
-                connectDeferred = null
-                throw MissingBluetoothPermissionException()
-            }
-
-            connectDeferred?.await()
-            connectDeferred = null
-        }
-
-        suspend fun requestMtu(mtu: Int) {
-            val gatt = requireGatt()
-            mtuDeferred = CompletableDeferred()
-            val requested = try {
-                gatt.requestMtu(mtu)
-            } catch (_: SecurityException) {
-                mtuDeferred = null
-                throw MissingBluetoothPermissionException()
-            }
-            if (!requested) {
-                mtuDeferred = null
-                throw IllegalStateException("Failed to request MTU.")
-            }
-            mtuDeferred?.await()
-            mtuDeferred = null
-        }
-
-        suspend fun discoverServices() {
-            val gatt = requireGatt()
-            servicesDeferred = CompletableDeferred()
-            val started = try {
-                gatt.discoverServices()
-            } catch (_: SecurityException) {
-                servicesDeferred = null
-                throw MissingBluetoothPermissionException()
-            }
-            if (!started) {
-                servicesDeferred = null
-                throw IllegalStateException("Failed to start service discovery.")
-            }
-            servicesDeferred?.await()
-            servicesDeferred = null
-        }
-
-        suspend fun enableNotifications() {
-            val gatt = requireGatt()
-            val characteristic = requireCharacteristic(model.serviceUuid, model.rxUuid)
-            val notificationsEnabled = try {
-                gatt.setCharacteristicNotification(characteristic, true)
-            } catch (_: SecurityException) {
-                throw MissingBluetoothPermissionException()
-            }
-            if (!notificationsEnabled) {
-                throw IllegalStateException("Failed to enable notifications.")
-            }
-
-            val descriptor = characteristic.getDescriptor(CLIENT_CHARACTERISTIC_CONFIG_UUID)
-                ?: throw IllegalStateException("Notification descriptor not found.")
-
-            descriptorDeferred = CompletableDeferred()
-
-            val writeStatus = try {
-                gatt.writeDescriptor(
-                    descriptor,
-                    BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE,
-                )
-            } catch (_: SecurityException) {
-                descriptorDeferred = null
-                throw MissingBluetoothPermissionException()
-            }
-            if (writeStatus != BluetoothStatusCodes.SUCCESS) {
-                descriptorDeferred = null
-                throw bluetoothStatusFailure(
-                    operation = "Failed to write notification descriptor",
-                    statusCode = writeStatus,
-                )
-            }
-
-            descriptorDeferred?.await()
-            descriptorDeferred = null
+        suspend fun connect(device: BluetoothDevice) {
+            manager.connectTo(device)
         }
 
         suspend fun startTransmission() {
@@ -315,15 +147,9 @@ class OmronSyncClient(
             )
         }
 
-        fun close() {
+        suspend fun close() {
             log("Closing GATT session.")
-            notificationChannel.close()
-            try {
-                gatt?.close()
-            } catch (_: SecurityException) {
-                // Ignore close failures after permission loss.
-            }
-            gatt = null
+            manager.closeConnection()
         }
 
         private suspend fun sendCommand(
@@ -332,39 +158,18 @@ class OmronSyncClient(
             expectedAddress: Int? = null,
         ): OmronResponse {
             var lastError: Exception? = null
+
             repeat(COMMAND_RETRY_COUNT) { retryIndex ->
                 val attempt = retryIndex + 1
                 try {
-                    while (notificationChannel.tryReceive().isSuccess) {
-                        // Discard stale packets before a new request.
-                    }
-
-                    val txCharacteristic = requireCharacteristic(model.serviceUuid, model.txUuid)
-
                     log("TX[$attempt]: ${command.toHexString()}")
+                    manager.writeCommand(command)
 
-                    val writeStatus = try {
-                        requireGatt().writeCharacteristic(
-                            txCharacteristic,
-                            command,
-                            BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE,
-                        )
-                    } catch (_: SecurityException) {
-                        throw MissingBluetoothPermissionException()
-                    }
-                    if (writeStatus != BluetoothStatusCodes.SUCCESS) {
-                        throw bluetoothStatusFailure(
-                            operation = "Characteristic write failed",
-                            statusCode = writeStatus,
-                        )
-                    }
-
-                    val response = receiveExpectedResponse(
+                    return awaitMatchingResponse(
                         attempt = attempt,
                         expectedPacketType = expectedPacketType,
                         expectedAddress = expectedAddress,
                     )
-                    return response
                 } catch (error: Exception) {
                     val normalizedError = normalizeCommandError(error)
                     lastError = normalizedError
@@ -377,22 +182,8 @@ class OmronSyncClient(
                     }
                 }
             }
-            throw CommandFailedException(
-                attempts = COMMAND_RETRY_COUNT,
-                lastError,
-            )
-        }
 
-        private suspend fun receiveExpectedResponse(
-            attempt: Int,
-            expectedPacketType: Int?,
-            expectedAddress: Int?,
-        ): OmronResponse = withTimeout(RESPONSE_TIMEOUT_MS) {
-            awaitMatchingResponse(
-                attempt = attempt,
-                expectedPacketType = expectedPacketType,
-                expectedAddress = expectedAddress,
-            )
+            throw IllegalStateException("Command failed after $COMMAND_RETRY_COUNT attempts.", lastError)
         }
 
         private suspend fun awaitMatchingResponse(
@@ -401,7 +192,7 @@ class OmronSyncClient(
             expectedAddress: Int?,
         ): OmronResponse {
             while (true) {
-                val payload = notificationChannel.receive()
+                val payload = manager.awaitNotification(RESPONSE_TIMEOUT_MS)
                 val response = parseResponse(payload)
                 log(
                     "Packet[$attempt]: type=0x${response.packetType.toString(16)} " +
@@ -427,63 +218,11 @@ class OmronSyncClient(
             }
         }
 
-        private fun requireCharacteristic(
-            serviceUuid: UUID,
-            characteristicUuid: UUID,
-        ): BluetoothGattCharacteristic {
-            val service = requireService(serviceUuid)
-            return service.getCharacteristic(characteristicUuid)
-                ?: throw IllegalStateException("Characteristic $characteristicUuid not found.")
-        }
-
-        private fun requireService(serviceUuid: UUID): BluetoothGattService {
-            return try {
-                requireGatt().getService(serviceUuid)
-            } catch (_: SecurityException) {
-                throw MissingBluetoothPermissionException()
-            }
-                ?: throw IllegalStateException("Service $serviceUuid not found.")
-        }
-
-        private fun requireGatt(): BluetoothGatt {
-            return gatt ?: throw IllegalStateException("BluetoothGatt is not connected.")
-        }
-
         private fun normalizeCommandError(error: Exception): Exception {
-            return if (error is TimeoutCancellationException) {
+            return if (error is RequestFailedException && error.status == FailCallback.REASON_TIMEOUT) {
                 CommandTimeoutException(error)
             } else {
                 error
-            }
-        }
-
-        private fun bluetoothConnectFailed(status: Int): IllegalStateException {
-            val description = describeGattStatus(status)
-            return if (description == "UNKNOWN") {
-                UnknownGattStatusException("Bluetooth connect failed", status)
-            } else {
-                BluetoothConnectFailedException(
-                    status = status,
-                    description = description,
-                )
-            }
-        }
-
-        private fun gattFailure(operation: String, status: Int): IllegalStateException {
-            return if (status == BluetoothGatt.GATT_INSUFFICIENT_AUTHORIZATION) {
-                GattInsufficientAuthorizationException(operation)
-            } else if (describeGattStatus(status) == "UNKNOWN") {
-                UnknownGattStatusException(operation, status)
-            } else {
-                IllegalStateException("$operation: status=$status (${describeGattStatus(status)})")
-            }
-        }
-
-        private fun bluetoothStatusFailure(operation: String, statusCode: Int): IllegalStateException {
-            return if (statusCode == BluetoothStatusCodes.ERROR_PROFILE_SERVICE_NOT_BOUND) {
-                ProfileServiceNotBoundException(operation)
-            } else {
-                IllegalStateException("$operation: ${describeBluetoothStatusCode(statusCode)}")
             }
         }
 
@@ -521,6 +260,158 @@ class OmronSyncClient(
         )
     }
 
+    private class OmronBleManager(
+        context: Context,
+        private val model: OmronDeviceDefinition,
+        private val sessionLog: (String) -> Unit,
+    ) : BleManager(context) {
+
+        private var txCharacteristic: BluetoothGattCharacteristic? = null
+        private var rxCharacteristic: BluetoothGattCharacteristic? = null
+
+        init {
+            setConnectionObserver(
+                object : ConnectionObserver {
+                    override fun onDeviceConnecting(device: BluetoothDevice) {
+                        sessionLog("Connection starting.")
+                    }
+
+                    override fun onDeviceConnected(device: BluetoothDevice) {
+                        sessionLog("Connected to device.")
+                    }
+
+                    override fun onDeviceFailedToConnect(device: BluetoothDevice, reason: Int) {
+                        sessionLog(
+                            "Connection failed: reason=$reason (${describeDisconnectionReason(reason)})",
+                        )
+                    }
+
+                    override fun onDeviceReady(device: BluetoothDevice) {
+                        sessionLog("Device ready for Omron commands.")
+                    }
+
+                    override fun onDeviceDisconnecting(device: BluetoothDevice) {
+                        sessionLog("Disconnecting from device.")
+                    }
+
+                    override fun onDeviceDisconnected(device: BluetoothDevice, reason: Int) {
+                        sessionLog(
+                            "Disconnected from device: reason=$reason " +
+                                "(${describeDisconnectionReason(reason)})",
+                        )
+                    }
+                },
+            )
+        }
+
+        override fun isRequiredServiceSupported(gatt: BluetoothGatt): Boolean {
+            sessionLog("Services discovered.")
+            val service = gatt.getService(model.serviceUuid)
+            txCharacteristic = service?.getCharacteristic(model.txUuid)
+            rxCharacteristic = service?.getCharacteristic(model.rxUuid)
+            val supported = txCharacteristic != null && rxCharacteristic != null
+            if (!supported) {
+                sessionLog("Required Omron service or characteristics are missing.")
+            }
+            return supported
+        }
+
+        override fun initialize() {
+            sessionLog("Requesting MTU $MTU...")
+            requestMtu(MTU)
+                .with { _, mtu ->
+                    sessionLog("MTU ready: $mtu")
+                }
+                .fail { _, status ->
+                    sessionLog("MTU request failed: ${describeRequestFailure(status)}")
+                }
+                .enqueue()
+
+            sessionLog("Enabling RX notifications...")
+            setNotificationCallback(requireRxCharacteristic())
+                .setHandler(null)
+                .with { _, data ->
+                    sessionLog("RX: ${data.value?.toHexString().orEmpty()}")
+                }
+
+            enableNotifications(requireRxCharacteristic())
+                .done {
+                    sessionLog("RX notifications enabled.")
+                }
+                .fail { _, status ->
+                    sessionLog("Enable notifications failed: ${describeRequestFailure(status)}")
+                }
+                .enqueue()
+        }
+
+        override fun onServicesInvalidated() {
+            txCharacteristic = null
+            rxCharacteristic = null
+        }
+
+        override fun log(priority: Int, message: String) {
+            if (priority >= Log.WARN) {
+                sessionLog("Nordic[$priority]: $message")
+            }
+        }
+
+        suspend fun connectTo(device: BluetoothDevice) {
+            try {
+                connect(device)
+                    .retry(CONNECTION_RETRY_COUNT, CONNECTION_RETRY_DELAY_MS)
+                    .timeout(CONNECTION_TIMEOUT_MS)
+                    .suspend()
+            } catch (_: SecurityException) {
+                throw MissingBluetoothPermissionException()
+            }
+        }
+
+        suspend fun writeCommand(command: ByteArray) {
+            try {
+                writeCharacteristic(
+                    requireTxCharacteristic(),
+                    command,
+                    BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE,
+                ).suspend()
+            } catch (_: SecurityException) {
+                throw MissingBluetoothPermissionException()
+            }
+        }
+
+        suspend fun awaitNotification(timeoutMs: Long): ByteArray {
+            return try {
+                waitForNotification(requireRxCharacteristic())
+                    .timeout(timeoutMs)
+                    .suspend()
+                    .value
+                    ?: ByteArray(0)
+            } catch (_: SecurityException) {
+                throw MissingBluetoothPermissionException()
+            }
+        }
+
+        suspend fun closeConnection() {
+            if (isConnected) {
+                runCatching {
+                    disconnect().suspend()
+                }.onFailure { error ->
+                    sessionLog(
+                        "Disconnect request failed: ${error.message ?: error.javaClass.simpleName}",
+                    )
+                }
+            }
+            close()
+        }
+
+        private fun requireTxCharacteristic(): BluetoothGattCharacteristic {
+            return txCharacteristic ?: throw IllegalStateException("TX characteristic not found.")
+        }
+
+        private fun requireRxCharacteristic(): BluetoothGattCharacteristic {
+            return rxCharacteristic ?: throw IllegalStateException("RX characteristic not found.")
+        }
+    }
+
     data class SyncResult(
         val measurements: List<Measurement>,
         val diagnostics: SyncDiagnostics,
@@ -538,58 +429,23 @@ class OmronSyncClient(
         cause: Throwable? = null,
     ) : IllegalStateException(message, cause)
 
-    interface RetryableSyncFailure
-
-    class BluetoothConnectFailedException(
-        val status: Int,
-        description: String,
-    ) : IllegalStateException(
-        "Bluetooth connect failed: status=$status ($description)",
-    )
-
-    class BluetoothDeviceDisconnectedException :
-        IllegalStateException("Bluetooth device disconnected."),
-        RetryableSyncFailure
-
-    class GattInsufficientAuthorizationException(operation: String) :
-        IllegalStateException("$operation: status=8 (GATT_INSUFFICIENT_AUTHORIZATION)"),
-        RetryableSyncFailure
-
-    class UnknownGattStatusException(
-        operation: String,
-        val status: Int,
-    ) : IllegalStateException(
-        "$operation: status=$status (UNKNOWN)",
-    ), RetryableSyncFailure
-
-    class ProfileServiceNotBoundException(operation: String) :
-        IllegalStateException("$operation: PROFILE_SERVICE_NOT_BOUND"),
-        RetryableSyncFailure
-
-    class CommandTimeoutException(cause: TimeoutCancellationException) :
-        IllegalStateException("Timed out waiting for response.", cause),
-        RetryableSyncFailure
-
-    class CommandFailedException(
-        attempts: Int,
-        cause: Throwable?,
-    ) : IllegalStateException("Command failed after $attempts attempts.", cause), RetryableSyncFailure
+    class CommandTimeoutException(cause: RequestFailedException) :
+        IllegalStateException("Timed out waiting for response.", cause)
 
     private companion object {
         const val MTU = 185
         const val RESPONSE_TIMEOUT_MS = 5_000L
+        const val CONNECTION_TIMEOUT_MS = 15_000L
         const val COMMAND_RETRY_COUNT = 3
         const val COMMAND_RETRY_DELAY_MS = 400L
+        const val CONNECTION_RETRY_COUNT = 3
+        const val CONNECTION_RETRY_DELAY_MS = 250
 
         const val RESPONSE_START = 0x8000
         const val RESPONSE_READ = 0x8100
         const val RESPONSE_END = 0x8F00
-        const val BLUETOOTH_STATUS_ERROR_DEVICE_NOT_CONNECTED = 4
         val DIAGNOSTIC_TIME_FORMATTER: DateTimeFormatter =
             DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss").withZone(ZoneId.systemDefault())
-
-        val CLIENT_CHARACTERISTIC_CONFIG_UUID: UUID =
-            UUID.fromString("00002902-0000-1000-8000-00805f9b34fb")
 
         val START_TRANSMISSION_COMMAND = byteArrayOf(
             0x08,
@@ -635,30 +491,33 @@ class OmronSyncClient(
 
         fun timestampText(): String = DIAGNOSTIC_TIME_FORMATTER.format(Instant.now())
 
-        fun describeGattStatus(status: Int): String = when (status) {
-            BluetoothGatt.GATT_SUCCESS -> "SUCCESS"
-            BluetoothGatt.GATT_READ_NOT_PERMITTED -> "READ_NOT_PERMITTED"
-            BluetoothGatt.GATT_WRITE_NOT_PERMITTED -> "WRITE_NOT_PERMITTED"
-            BluetoothGatt.GATT_INSUFFICIENT_AUTHENTICATION -> "INSUFFICIENT_AUTHENTICATION"
-            BluetoothGatt.GATT_REQUEST_NOT_SUPPORTED -> "REQUEST_NOT_SUPPORTED"
-            BluetoothGatt.GATT_INSUFFICIENT_ENCRYPTION -> "INSUFFICIENT_ENCRYPTION"
-            BluetoothGatt.GATT_INVALID_OFFSET -> "INVALID_OFFSET"
-            BluetoothGatt.GATT_INVALID_ATTRIBUTE_LENGTH -> "INVALID_ATTRIBUTE_LENGTH"
-            BluetoothGatt.GATT_CONNECTION_CONGESTED -> "CONNECTION_CONGESTED"
-            BluetoothGatt.GATT_FAILURE -> "FAILURE"
-            else -> "UNKNOWN"
+        fun describeRequestFailure(status: Int): String = when (status) {
+            FailCallback.REASON_DEVICE_DISCONNECTED -> "DEVICE_DISCONNECTED"
+            FailCallback.REASON_DEVICE_NOT_SUPPORTED -> "DEVICE_NOT_SUPPORTED"
+            FailCallback.REASON_NULL_ATTRIBUTE -> "NULL_ATTRIBUTE"
+            FailCallback.REASON_REQUEST_FAILED -> "REQUEST_FAILED"
+            FailCallback.REASON_TIMEOUT -> "TIMEOUT"
+            FailCallback.REASON_VALIDATION -> "VALIDATION"
+            FailCallback.REASON_CANCELLED -> "CANCELLED"
+            FailCallback.REASON_NOT_ENABLED -> "NOT_ENABLED"
+            FailCallback.REASON_UNSUPPORTED_CONFIGURATION -> "UNSUPPORTED_CONFIGURATION"
+            FailCallback.REASON_BLUETOOTH_DISABLED -> "BLUETOOTH_DISABLED"
+            in Int.MIN_VALUE..-101 -> "REASON_$status"
+            in -100..-1 -> "REASON_$status"
+            else -> "${GattError.parse(status)} ($status)"
         }
 
-        fun describeBluetoothStatusCode(status: Int): String = when (status) {
-            BluetoothStatusCodes.SUCCESS -> "SUCCESS"
-            BluetoothStatusCodes.ERROR_MISSING_BLUETOOTH_CONNECT_PERMISSION ->
-                "MISSING_BLUETOOTH_CONNECT_PERMISSION"
-            BLUETOOTH_STATUS_ERROR_DEVICE_NOT_CONNECTED -> "DEVICE_NOT_CONNECTED"
-            BluetoothStatusCodes.ERROR_PROFILE_SERVICE_NOT_BOUND -> "PROFILE_SERVICE_NOT_BOUND"
-            BluetoothStatusCodes.ERROR_GATT_WRITE_NOT_ALLOWED -> "GATT_WRITE_NOT_ALLOWED"
-            BluetoothStatusCodes.ERROR_GATT_WRITE_REQUEST_BUSY -> "GATT_WRITE_REQUEST_BUSY"
-            BluetoothStatusCodes.ERROR_UNKNOWN -> "UNKNOWN"
-            else -> "STATUS_$status"
+        fun describeDisconnectionReason(reason: Int): String = when (reason) {
+            ConnectionObserver.REASON_SUCCESS -> "SUCCESS"
+            ConnectionObserver.REASON_TERMINATE_LOCAL_HOST -> "TERMINATE_LOCAL_HOST"
+            ConnectionObserver.REASON_TERMINATE_PEER_USER -> "TERMINATE_PEER_USER"
+            ConnectionObserver.REASON_LINK_LOSS -> "LINK_LOSS"
+            ConnectionObserver.REASON_NOT_SUPPORTED -> "NOT_SUPPORTED"
+            ConnectionObserver.REASON_CANCELLED -> "CANCELLED"
+            ConnectionObserver.REASON_TIMEOUT -> "TIMEOUT"
+            ConnectionObserver.REASON_UNSUPPORTED_CONFIGURATION -> "UNSUPPORTED_CONFIGURATION"
+            ConnectionObserver.REASON_UNKNOWN -> "UNKNOWN"
+            else -> "REASON_$reason"
         }
     }
 }
