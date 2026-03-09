@@ -4,6 +4,7 @@ import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.drawable.ColorDrawable
+import android.graphics.drawable.Drawable
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
@@ -165,47 +166,49 @@ class ResultsFragment : Fragment() {
             isCurrentlyActive: Boolean,
         ) {
             val itemView = viewHolder.itemView
-            if (dX < 0f) {
-                deleteSwipeBackground.setBounds(
-                    itemView.right + dX.toInt(),
-                    itemView.top,
-                    itemView.right,
-                    itemView.bottom,
-                )
-                deleteSwipeBackground.draw(c)
-
+            if (dX == 0f) {
+                deleteSwipeBackground.setBounds(0, 0, 0, 0)
+            } else {
+                drawDeleteBackground(c, itemView, dX)
                 deleteIcon?.let { icon ->
-                    val iconMargin = (itemView.height - icon.intrinsicHeight) / 2
-                    val iconTop = itemView.top + iconMargin
-                    val iconBottom = iconTop + icon.intrinsicHeight
-                    val iconRight = itemView.right - iconMargin
-                    val iconLeft = iconRight - icon.intrinsicWidth
-                    icon.setBounds(iconLeft, iconTop, iconRight, iconBottom)
-                    icon.draw(c)
+                    drawDeleteIcon(c, itemView, icon, swipingRight = dX > 0f)
                 }
-            } else if (dX > 0f) {
+            }
+
+            super.onChildDraw(c, recyclerView, viewHolder, dX, dY, actionState, isCurrentlyActive)
+        }
+
+        private fun drawDeleteBackground(c: Canvas, itemView: View, dX: Float) {
+            if (dX > 0f) {
                 deleteSwipeBackground.setBounds(
                     itemView.left,
                     itemView.top,
                     itemView.left + dX.toInt(),
                     itemView.bottom,
                 )
-                deleteSwipeBackground.draw(c)
-
-                deleteIcon?.let { icon ->
-                    val iconMargin = (itemView.height - icon.intrinsicHeight) / 2
-                    val iconTop = itemView.top + iconMargin
-                    val iconBottom = iconTop + icon.intrinsicHeight
-                    val iconLeft = itemView.left + iconMargin
-                    val iconRight = iconLeft + icon.intrinsicWidth
-                    icon.setBounds(iconLeft, iconTop, iconRight, iconBottom)
-                    icon.draw(c)
-                }
             } else {
-                deleteSwipeBackground.setBounds(0, 0, 0, 0)
+                deleteSwipeBackground.setBounds(
+                    itemView.right + dX.toInt(),
+                    itemView.top,
+                    itemView.right,
+                    itemView.bottom,
+                )
             }
+            deleteSwipeBackground.draw(c)
+        }
 
-            super.onChildDraw(c, recyclerView, viewHolder, dX, dY, actionState, isCurrentlyActive)
+        private fun drawDeleteIcon(c: Canvas, itemView: View, icon: Drawable, swipingRight: Boolean) {
+            val iconMargin = (itemView.height - icon.intrinsicHeight) / 2
+            val iconTop = itemView.top + iconMargin
+            val iconBottom = iconTop + icon.intrinsicHeight
+            val iconLeft = if (swipingRight) {
+                itemView.left + iconMargin
+            } else {
+                itemView.right - iconMargin - icon.intrinsicWidth
+            }
+            val iconRight = iconLeft + icon.intrinsicWidth
+            icon.setBounds(iconLeft, iconTop, iconRight, iconBottom)
+            icon.draw(c)
         }
     }
 }
