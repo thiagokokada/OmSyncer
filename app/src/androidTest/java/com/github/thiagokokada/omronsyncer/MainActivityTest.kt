@@ -230,7 +230,7 @@ class MainActivityTest {
             onView(withId(R.id.seed_measurements_button)).perform(scrollTo(), click())
 
             onView(withId(R.id.navigation_results)).perform(click())
-            onView(withId(R.id.measurement_count)).check(matches(withText("12 measurements")))
+            onView(withId(R.id.measurement_count)).check(matches(withText("100 measurements")))
 
             onView(withId(R.id.navigation_settings)).perform(click())
             onView(withId(R.id.seed_measurements_button)).perform(scrollTo())

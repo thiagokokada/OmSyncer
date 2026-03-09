@@ -1073,21 +1073,23 @@ class MainActivity : AppCompatActivity(),
     private fun sampleMeasurementsForModel(model: OmronDeviceDefinition): List<Measurement> {
         val users = model.userLayouts.map { it.user }.ifEmpty { listOf(1) }
         val baseTime = LocalDateTime.now().withNano(0)
-        return users.flatMapIndexed { userIndex, user ->
-            List(SAMPLE_MEASUREMENTS_PER_USER) { offset ->
-                val recordedAt = baseTime
-                    .minusDays(offset.toLong())
-                    .minusHours((userIndex * 2L) + (offset % 2L))
-                Measurement(
-                    user = user,
-                    recordedAt = recordedAt,
-                    systolic = 118 + userIndex + (offset * 2),
-                    diastolic = 76 + userIndex + offset,
-                    pulse = 60 + userIndex + offset,
-                    irregularHeartbeat = offset % 4 == 0,
-                    movement = offset % 3 == 0,
-                )
-            }
+        return List(SAMPLE_MEASUREMENTS_TOTAL) { index ->
+            val userIndex = index % users.size
+            val user = users[userIndex]
+            val dayOffset = ((index.toLong() * SAMPLE_MEASUREMENTS_DAY_SPAN) / SAMPLE_MEASUREMENTS_TOTAL)
+            val recordedAt = baseTime
+                .minusDays(dayOffset)
+                .minusHours((index % 4).toLong() + (userIndex * 2L))
+                .minusMinutes((index % 3 * 10).toLong())
+            Measurement(
+                user = user,
+                recordedAt = recordedAt,
+                systolic = 118 + userIndex + ((index % 15) * 2),
+                diastolic = 76 + userIndex + (index % 10),
+                pulse = 60 + userIndex + (index % 12),
+                irregularHeartbeat = index % 9 == 0,
+                movement = index % 7 == 0,
+            )
         }.sortedByDescending { it.recordedAt }
     }
 
@@ -1225,7 +1227,8 @@ class MainActivity : AppCompatActivity(),
         const val BACKSTACK_SYNC_LOG = "sync_log"
         const val KEY_SELECTED_TAB = "selected_tab"
         const val LEGACY_PERIODIC_SYNC_WORK_NAME = "background_sync"
-        const val SAMPLE_MEASUREMENTS_PER_USER = 6
+        const val SAMPLE_MEASUREMENTS_TOTAL = 100
+        const val SAMPLE_MEASUREMENTS_DAY_SPAN = 90L
         val SYNC_TIME_FORMATTER: DateTimeFormatter =
             DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")
     }
