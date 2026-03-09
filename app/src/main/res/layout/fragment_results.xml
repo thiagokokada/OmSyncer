@@ -59,6 +59,7 @@
                     android:minWidth="0dp"
                     android:text="@string/sync_now" />
             </LinearLayout>
+
         </LinearLayout>
     </com.google.android.material.card.MaterialCardView>
 

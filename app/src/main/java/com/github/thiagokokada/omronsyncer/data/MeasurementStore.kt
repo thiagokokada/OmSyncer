@@ -13,35 +13,22 @@ class MeasurementStore(context: Context) {
 
     private val helper = MeasurementDatabaseHelper(context)
 
-    fun loadAll(): List<Measurement> {
+    fun loadAll(user: Int? = null): List<Measurement> {
         val db = helper.readableDatabase
+        val selection = if (user == null) null else "$COLUMN_USER = ?"
+        val selectionArgs = if (user == null) null else arrayOf(user.toString())
         db.query(
             TABLE_MEASUREMENTS,
             PROJECTION,
-            null,
-            null,
+            selection,
+            selectionArgs,
             null,
             null,
             "$COLUMN_RECORDED_AT DESC",
         ).use { cursor ->
             return buildList {
                 while (cursor.moveToNext()) {
-                    add(
-                        Measurement(
-                            user = cursor.getInt(cursor.getColumnIndexOrThrow(COLUMN_USER)),
-                            recordedAt = LocalDateTime.parse(
-                                cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_RECORDED_AT)),
-                                STORED_TIME_FORMATTER,
-                            ),
-                            systolic = cursor.getInt(cursor.getColumnIndexOrThrow(COLUMN_SYSTOLIC)),
-                            diastolic = cursor.getInt(cursor.getColumnIndexOrThrow(COLUMN_DIASTOLIC)),
-                            pulse = cursor.getInt(cursor.getColumnIndexOrThrow(COLUMN_PULSE)),
-                            irregularHeartbeat = cursor.getInt(
-                                cursor.getColumnIndexOrThrow(COLUMN_IRREGULAR_HEARTBEAT),
-                            ) == 1,
-                            movement = cursor.getInt(cursor.getColumnIndexOrThrow(COLUMN_MOVEMENT)) == 1,
-                        ),
-                    )
+                    add(cursor.toMeasurement())
                 }
             }
         }
@@ -89,6 +76,21 @@ class MeasurementStore(context: Context) {
             put(COLUMN_IRREGULAR_HEARTBEAT, if (irregularHeartbeat) 1 else 0)
             put(COLUMN_MOVEMENT, if (movement) 1 else 0)
         }
+    }
+
+    private fun android.database.Cursor.toMeasurement(): Measurement {
+        return Measurement(
+            user = getInt(getColumnIndexOrThrow(COLUMN_USER)),
+            recordedAt = LocalDateTime.parse(
+                getString(getColumnIndexOrThrow(COLUMN_RECORDED_AT)),
+                STORED_TIME_FORMATTER,
+            ),
+            systolic = getInt(getColumnIndexOrThrow(COLUMN_SYSTOLIC)),
+            diastolic = getInt(getColumnIndexOrThrow(COLUMN_DIASTOLIC)),
+            pulse = getInt(getColumnIndexOrThrow(COLUMN_PULSE)),
+            irregularHeartbeat = getInt(getColumnIndexOrThrow(COLUMN_IRREGULAR_HEARTBEAT)) == 1,
+            movement = getInt(getColumnIndexOrThrow(COLUMN_MOVEMENT)) == 1,
+        )
     }
 
     data class SaveSummary(

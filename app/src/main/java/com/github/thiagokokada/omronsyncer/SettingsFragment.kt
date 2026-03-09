@@ -14,13 +14,13 @@ class SettingsFragment : Fragment() {
     interface Host {
         fun currentUiState(): MainUiState
         fun onModelSelected(position: Int)
+        fun onMeasurementUserSelected(user: Int?)
         fun onBluetoothSettingsRequested()
         fun onRefreshDevicesRequested()
         fun onExportRequested()
         fun onHealthConnectRequested()
         fun onHealthConnectExportRequested()
         fun onHealthConnectAutoExportChanged(enabled: Boolean)
-        fun onHealthConnectExportUserSelected(position: Int)
         fun onNearbySyncChanged(enabled: Boolean)
         fun onNearbySyncCooldownSelected(position: Int)
         fun onSyncLogRequested()
@@ -31,12 +31,12 @@ class SettingsFragment : Fragment() {
     private val binding get() = _binding!!
     private lateinit var host: Host
     private lateinit var modelAdapter: ArrayAdapter<String>
+    private lateinit var measurementUserAdapter: ArrayAdapter<String>
     private lateinit var deviceAdapter: ArrayAdapter<String>
-    private lateinit var healthConnectUserAdapter: ArrayAdapter<String>
     private lateinit var nearbySyncCooldownAdapter: ArrayAdapter<String>
     private var suppressModelSelectionCallback = false
+    private var suppressMeasurementUserCallback = false
     private var suppressSelectionCallback = false
-    private var suppressHealthConnectUserCallback = false
     private var suppressAutoExportCallback = false
     private var suppressNearbySyncCallback = false
     private var suppressNearbySyncCooldownCallback = false
@@ -67,6 +67,14 @@ class SettingsFragment : Fragment() {
             it.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
             binding.modelSpinner.adapter = it
         }
+        measurementUserAdapter = ArrayAdapter(
+            requireContext(),
+            android.R.layout.simple_spinner_item,
+            mutableListOf<String>(),
+        ).also {
+            it.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+            binding.measurementUserSpinner.adapter = it
+        }
         deviceAdapter = ArrayAdapter(
             requireContext(),
             android.R.layout.simple_spinner_item,
@@ -74,14 +82,6 @@ class SettingsFragment : Fragment() {
         ).also {
             it.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
             binding.deviceSpinner.adapter = it
-        }
-        healthConnectUserAdapter = ArrayAdapter(
-            requireContext(),
-            android.R.layout.simple_spinner_item,
-            mutableListOf<String>(),
-        ).also {
-            it.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
-            binding.healthConnectUserSpinner.adapter = it
         }
         nearbySyncCooldownAdapter = ArrayAdapter(
             requireContext(),
@@ -96,14 +96,16 @@ class SettingsFragment : Fragment() {
                 host.onModelSelected(position)
             }
         }
+        binding.measurementUserSpinner.onItemSelectedListener = SimpleItemSelectedListener { position ->
+            if (!suppressMeasurementUserCallback) {
+                host.onMeasurementUserSelected(
+                    host.currentUiState().measurementUserOptions.getOrNull(position),
+                )
+            }
+        }
         binding.deviceSpinner.onItemSelectedListener = SimpleItemSelectedListener { position ->
             if (!suppressSelectionCallback) {
                 host.onDeviceSelected(position)
-            }
-        }
-        binding.healthConnectUserSpinner.onItemSelectedListener = SimpleItemSelectedListener { position ->
-            if (!suppressHealthConnectUserCallback) {
-                host.onHealthConnectExportUserSelected(position)
             }
         }
         binding.nearbySyncCooldownSpinner.onItemSelectedListener = SimpleItemSelectedListener { position ->
@@ -163,6 +165,24 @@ class SettingsFragment : Fragment() {
         }
         suppressModelSelectionCallback = false
 
+        suppressMeasurementUserCallback = true
+        measurementUserAdapter.clear()
+        measurementUserAdapter.addAll(state.measurementUserLabels)
+        measurementUserAdapter.notifyDataSetChanged()
+        binding.measurementUserLabel.visibility =
+            if (state.measurementUserLabels.isNotEmpty()) View.VISIBLE else View.GONE
+        binding.measurementUserSpinner.visibility =
+            if (state.measurementUserLabels.isNotEmpty()) View.VISIBLE else View.GONE
+        binding.measurementUserSpinner.isEnabled =
+            state.measurementUserLabels.size > 1 && !state.isWorking
+        if (
+            state.selectedMeasurementUserIndex >= 0 &&
+            state.selectedMeasurementUserIndex < state.measurementUserLabels.size
+        ) {
+            binding.measurementUserSpinner.setSelection(state.selectedMeasurementUserIndex)
+        }
+        suppressMeasurementUserCallback = false
+
         suppressSelectionCallback = true
         deviceAdapter.clear()
         deviceAdapter.addAll(state.deviceLabels)
@@ -184,19 +204,6 @@ class SettingsFragment : Fragment() {
             else -> getString(R.string.grant_health_connect_access)
         }
         binding.healthConnectExportButton.isEnabled = state.canExportHealthConnect && !state.isWorking
-        suppressHealthConnectUserCallback = true
-        healthConnectUserAdapter.clear()
-        healthConnectUserAdapter.addAll(state.healthConnectExportUserLabels)
-        healthConnectUserAdapter.notifyDataSetChanged()
-        binding.healthConnectUserSpinner.isEnabled =
-            state.healthConnectExportUserLabels.size > 1 && !state.isWorking
-        if (
-            state.selectedHealthConnectExportUserIndex >= 0 &&
-            state.selectedHealthConnectExportUserIndex < state.healthConnectExportUserLabels.size
-        ) {
-            binding.healthConnectUserSpinner.setSelection(state.selectedHealthConnectExportUserIndex)
-        }
-        suppressHealthConnectUserCallback = false
         suppressAutoExportCallback = true
         binding.healthConnectAutoExportSwitch.isChecked = state.autoExportHealthConnect
         suppressAutoExportCallback = false

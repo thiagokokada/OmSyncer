@@ -30,7 +30,7 @@ class SyncOrchestrator(
             measurementStore.saveAll(syncResult.measurements)
         }
         val persistedMeasurements = withContext(Dispatchers.IO) {
-            measurementStore.loadAll()
+            measurementStore.loadAll(resolveSelectedMeasurementUser(model))
         }
         val healthConnectSummary = maybeExportToHealthConnect(
             saveSummary.insertedMeasurements,
@@ -48,17 +48,14 @@ class SyncOrchestrator(
     }
 
     suspend fun exportStoredMeasurementsToHealthConnect(): HealthConnectBloodPressureExporter.ExportSummary {
+        val model = syncPreferences.selectedModel()
         val storedMeasurements = withContext(Dispatchers.IO) {
-            measurementStore.loadAll()
+            measurementStore.loadAll(resolveSelectedMeasurementUser(model))
         }
-        val filteredMeasurements = filterMeasurementsForHealthConnect(
-            storedMeasurements,
-            syncPreferences.selectedModel(),
-        )
-        require(filteredMeasurements.isNotEmpty()) {
-            "No measurements match the selected Health Connect user."
+        require(storedMeasurements.isNotEmpty()) {
+            "No measurements match the selected user."
         }
-        return healthConnectExporter.export(filteredMeasurements)
+        return healthConnectExporter.export(storedMeasurements)
     }
 
     private suspend fun maybeExportToHealthConnect(
@@ -110,7 +107,7 @@ class SyncOrchestrator(
         sourceMeasurements: List<Measurement>,
         model: OmronDeviceDefinition,
     ): List<Measurement> {
-        val exportUser = resolveHealthConnectExportUser(model)
+        val exportUser = resolveSelectedMeasurementUser(model)
         return if (exportUser == null) {
             sourceMeasurements
         } else {
@@ -118,13 +115,12 @@ class SyncOrchestrator(
         }
     }
 
-    private fun resolveHealthConnectExportUser(model: OmronDeviceDefinition): Int? {
+    private fun resolveSelectedMeasurementUser(model: OmronDeviceDefinition): Int? {
         val users = model.userLayouts.map { it.user }
         return when {
             users.isEmpty() -> null
             users.size == 1 -> users.first()
-            syncPreferences.healthConnectExportUserKey() == SyncPreferences.HEALTH_CONNECT_EXPORT_USER_ALL -> null
-            else -> syncPreferences.healthConnectExportUserKey().toIntOrNull()
+            else -> syncPreferences.selectedMeasurementUser().takeIf { it in users }
         }
     }
 

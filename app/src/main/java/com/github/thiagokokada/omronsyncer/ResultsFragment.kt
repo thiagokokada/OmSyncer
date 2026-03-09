@@ -83,10 +83,21 @@ class ResultsFragment : Fragment() {
                 it.diastolic,
                 it.pulse,
             )
-        } ?: getString(R.string.no_measurement_summary)
+        } ?: if (state.selectedMeasurementUser != null && state.measurementUserOptions.size > 1) {
+            getString(R.string.no_measurement_summary_filtered)
+        } else {
+            getString(R.string.no_measurement_summary)
+        }
 
         binding.emptyState.visibility =
             if (state.measurements.isEmpty()) View.VISIBLE else View.GONE
+        binding.emptyState.text = if (
+            state.selectedMeasurementUser != null && state.measurementUserOptions.size > 1
+        ) {
+            getString(R.string.empty_measurements_filtered)
+        } else {
+            getString(R.string.empty_measurements)
+        }
         binding.userColumnLabel.visibility =
             if (state.showsMeasurementUserColumn) View.VISIBLE else View.GONE
     }

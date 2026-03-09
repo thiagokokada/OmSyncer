@@ -4,6 +4,10 @@ import com.github.thiagokokada.omronsyncer.model.Measurement
 
 data class MainUiState(
     val measurements: List<Measurement>,
+    val measurementUserOptions: List<Int?>,
+    val measurementUserLabels: List<String>,
+    val selectedMeasurementUser: Int?,
+    val selectedMeasurementUserIndex: Int,
     val statusMessage: String,
     val syncLog: String,
     val modelLabels: List<String>,
@@ -21,13 +25,10 @@ data class MainUiState(
     val canOpenHealthConnect: Boolean,
     val canExportHealthConnect: Boolean,
     val autoExportHealthConnect: Boolean,
-    val healthConnectExportUserLabels: List<String>,
-    val selectedHealthConnectExportUserIndex: Int,
     val nearbySyncEnabled: Boolean,
     val nearbySyncSummary: String,
     val nearbySyncCooldownLabels: List<String>,
     val selectedNearbySyncCooldownIndex: Int,
-    val selectedTrendUser: Int?,
     val selectedTrendRange: TrendRange,
     val showsMeasurementUserColumn: Boolean,
 )
