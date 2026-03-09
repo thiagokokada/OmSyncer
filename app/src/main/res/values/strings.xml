@@ -42,7 +42,7 @@
     <string name="nearby_sync_cooldown_5_minutes">5 minutes</string>
     <string name="nearby_sync_cooldown_10_minutes">10 minutes</string>
     <string name="open_sync_log">Open sync log</string>
-    <string name="seed_sample_measurements">Seed sample measurements</string>
+    <string name="seed_sample_measurements">Seed sample measurements (Debug)</string>
     <string name="refresh_devices">Refresh devices</string>
     <string name="sync_now">Sync now</string>
     <string name="syncing_button_label">Syncing...</string>
