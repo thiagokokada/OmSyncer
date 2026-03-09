@@ -791,8 +791,8 @@ class MainActivity : AppCompatActivity(),
             runCatching {
                 syncOrchestrator.exportStoredMeasurementsToHealthConnect()
             }.onSuccess { summary ->
-                updateStatus(getString(R.string.health_connect_status_connected))
-                showToast(healthConnectExportMessage(summary))
+                updateStatus(healthConnectExportMessage(summary))
+                showToast(getString(R.string.toast_health_connect_exported))
             }.onFailure { error ->
                 updateStatus(error.message ?: error.javaClass.simpleName)
             }

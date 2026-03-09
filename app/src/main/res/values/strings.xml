@@ -73,6 +73,7 @@
     <string name="toast_sync_no_new">Sync complete. No new measurements.</string>
     <string name="toast_sync_no_new_health_connect">Sync complete. Health Connect updated.</string>
     <string name="toast_sync_failed">Sync failed: %1$s</string>
+    <string name="toast_health_connect_exported">Health Connect updated.</string>
     <string name="status_exported">CSV exported.</string>
     <string name="status_health_connect_permissions_granted">Health Connect access granted.</string>
     <string name="status_health_connect_permissions_denied">Health Connect access was not granted.</string>
