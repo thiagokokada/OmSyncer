@@ -74,7 +74,7 @@
     <string name="status_health_connect_auto_export_failed">Device sync completed, but Health Connect export failed: %1$s</string>
     <string name="status_health_connect_exporting">Exporting blood pressure to Health Connect...</string>
     <string name="status_health_connect_exported">Exported %1$d blood pressure and %2$d pulse records to Health Connect.</string>
-    <string name="status_health_connect_no_matching_measurements">No measurements match the selected Health Connect user.</string>
+    <string name="status_health_connect_no_matching_measurements">No measurements match the selected user.</string>
     <string name="status_log_exported">Sync log exported.</string>
     <string name="status_pair_device">This monitor is not bonded yet. Pair it in Android Bluetooth settings first.</string>
     <string name="status_nearby_sync_enabled">Nearby sync enabled.</string>

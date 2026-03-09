@@ -58,12 +58,8 @@ class ResultsFragment : Fragment() {
             return
         }
 
-        val filteredMeasurements = state.measurements.filter { measurement ->
-            state.selectedMeasurementUser == null || measurement.user == state.selectedMeasurementUser
-        }
-
         adapter.setShowUserColumn(state.showsMeasurementUserColumn)
-        adapter.submitList(filteredMeasurements)
+        adapter.submitList(state.measurements)
 
         binding.syncButton.isEnabled = state.canSync && !state.isWorking
         binding.syncButton.text = if (state.isWorking) {
@@ -74,11 +70,11 @@ class ResultsFragment : Fragment() {
 
         binding.measurementCount.text = resources.getQuantityString(
             R.plurals.measurement_count,
-            filteredMeasurements.size,
-            filteredMeasurements.size,
+            state.measurements.size,
+            state.measurements.size,
         )
 
-        val latestMeasurement = filteredMeasurements.firstOrNull()
+        val latestMeasurement = state.measurements.firstOrNull()
         binding.latestMeasurement.text = latestMeasurement?.let {
             getString(
                 R.string.latest_measurement_summary,
@@ -87,18 +83,20 @@ class ResultsFragment : Fragment() {
                 it.diastolic,
                 it.pulse,
             )
-        } ?: if (state.measurements.isEmpty()) {
-            getString(R.string.no_measurement_summary)
-        } else {
+        } ?: if (state.selectedMeasurementUser != null && state.measurementUserOptions.size > 1) {
             getString(R.string.no_measurement_summary_filtered)
+        } else {
+            getString(R.string.no_measurement_summary)
         }
 
         binding.emptyState.visibility =
-            if (filteredMeasurements.isEmpty()) View.VISIBLE else View.GONE
-        binding.emptyState.text = if (state.measurements.isEmpty()) {
-            getString(R.string.empty_measurements)
-        } else {
+            if (state.measurements.isEmpty()) View.VISIBLE else View.GONE
+        binding.emptyState.text = if (
+            state.selectedMeasurementUser != null && state.measurementUserOptions.size > 1
+        ) {
             getString(R.string.empty_measurements_filtered)
+        } else {
+            getString(R.string.empty_measurements)
         }
         binding.userColumnLabel.visibility =
             if (state.showsMeasurementUserColumn) View.VISIBLE else View.GONE

@@ -179,6 +179,8 @@ class MainActivityTest {
         val userTwoLabel = context.getString(R.string.measurement_user_single, 2)
 
         ActivityScenario.launch(MainActivity::class.java).use {
+            onView(withId(R.id.measurement_count)).check(matches(withText("2 measurements")))
+
             onView(withId(R.id.navigation_settings)).perform(click())
             onView(withId(R.id.measurement_user_spinner)).perform(scrollTo(), click())
             onData(`is`(userTwoLabel)).perform(click())
@@ -187,6 +189,15 @@ class MainActivityTest {
             onView(withId(R.id.navigation_results)).perform(click())
             onView(withId(R.id.measurement_count)).check(matches(withText("1 measurement")))
 
+            onView(withId(R.id.navigation_settings)).perform(click())
+            onView(withId(R.id.measurement_user_spinner)).perform(scrollTo(), click())
+            onData(`is`(allUsersLabel())).perform(click())
+            onView(withId(R.id.navigation_results)).perform(click())
+            onView(withId(R.id.measurement_count)).check(matches(withText("2 measurements")))
+
+            onView(withId(R.id.navigation_settings)).perform(click())
+            onView(withId(R.id.measurement_user_spinner)).perform(scrollTo(), click())
+            onData(`is`(userTwoLabel)).perform(click())
             onView(withId(R.id.navigation_trends)).perform(click())
             onView(withId(R.id.chart_card)).check(matches(isDisplayed()))
         }
@@ -223,5 +234,9 @@ class MainActivityTest {
             irregularHeartbeat = false,
             movement = false,
         )
+    }
+
+    private fun allUsersLabel(): String {
+        return context.getString(R.string.measurement_user_all)
     }
 }

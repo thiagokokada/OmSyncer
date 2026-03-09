@@ -218,8 +218,7 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, TrendsFragment.H
     override fun currentUiState(): MainUiState {
         val selectedModel = selectedModel()
         val measurementUserOptions = buildMeasurementUserOptions(selectedModel)
-        val selectedMeasurementUser = syncPreferences.selectedMeasurementUser()
-            .takeIf { it in measurementUserOptions }
+        val selectedMeasurementUser = selectedMeasurementUser(selectedModel)
         val measurementUserLabels = measurementUserOptions.map { user ->
             user?.let { getString(R.string.measurement_user_single, it) }
                 ?: getString(R.string.measurement_user_all)
@@ -262,8 +261,7 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, TrendsFragment.H
             measurementUserOptions = measurementUserOptions,
             measurementUserLabels = measurementUserLabels,
             selectedMeasurementUser = selectedMeasurementUser,
-            selectedMeasurementUserIndex =
-                measurementUserOptions.indexOf(selectedMeasurementUser).coerceAtLeast(0),
+            selectedMeasurementUserIndex = measurementUserOptions.indexOf(selectedMeasurementUser),
             statusMessage = statusMessage,
             syncLog = lastSyncLog,
             modelLabels = OmronDeviceRegistry.supportedModels.map(::modelLabel),
@@ -300,7 +298,7 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, TrendsFragment.H
                 syncPreferences.setSelectedMeasurementUser(null)
             }
             refreshNearbySyncRegistration()
-            notifyCurrentFragment()
+            loadPersistedMeasurements()
         }
     }
 
@@ -310,7 +308,7 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, TrendsFragment.H
 
     override fun onMeasurementUserSelected(user: Int?) {
         syncPreferences.setSelectedMeasurementUser(user)
-        notifyCurrentFragment()
+        loadPersistedMeasurements()
     }
 
     override fun onTrendRangeSelected(range: TrendRange) {
@@ -538,7 +536,7 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, TrendsFragment.H
     private fun loadPersistedMeasurements() {
         launchUi {
             measurements = withContext(Dispatchers.IO) {
-                measurementStore.loadAll()
+                measurementStore.loadAll(selectedMeasurementUser())
             }
             notifyCurrentFragment()
         }
@@ -656,7 +654,7 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, TrendsFragment.H
         launchUi {
             runCatching {
                 val storedMeasurements = withContext(Dispatchers.IO) {
-                    measurementStore.loadAll()
+                    measurementStore.loadAll(selectedMeasurementUser())
                 }
                 withContext(Dispatchers.IO) {
                     contentResolver.openOutputStream(uri)?.use { outputStream ->
@@ -877,9 +875,20 @@ class MainActivity : AppCompatActivity(), ResultsFragment.Host, TrendsFragment.H
     ): List<Int?> {
         val users = model.userLayouts.map { it.user }
         return when {
-            users.isEmpty() -> listOf(null)
+            users.isEmpty() -> emptyList()
             users.size == 1 -> listOf(users.first())
             else -> listOf(null) + users
+        }
+    }
+
+    private fun selectedMeasurementUser(
+        model: OmronDeviceDefinition = selectedModel(),
+    ): Int? {
+        val users = model.userLayouts.map { it.user }
+        return when {
+            users.isEmpty() -> null
+            users.size == 1 -> users.first()
+            else -> syncPreferences.selectedMeasurementUser().takeIf { it in users }
         }
     }
 

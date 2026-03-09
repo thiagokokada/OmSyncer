@@ -170,9 +170,9 @@ class SettingsFragment : Fragment() {
         measurementUserAdapter.addAll(state.measurementUserLabels)
         measurementUserAdapter.notifyDataSetChanged()
         binding.measurementUserLabel.visibility =
-            if (state.measurementUserLabels.size > 1) View.VISIBLE else View.GONE
+            if (state.measurementUserLabels.isNotEmpty()) View.VISIBLE else View.GONE
         binding.measurementUserSpinner.visibility =
-            if (state.measurementUserLabels.size > 1) View.VISIBLE else View.GONE
+            if (state.measurementUserLabels.isNotEmpty()) View.VISIBLE else View.GONE
         binding.measurementUserSpinner.isEnabled =
             state.measurementUserLabels.size > 1 && !state.isWorking
         if (
