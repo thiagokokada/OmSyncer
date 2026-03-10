@@ -5,6 +5,7 @@ import android.content.Context
 import android.view.View
 import androidx.test.core.app.ActivityScenario
 import androidx.test.core.app.ApplicationProvider
+import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.espresso.Espresso.onView
 import androidx.test.espresso.Espresso.onData
 import androidx.test.espresso.Espresso.pressBack
@@ -56,6 +57,7 @@ class MainActivityTest {
 
     @Before
     fun setUp() {
+        grantRuntimePermissions()
         clearPreferences()
         clearMeasurements()
         suppressInitialPermissionPrompt()
@@ -289,6 +291,23 @@ class MainActivityTest {
         MeasurementStore(context).saveAll(measurements)
     }
 
+    private fun grantRuntimePermissions() {
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        val uiAutomation = instrumentation.uiAutomation
+        val packageName = instrumentation.targetContext.packageName
+
+        uiAutomation.adoptShellPermissionIdentity()
+        try {
+            TEST_PERMISSIONS.forEach { permission ->
+                uiAutomation.grantRuntimePermission(packageName, permission)
+            }
+        } finally {
+            uiAutomation.dropShellPermissionIdentity()
+        }
+
+        instrumentation.waitForIdleSync()
+    }
+
     private fun suppressInitialPermissionPrompt() {
         SyncPreferences(context).setInitialBluetoothPermissionPromptShown(true)
     }
@@ -345,5 +364,14 @@ class MainActivityTest {
                 swipeRight().perform(uiController, viewHolder.itemView)
             }
         }
+    }
+
+    companion object {
+        private val TEST_PERMISSIONS =
+            arrayOf(
+                Manifest.permission.BLUETOOTH_CONNECT,
+                Manifest.permission.BLUETOOTH_SCAN,
+                Manifest.permission.POST_NOTIFICATIONS,
+            )
     }
 }
