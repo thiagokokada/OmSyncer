@@ -10,7 +10,7 @@ import androidx.work.ExistingWorkPolicy
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.OutOfQuotaPolicy
 import androidx.work.WorkManager
-import com.github.thiagokokada.omronsyncer.R
+import androidx.work.workDataOf
 
 class NearbySyncReceiver : BroadcastReceiver() {
 
@@ -48,8 +48,17 @@ class NearbySyncReceiver : BroadcastReceiver() {
             Log.d(TAG, "Ignoring nearby scan callback during cooldown window.")
             return
         }
+        if (SyncRunCoordinator(context).isSyncActive()) {
+            Log.d(TAG, "Ignoring nearby scan callback because another sync is already running.")
+            return
+        }
 
         val request = OneTimeWorkRequestBuilder<NearbySyncWorker>()
+            .setInputData(
+                workDataOf(
+                    NearbySyncWorker.KEY_TRIGGERED_AT_MILLIS to now,
+                ),
+            )
             .setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)
             .build()
 

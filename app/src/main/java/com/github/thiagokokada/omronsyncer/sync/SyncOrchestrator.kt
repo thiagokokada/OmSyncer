@@ -21,46 +21,53 @@ class SyncOrchestrator(
     private val healthConnectExporter: HealthConnectExporter =
         HealthConnectBloodPressureExporter(context),
     private val syncPreferences: SyncPreferences = SyncPreferences(context),
+    private val syncRunCoordinator: SyncRunCoordinator = SyncRunCoordinator(context),
 ) {
 
     suspend fun syncSelectedDevice(syncSource: String = "manual"): SyncExecutionResult {
-        requireBluetoothConnectPermission()
-        val device = requireSelectedBondedDevice()
-        val model = syncPreferences.selectedModel()
-        val selectedUser = resolveSelectedMeasurementUser(model)
-        val preSyncMeasurements = withContext(Dispatchers.IO) {
-            measurementStore.loadAll()
-        }
-        val syncResult = syncClient.sync(device, model)
-        val saveSummary = withContext(Dispatchers.IO) {
-            measurementStore.saveAll(syncResult.measurements)
-        }
-        val persistedAllMeasurements = withContext(Dispatchers.IO) {
-            measurementStore.loadAll()
-        }
-        val persistedMeasurements = withContext(Dispatchers.IO) {
-            measurementStore.loadAll(selectedUser)
-        }
-        val healthConnectSummary = maybeExportToHealthConnect(
-            saveSummary.insertedMeasurements,
-            model,
-        )
-        val orchestrationDiagnostics = listOf(
-            "Sync source: $syncSource",
-            "Selected measurement user: ${selectedUser ?: "all"}",
-            measurementSnapshot("Stored measurements before sync", preSyncMeasurements),
-            measurementSnapshot("Imported measurements from device", syncResult.measurements),
-            measurementSnapshot("Inserted measurements", saveSummary.insertedMeasurements),
-            measurementSnapshot("Stored measurements after sync", persistedAllMeasurements),
-        )
+        val lease = syncRunCoordinator.acquireOrThrow(syncSource)
+        return try {
+            requireBluetoothConnectPermission()
+            val device = requireSelectedBondedDevice()
+            val model = syncPreferences.selectedModel()
+            val selectedUser = resolveSelectedMeasurementUser(model)
+            val preSyncMeasurements = withContext(Dispatchers.IO) {
+                measurementStore.loadAll()
+            }
+            val syncResult = syncClient.sync(device, model)
+            val saveSummary = withContext(Dispatchers.IO) {
+                measurementStore.saveAll(syncResult.measurements)
+            }
+            syncRunCoordinator.markSuccessfulCompletion()
+            val persistedAllMeasurements = withContext(Dispatchers.IO) {
+                measurementStore.loadAll()
+            }
+            val persistedMeasurements = withContext(Dispatchers.IO) {
+                measurementStore.loadAll(selectedUser)
+            }
+            val healthConnectSummary = maybeExportToHealthConnect(
+                saveSummary.insertedMeasurements,
+                model,
+            )
+            val orchestrationDiagnostics = listOf(
+                "Sync source: $syncSource",
+                "Selected measurement user: ${selectedUser ?: "all"}",
+                measurementSnapshot("Stored measurements before sync", preSyncMeasurements),
+                measurementSnapshot("Imported measurements from device", syncResult.measurements),
+                measurementSnapshot("Inserted measurements", saveSummary.insertedMeasurements),
+                measurementSnapshot("Stored measurements after sync", persistedAllMeasurements),
+            )
 
-        return SyncExecutionResult(
-            persistedMeasurements = persistedMeasurements,
-            inserted = saveSummary.inserted,
-            syncLog = (syncResult.diagnostics.entries + orchestrationDiagnostics)
-                .joinToString(separator = "\n"),
-            healthConnectExportSummary = healthConnectSummary,
-        )
+            SyncExecutionResult(
+                persistedMeasurements = persistedMeasurements,
+                inserted = saveSummary.inserted,
+                syncLog = (syncResult.diagnostics.entries + orchestrationDiagnostics)
+                    .joinToString(separator = "\n"),
+                healthConnectExportSummary = healthConnectSummary,
+            )
+        } finally {
+            syncRunCoordinator.release(lease)
+        }
     }
 
     suspend fun exportStoredMeasurementsToHealthConnect(): HealthConnectBloodPressureExporter.ExportSummary {

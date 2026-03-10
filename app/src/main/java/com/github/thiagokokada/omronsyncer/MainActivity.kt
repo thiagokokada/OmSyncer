@@ -37,6 +37,7 @@ import com.github.thiagokokada.omronsyncer.omron.OmronSyncClient.SyncException
 import com.github.thiagokokada.omronsyncer.omron.VerificationLevel
 import com.github.thiagokokada.omronsyncer.sync.MissingBluetoothPermissionException
 import com.github.thiagokokada.omronsyncer.sync.NearbySyncRegistrar
+import com.github.thiagokokada.omronsyncer.sync.SyncAlreadyInProgressException
 import com.github.thiagokokada.omronsyncer.sync.SyncExecutionResult
 import com.github.thiagokokada.omronsyncer.sync.SyncOrchestrator
 import com.github.thiagokokada.omronsyncer.sync.SyncPreferences
@@ -544,13 +545,18 @@ class MainActivity : AppCompatActivity(),
                     logSyncDiagnostics(source = "manual-failure", syncLog = error.diagnostics.asText())
                     renderSyncLog(error.diagnostics.asText())
                 }
-                val message = if (error is MissingBluetoothPermissionException) {
-                    getString(R.string.status_missing_permission)
-                } else {
-                    error.message ?: error.javaClass.simpleName
+                val message = when (error) {
+                    is MissingBluetoothPermissionException -> getString(R.string.status_missing_permission)
+                    is SyncAlreadyInProgressException ->
+                        getString(R.string.status_sync_already_in_progress)
+                    else -> error.message ?: error.javaClass.simpleName
                 }
                 updateStatus(message)
-                showToast(getString(R.string.toast_sync_failed, message))
+                if (error is SyncAlreadyInProgressException) {
+                    showToast(message)
+                } else {
+                    showToast(getString(R.string.toast_sync_failed, message))
+                }
             }
 
             setWorking(false)

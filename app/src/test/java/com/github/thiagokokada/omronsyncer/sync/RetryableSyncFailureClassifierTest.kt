@@ -61,6 +61,15 @@ class RetryableSyncFailureClassifierTest {
         )
     }
 
+    @Test
+    fun syncAlreadyInProgress_isNotRetryable() {
+        assertFalse(
+            RetryableSyncFailureClassifier.isRetryable(
+                SyncAlreadyInProgressException("manual"),
+            ),
+        )
+    }
+
     private fun requestFailed(status: Int): RequestFailedException {
         return RequestFailedException(
             Request.newEnableNotificationsRequest(null),

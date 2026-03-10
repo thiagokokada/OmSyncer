@@ -60,6 +60,7 @@
     <string name="status_no_devices">No bonded Bluetooth devices found.</string>
     <string name="status_loading_devices">Loading bonded devices...</string>
     <string name="status_syncing">Syncing measurements...</string>
+    <string name="status_sync_already_in_progress">Another sync is already in progress.</string>
     <string name="status_export_choose_location">Choose where to save the CSV file.</string>
     <string name="status_exporting">Exporting measurements...</string>
     <string name="status_export_cancelled">CSV export cancelled.</string>
@@ -104,6 +105,8 @@
     <string name="nearby_sync_summary_with_time">Last run: %1$s\n%2$s</string>
     <string name="nearby_sync_skipped_no_device">Nearby sync skipped: no device selected.</string>
     <string name="nearby_sync_skipped_permission">Nearby sync skipped: Bluetooth permission is required.</string>
+    <string name="nearby_sync_skipped_in_progress">Nearby sync skipped: another sync is already running.</string>
+    <string name="nearby_sync_skipped_recent_sync">Nearby sync skipped: the monitor was already synced.</string>
     <string name="nearby_sync_failed">Nearby sync failed: %1$s</string>
     <string name="nearby_sync_summary_no_new">Nearby sync complete. No new measurements.</string>
     <string name="nearby_sync_summary_no_new_health_connect">Nearby sync complete. Health Connect updated.</string>
