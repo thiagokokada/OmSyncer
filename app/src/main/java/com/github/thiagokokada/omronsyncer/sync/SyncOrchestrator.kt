@@ -10,6 +10,7 @@ import com.github.thiagokokada.omronsyncer.healthconnect.HealthConnectExporter
 import com.github.thiagokokada.omronsyncer.healthconnect.HealthConnectBloodPressureExporter
 import com.github.thiagokokada.omronsyncer.model.Measurement
 import com.github.thiagokokada.omronsyncer.omron.OmronDeviceDefinition
+import com.github.thiagokokada.omronsyncer.omron.SyncCapture
 import com.github.thiagokokada.omronsyncer.omron.OmronSyncClient
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -64,6 +65,7 @@ class SyncOrchestrator(
                 inserted = saveSummary.inserted,
                 syncLog = (syncResult.diagnostics.entries + orchestrationDiagnostics)
                     .joinToString(separator = "\n"),
+                syncCapture = syncResult.capture,
                 healthConnectExportSummary = healthConnectSummary,
             )
         } finally {
@@ -208,6 +210,7 @@ data class SyncExecutionResult(
     val persistedMeasurements: List<Measurement>,
     val inserted: Int,
     val syncLog: String,
+    val syncCapture: SyncCapture,
     val healthConnectExportSummary: HealthConnectBloodPressureExporter.ExportSummary?,
 )
 

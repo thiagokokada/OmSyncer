@@ -81,6 +81,7 @@ class MainActivity : AppCompatActivity(),
     private var deletedMeasurements: List<Measurement> = emptyList()
     private var statusMessage: String = ""
     private var lastSyncLog: String = ""
+    private var lastSyncCapture: String = ""
     private var isWorking: Boolean = false
     private var selectedTabId: Int = R.id.navigation_results
     private var isHealthConnectAvailable: Boolean = false
@@ -147,6 +148,16 @@ class MainActivity : AppCompatActivity(),
                 setWorking(false)
             } else {
                 completeLogExport(uri)
+            }
+        }
+
+    private val exportCaptureDocumentLauncher =
+        registerForActivityResult(ActivityResultContracts.CreateDocument("text/plain")) { uri ->
+            if (uri == null) {
+                updateStatus(getString(R.string.status_capture_export_cancelled))
+                setWorking(false)
+            } else {
+                completeCaptureExport(uri)
             }
         }
 
@@ -290,6 +301,7 @@ class MainActivity : AppCompatActivity(),
             selectedMeasurementUserIndex = measurementUserOptions.indexOf(selectedMeasurementUser),
             statusMessage = statusMessage,
             syncLog = lastSyncLog,
+            canExportCapture = lastSyncCapture.isNotBlank(),
             modelLabels = OmronDeviceRegistry.supportedModels.map(::modelLabel),
             selectedModelIndex = OmronDeviceRegistry.supportedModels
                 .indexOfFirst { it.id == selectedModel.id },
@@ -423,6 +435,10 @@ class MainActivity : AppCompatActivity(),
 
     override fun onExportSyncLogRequested() {
         exportSyncLog()
+    }
+
+    override fun onExportSyncCaptureRequested() {
+        exportSyncCapture()
     }
 
     override fun onDeviceSelected(position: Int) {
@@ -564,6 +580,7 @@ class MainActivity : AppCompatActivity(),
                 if (error is SyncException) {
                     logSyncDiagnostics(source = "manual-failure", syncLog = error.diagnostics.asText())
                     renderSyncLog(error.diagnostics.asText())
+                    renderSyncCapture(error.capture.asFixtureText())
                 }
                 val message = when (error) {
                     is MissingBluetoothPermissionException -> getString(R.string.status_missing_permission)
@@ -588,6 +605,7 @@ class MainActivity : AppCompatActivity(),
     private fun renderSyncResult(result: SyncExecutionResult) {
         measurements = result.persistedMeasurements
         renderSyncLog(result.syncLog)
+        renderSyncCapture(result.syncCapture.asFixtureText())
         launchUi {
             deletedMeasurements = withContext(Dispatchers.IO) {
                 measurementStore.loadDeleted(selectedMeasurementUser())
@@ -849,6 +867,22 @@ class MainActivity : AppCompatActivity(),
         )
     }
 
+    private fun exportSyncCapture() {
+        if (lastSyncCapture.isBlank()) {
+            updateStatus(getString(R.string.status_capture_empty))
+            return
+        }
+
+        setWorking(true)
+        updateStatus(getString(R.string.status_capture_export_choose_location))
+        exportCaptureDocumentLauncher.launch(
+            csvExporter.suggestedFileName(
+                prefix = "omsyncer-sync-capture",
+                extension = "txt",
+            ),
+        )
+    }
+
     private fun completeExport(uri: Uri) {
         updateStatus(getString(R.string.status_exporting))
 
@@ -894,6 +928,27 @@ class MainActivity : AppCompatActivity(),
         }
     }
 
+    private fun completeCaptureExport(uri: Uri) {
+        updateStatus(getString(R.string.status_capture_exporting))
+
+        launchUi {
+            runCatching {
+                withContext(Dispatchers.IO) {
+                    contentResolver.openOutputStream(uri)?.bufferedWriter()?.use { writer ->
+                        writer.write(lastSyncCapture)
+                    } ?: error("Could not open the selected destination for writing.")
+                }
+            }.onSuccess {
+                updateStatus(getString(R.string.status_capture_exported))
+            }.onFailure { error ->
+                updateStatus(error.message ?: error.javaClass.simpleName)
+            }
+
+            setWorking(false)
+            notifyCurrentFragment()
+        }
+    }
+
     private fun notifyCurrentFragment() {
         when (val fragment = supportFragmentManager.findFragmentById(R.id.fragment_container)) {
             is ResultsFragment -> fragment.render(currentUiState())
@@ -906,6 +961,11 @@ class MainActivity : AppCompatActivity(),
 
     private fun renderSyncLog(log: String) {
         lastSyncLog = log
+        notifyCurrentFragment()
+    }
+
+    private fun renderSyncCapture(capture: String) {
+        lastSyncCapture = capture
         notifyCurrentFragment()
     }
 
@@ -970,6 +1030,7 @@ class MainActivity : AppCompatActivity(),
 
     private fun persistSelectedDeviceAddress(address: String) {
         syncPreferences.setSelectedDeviceAddress(address)
+        refreshNearbySyncRegistration()
     }
 
     private fun selectedDeviceAddress(): String? {
@@ -1166,11 +1227,11 @@ class MainActivity : AppCompatActivity(),
     }
 
     private fun modelLabel(model: OmronDeviceDefinition): String {
-        val status = when (model.verificationLevel) {
-            VerificationLevel.VERIFIED -> getString(R.string.model_support_verified)
-            VerificationLevel.EXPERIMENTAL -> getString(R.string.model_support_experimental)
+        return when (model.verificationLevel) {
+            VerificationLevel.VERIFIED -> model.modelCode
+            VerificationLevel.EXPERIMENTAL ->
+                "${model.modelCode} - ${getString(R.string.model_support_experimental)}"
         }
-        return "${model.modelCode} - $status"
     }
 
     private fun formatSyncTimestamp(timestampMillis: Long): String {

@@ -13,6 +13,7 @@ class SyncLogFragment : Fragment() {
     interface Host {
         fun currentUiState(): MainUiState
         fun onExportSyncLogRequested()
+        fun onExportSyncCaptureRequested()
     }
 
     private var _binding: FragmentSyncLogBinding? = null
@@ -40,6 +41,9 @@ class SyncLogFragment : Fragment() {
         binding.exportLogButton.setOnClickListener {
             host.onExportSyncLogRequested()
         }
+        binding.exportCaptureButton.setOnClickListener {
+            host.onExportSyncCaptureRequested()
+        }
     }
 
     override fun onResume() {
@@ -53,6 +57,7 @@ class SyncLogFragment : Fragment() {
         }
 
         binding.exportLogButton.isEnabled = state.canExportLog && !state.isWorking
+        binding.exportCaptureButton.isEnabled = state.canExportCapture && !state.isWorking
         binding.syncLogText.text = state.syncLog.ifBlank {
             getString(R.string.sync_log_empty)
         }
