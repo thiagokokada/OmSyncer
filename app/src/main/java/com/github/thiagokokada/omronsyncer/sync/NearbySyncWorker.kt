@@ -54,6 +54,7 @@ class NearbySyncWorker(
         return runCatching {
             delay(INITIAL_SYNC_DELAY_MS)
             val result = syncWithRetries(orchestrator)
+            logSyncDiagnostics(source = "nearby", syncLog = result.syncLog)
             val summary = result.healthConnectExportSummary?.let {
                 applicationContext.getString(
                     R.string.nearby_sync_summary_success_health_connect,
@@ -86,6 +87,9 @@ class NearbySyncWorker(
                 Result.success()
             },
             onFailure = { error ->
+                if (error is OmronSyncClient.SyncException) {
+                    logSyncDiagnostics(source = "nearby-failure", syncLog = error.diagnostics.asText())
+                }
                 val summary = if (error is MissingBluetoothPermissionException) {
                     applicationContext.getString(R.string.nearby_sync_skipped_permission)
                 } else {
@@ -110,7 +114,7 @@ class NearbySyncWorker(
 
         repeat(MAX_SYNC_ATTEMPTS) { attemptIndex ->
             try {
-                return orchestrator.syncSelectedDevice()
+                return orchestrator.syncSelectedDevice(syncSource = "nearby")
             } catch (error: Throwable) {
                 lastError = error
                 val hasRetryRemaining = attemptIndex + 1 < MAX_SYNC_ATTEMPTS
@@ -135,9 +139,23 @@ class NearbySyncWorker(
         return RetryableSyncFailureClassifier.isRetryable(error)
     }
 
+    private fun logSyncDiagnostics(source: String, syncLog: String) {
+        if (syncLog.isBlank()) {
+            return
+        }
+        Log.d(SYNC_LOG_TAG, "[$source] diagnostics begin")
+        syncLog.lineSequence()
+            .filter { it.isNotBlank() }
+            .forEach { line ->
+                Log.d(SYNC_LOG_TAG, "[$source] $line")
+            }
+        Log.d(SYNC_LOG_TAG, "[$source] diagnostics end")
+    }
+
     companion object {
         const val UNIQUE_WORK_NAME = "nearby_sync"
         private const val TAG = "OmSyncerNearby"
+        private const val SYNC_LOG_TAG = "OmSyncerSync"
         private const val NOTIFICATION_ID = 1002
         private const val SUCCESS_NOTIFICATION_ID = 1003
         private const val MAX_SYNC_ATTEMPTS = 5

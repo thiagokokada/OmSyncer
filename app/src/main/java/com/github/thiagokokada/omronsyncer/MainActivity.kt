@@ -10,6 +10,7 @@ import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Bundle
 import android.provider.Settings
+import android.util.Log
 import android.view.View
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
@@ -532,13 +533,15 @@ class MainActivity : AppCompatActivity(),
 
         launchUi {
             runCatching {
-                syncOrchestrator.syncSelectedDevice()
+                syncOrchestrator.syncSelectedDevice(syncSource = "manual")
             }.onSuccess { result ->
+                logSyncDiagnostics(source = "manual", syncLog = result.syncLog)
                 renderSyncResult(result)
                 updateStatus(getString(R.string.status_idle))
                 showToast(syncCompletionToast(result))
             }.onFailure { error ->
                 if (error is SyncException) {
+                    logSyncDiagnostics(source = "manual-failure", syncLog = error.diagnostics.asText())
                     renderSyncLog(error.diagnostics.asText())
                 }
                 val message = if (error is MissingBluetoothPermissionException) {
@@ -890,6 +893,19 @@ class MainActivity : AppCompatActivity(),
         notifyCurrentFragment()
     }
 
+    private fun logSyncDiagnostics(source: String, syncLog: String) {
+        if (syncLog.isBlank()) {
+            return
+        }
+        Log.d(SYNC_LOG_TAG, "[$source] diagnostics begin")
+        syncLog.lineSequence()
+            .filter { it.isNotBlank() }
+            .forEach { line ->
+                Log.d(SYNC_LOG_TAG, "[$source] $line")
+            }
+        Log.d(SYNC_LOG_TAG, "[$source] diagnostics end")
+    }
+
     private fun persistSelectedDeviceAddress(address: String) {
         syncPreferences.setSelectedDeviceAddress(address)
     }
@@ -1220,6 +1236,7 @@ class MainActivity : AppCompatActivity(),
         const val BACKSTACK_DELETED_MEASUREMENTS = "deleted_measurements"
         const val BACKSTACK_SYNC_LOG = "sync_log"
         const val KEY_SELECTED_TAB = "selected_tab"
+        const val SYNC_LOG_TAG = "OmSyncerSync"
         const val SAMPLE_MEASUREMENTS_TOTAL = 100
         const val SAMPLE_MEASUREMENTS_DAY_SPAN = 90L
         val SYNC_TIME_FORMATTER: DateTimeFormatter =
