@@ -2,7 +2,6 @@ package com.github.thiagokokada.omronsyncer.sync
 
 import android.bluetooth.BluetoothGatt
 import com.github.thiagokokada.omronsyncer.omron.OmronSyncClient
-import no.nordicsemi.android.ble.Request
 import no.nordicsemi.android.ble.callback.FailCallback
 import no.nordicsemi.android.ble.error.GattError
 import no.nordicsemi.android.ble.exception.DeviceDisconnectedException
@@ -72,7 +71,7 @@ class RetryableSyncFailureClassifierTest {
 
     private fun requestFailed(status: Int): RequestFailedException {
         return RequestFailedException(
-            Request.newEnableNotificationsRequest(null),
+            null,
             status,
         )
     }
