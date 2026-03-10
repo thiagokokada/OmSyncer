@@ -23,20 +23,35 @@ class SyncOrchestrator(
     private val syncPreferences: SyncPreferences = SyncPreferences(context),
 ) {
 
-    suspend fun syncSelectedDevice(): SyncExecutionResult {
+    suspend fun syncSelectedDevice(syncSource: String = "manual"): SyncExecutionResult {
         requireBluetoothConnectPermission()
         val device = requireSelectedBondedDevice()
         val model = syncPreferences.selectedModel()
+        val selectedUser = resolveSelectedMeasurementUser(model)
+        val preSyncMeasurements = withContext(Dispatchers.IO) {
+            measurementStore.loadAll()
+        }
         val syncResult = syncClient.sync(device, model)
         val saveSummary = withContext(Dispatchers.IO) {
             measurementStore.saveAll(syncResult.measurements)
         }
+        val persistedAllMeasurements = withContext(Dispatchers.IO) {
+            measurementStore.loadAll()
+        }
         val persistedMeasurements = withContext(Dispatchers.IO) {
-            measurementStore.loadAll(resolveSelectedMeasurementUser(model))
+            measurementStore.loadAll(selectedUser)
         }
         val healthConnectSummary = maybeExportToHealthConnect(
             saveSummary.insertedMeasurements,
             model,
+        )
+        val orchestrationDiagnostics = listOf(
+            "Sync source: $syncSource",
+            "Selected measurement user: ${selectedUser ?: "all"}",
+            measurementSnapshot("Stored measurements before sync", preSyncMeasurements),
+            measurementSnapshot("Imported measurements from device", syncResult.measurements),
+            measurementSnapshot("Inserted measurements", saveSummary.insertedMeasurements),
+            measurementSnapshot("Stored measurements after sync", persistedAllMeasurements),
         )
 
         return SyncExecutionResult(
@@ -44,7 +59,8 @@ class SyncOrchestrator(
             imported = saveSummary.imported,
             inserted = saveSummary.inserted,
             duplicates = saveSummary.duplicates,
-            syncLog = syncResult.diagnostics.asText(),
+            syncLog = (syncResult.diagnostics.entries + orchestrationDiagnostics)
+                .joinToString(separator = "\n"),
             healthConnectExportSummary = healthConnectSummary,
         )
     }
@@ -140,6 +156,41 @@ class SyncOrchestrator(
     private fun bluetoothAdapter(): BluetoothAdapter? {
         val manager = context.getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager
         return manager?.adapter
+    }
+
+    private fun measurementSnapshot(label: String, measurements: List<Measurement>): String {
+        return buildString {
+            append(label)
+            append(": total=")
+            append(measurements.size)
+            append(" byUser=")
+            append(formatCountsByUser(measurements))
+            append(" latest=")
+            append(formatLatestByUser(measurements))
+        }
+    }
+
+    private fun formatCountsByUser(measurements: List<Measurement>): String {
+        if (measurements.isEmpty()) {
+            return "none"
+        }
+        return measurements.groupingBy { it.user }
+            .eachCount()
+            .toSortedMap()
+            .entries
+            .joinToString(separator = ",") { (user, count) -> "u$user=$count" }
+    }
+
+    private fun formatLatestByUser(measurements: List<Measurement>): String {
+        if (measurements.isEmpty()) {
+            return "none"
+        }
+        return measurements.groupBy { it.user }
+            .toSortedMap()
+            .entries
+            .joinToString(separator = ",") { (user, items) ->
+                "u$user=${items.maxOf { it.recordedAt }}"
+            }
     }
 }
 
