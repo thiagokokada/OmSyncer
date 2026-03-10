@@ -46,6 +46,7 @@ class SyncOrchestrator(
                 measurementStore.loadAll(selectedUser)
             }
             val healthConnectSummary = maybeExportToHealthConnect(
+                syncSource = syncSource,
                 saveSummary.insertedMeasurements,
                 model,
             )
@@ -86,6 +87,7 @@ class SyncOrchestrator(
     }
 
     private suspend fun maybeExportToHealthConnect(
+        syncSource: String,
         measurements: List<Measurement>,
         model: OmronDeviceDefinition,
     ): HealthConnectBloodPressureExporter.ExportSummary? {
@@ -96,6 +98,9 @@ class SyncOrchestrator(
             return null
         }
         if (!healthConnectExporter.hasAllPermissions()) {
+            return null
+        }
+        if (shouldSkipBackgroundHealthConnectExport(syncSource, measurements.size)) {
             return null
         }
 
@@ -205,3 +210,10 @@ data class SyncExecutionResult(
     val syncLog: String,
     val healthConnectExportSummary: HealthConnectBloodPressureExporter.ExportSummary?,
 )
+
+internal fun shouldSkipBackgroundHealthConnectExport(
+    syncSource: String,
+    insertedMeasurementCount: Int,
+): Boolean {
+    return syncSource == "nearby" && insertedMeasurementCount <= 0
+}
