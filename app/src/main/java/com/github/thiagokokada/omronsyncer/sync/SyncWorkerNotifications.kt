@@ -98,6 +98,7 @@ object SyncWorkerNotifications {
     fun showSuccessfulSync(
         context: Context,
         notificationId: Int,
+        titleResId: Int = R.string.sync_success_notification_title,
         inserted: Int,
         exportedToHealthConnect: Boolean,
     ) {
@@ -114,7 +115,7 @@ object SyncWorkerNotifications {
         )
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.stat_notify_sync_noanim)
-            .setContentTitle(context.getString(R.string.sync_success_notification_title))
+            .setContentTitle(context.getString(titleResId))
             .setContentText(body)
             .setStyle(NotificationCompat.BigTextStyle().bigText(body))
             .setPriority(NotificationCompat.PRIORITY_LOW)

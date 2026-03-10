@@ -114,6 +114,9 @@
     <string name="nearby_sync_notification_title">Syncing nearby blood pressure monitor</string>
     <string name="nearby_sync_notification_body">Reading measurements after the monitor was detected nearby.</string>
     <string name="sync_success_notification_title">Automatic sync complete</string>
+    <string name="manual_sync_notification_title">Syncing blood pressure monitor</string>
+    <string name="manual_sync_notification_body">Reading measurements from your selected monitor.</string>
+    <string name="manual_sync_success_notification_title">Sync complete</string>
     <string name="sync_success_notification_body_no_new">%1$s · No new measurements.</string>
     <string name="sync_success_notification_body_no_new_health_connect">%1$s · Health Connect updated.</string>
     <string name="health_connect_status_unavailable">Health Connect is not available on this device.</string>

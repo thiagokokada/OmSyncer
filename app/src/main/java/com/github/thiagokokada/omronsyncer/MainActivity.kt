@@ -41,6 +41,7 @@ import com.github.thiagokokada.omronsyncer.sync.SyncAlreadyInProgressException
 import com.github.thiagokokada.omronsyncer.sync.SyncExecutionResult
 import com.github.thiagokokada.omronsyncer.sync.SyncOrchestrator
 import com.github.thiagokokada.omronsyncer.sync.SyncPreferences
+import com.github.thiagokokada.omronsyncer.sync.SyncWorkerNotifications
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -87,6 +88,9 @@ class MainActivity : AppCompatActivity(),
     private var isHealthConnectConnected: Boolean = false
     private var healthConnectStatusMessage: String = ""
     private var pendingEnableNearbySync: Boolean = false
+    private var isActivityVisible: Boolean = false
+    private var isManualSyncInProgress: Boolean = false
+    private var manualSyncNotificationShown: Boolean = false
 
     private val permissionLauncher =
         registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { result ->
@@ -214,6 +218,20 @@ class MainActivity : AppCompatActivity(),
         loadBondedDevices(requestPermission = false)
         refreshHealthConnectState()
         refreshNearbySyncRegistration()
+    }
+
+    override fun onStart() {
+        super.onStart()
+        isActivityVisible = true
+        if (isManualSyncInProgress && manualSyncNotificationShown) {
+            SyncWorkerNotifications.dismiss(this, MANUAL_SYNC_RUNNING_NOTIFICATION_ID)
+        }
+    }
+
+    override fun onStop() {
+        super.onStop()
+        isActivityVisible = false
+        maybeShowManualSyncRunningNotification()
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
@@ -529,6 +547,7 @@ class MainActivity : AppCompatActivity(),
         }
 
         persistSelectedDeviceAddress(device.address)
+        beginManualSync()
         setWorking(true)
         updateStatus(getString(R.string.status_syncing))
 
@@ -540,6 +559,7 @@ class MainActivity : AppCompatActivity(),
                 renderSyncResult(result)
                 updateStatus(getString(R.string.status_idle))
                 showToast(syncCompletionToast(result))
+                finishManualSync(result)
             }.onFailure { error ->
                 if (error is SyncException) {
                     logSyncDiagnostics(source = "manual-failure", syncLog = error.diagnostics.asText())
@@ -557,6 +577,7 @@ class MainActivity : AppCompatActivity(),
                 } else {
                     showToast(getString(R.string.toast_sync_failed, message))
                 }
+                finishManualSync()
             }
 
             setWorking(false)
@@ -897,6 +918,41 @@ class MainActivity : AppCompatActivity(),
         isWorking = working
         binding.progressIndicator.visibility = if (working) View.VISIBLE else View.GONE
         notifyCurrentFragment()
+    }
+
+    private fun beginManualSync() {
+        isManualSyncInProgress = true
+        manualSyncNotificationShown = false
+        SyncWorkerNotifications.dismiss(this, MANUAL_SYNC_RUNNING_NOTIFICATION_ID)
+    }
+
+    private fun finishManualSync(result: SyncExecutionResult? = null) {
+        val shouldShowCompletionNotification = manualSyncNotificationShown && !isActivityVisible
+        SyncWorkerNotifications.dismiss(this, MANUAL_SYNC_RUNNING_NOTIFICATION_ID)
+        if (shouldShowCompletionNotification && result != null) {
+            SyncWorkerNotifications.showSuccessfulSync(
+                context = this,
+                notificationId = MANUAL_SYNC_SUCCESS_NOTIFICATION_ID,
+                titleResId = R.string.manual_sync_success_notification_title,
+                inserted = result.inserted,
+                exportedToHealthConnect = result.healthConnectExportSummary != null,
+            )
+        }
+        isManualSyncInProgress = false
+        manualSyncNotificationShown = false
+    }
+
+    private fun maybeShowManualSyncRunningNotification() {
+        if (!isManualSyncInProgress || manualSyncNotificationShown) {
+            return
+        }
+        SyncWorkerNotifications.showRunningSync(
+            context = this,
+            notificationId = MANUAL_SYNC_RUNNING_NOTIFICATION_ID,
+            titleResId = R.string.manual_sync_notification_title,
+            bodyResId = R.string.manual_sync_notification_body,
+        )
+        manualSyncNotificationShown = true
     }
 
     private fun logSyncDiagnostics(source: String, syncLog: String) {
@@ -1243,6 +1299,8 @@ class MainActivity : AppCompatActivity(),
         const val BACKSTACK_SYNC_LOG = "sync_log"
         const val KEY_SELECTED_TAB = "selected_tab"
         const val SYNC_LOG_TAG = "OmSyncerSync"
+        const val MANUAL_SYNC_RUNNING_NOTIFICATION_ID = 1004
+        const val MANUAL_SYNC_SUCCESS_NOTIFICATION_ID = 1005
         const val SAMPLE_MEASUREMENTS_TOTAL = 100
         const val SAMPLE_MEASUREMENTS_DAY_SPAN = 90L
         val SYNC_TIME_FORMATTER: DateTimeFormatter =
