@@ -326,6 +326,8 @@ class OmronSyncClient(
 
         private var txCharacteristic: BluetoothGattCharacteristic? = null
         private var rxCharacteristic: BluetoothGattCharacteristic? = null
+        private var rxContinuationCharacteristic: BluetoothGattCharacteristic? = null
+        private val packetAssembler = OmronPacketAssembler()
         var onNotification: ((ByteArray) -> Unit)? = null
 
         init {
@@ -368,9 +370,13 @@ class OmronSyncClient(
             val service = gatt.getService(model.serviceUuid)
             txCharacteristic = service?.getCharacteristic(model.txUuid)
             rxCharacteristic = service?.getCharacteristic(model.rxUuid)
-            val supported = txCharacteristic != null && rxCharacteristic != null
+            rxContinuationCharacteristic = model.rxContinuationUuid?.let(service::getCharacteristic)
+            val supported = txCharacteristic?.supportsWrite() == true &&
+                rxCharacteristic?.supportsUpdates() == true
             if (!supported) {
                 sessionLog("Required Omron service or characteristics are missing.")
+            } else if (model.rxContinuationUuid != null && rxContinuationCharacteristic == null) {
+                sessionLog("Optional Omron RX continuation characteristic is missing.")
             }
             return supported
         }
@@ -386,29 +392,37 @@ class OmronSyncClient(
                 }
                 .enqueue()
 
-            sessionLog("Enabling RX notifications...")
-            setNotificationCallback(requireRxCharacteristic())
-                .setHandler(null)
-                .with { _, data ->
-                    val payload = data.value ?: ByteArray(0)
-                    sessionLog("RX: ${payload.toHexString()}")
-                    onPacketReceived(payload)
-                    onNotification?.invoke(payload)
-                }
+            registerUpdateCallback(
+                characteristic = requireRxCharacteristic(),
+                label = "RX primary",
+                startsPacket = true,
+            )
+            enableUpdates(
+                characteristic = requireRxCharacteristic(),
+                label = "RX primary",
+            ).enqueue()
 
-            enableNotifications(requireRxCharacteristic())
-                .done {
-                    sessionLog("RX notifications enabled.")
-                }
-                .fail { _, status ->
-                    sessionLog("Enable notifications failed: ${describeRequestFailure(status)}")
-                }
-                .enqueue()
+            rxContinuationCharacteristic?.let { continuationCharacteristic ->
+                registerUpdateCallback(
+                    characteristic = continuationCharacteristic,
+                    label = "RX continuation",
+                    startsPacket = false,
+                )
+                enableUpdates(
+                    characteristic = continuationCharacteristic,
+                    label = "RX continuation",
+                ).enqueue()
+            }
         }
 
         override fun onServicesInvalidated() {
             txCharacteristic = null
             rxCharacteristic = null
+            rxContinuationCharacteristic = null
+        }
+
+        override fun shouldClearCacheWhenDisconnected(): Boolean {
+            return model.clearGattCacheOnDisconnect
         }
 
         override fun log(priority: Int, message: String) {
@@ -433,7 +447,7 @@ class OmronSyncClient(
                 writeCharacteristic(
                     requireTxCharacteristic(),
                     command,
-                    BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE,
+                    requireTxCharacteristic().bestWriteType(),
                 ).suspend()
             } catch (_: SecurityException) {
                 throw MissingBluetoothPermissionException()
@@ -459,6 +473,62 @@ class OmronSyncClient(
 
         private fun requireRxCharacteristic(): BluetoothGattCharacteristic {
             return rxCharacteristic ?: throw IllegalStateException("RX characteristic not found.")
+        }
+
+        private fun registerUpdateCallback(
+            characteristic: BluetoothGattCharacteristic,
+            label: String,
+            startsPacket: Boolean,
+        ) {
+            setNotificationCallback(characteristic)
+                .setHandler(null)
+                .with { _, data ->
+                    val fragment = data.value ?: ByteArray(0)
+                    if (fragment.isEmpty()) {
+                        sessionLog("$label fragment was empty.")
+                        return@with
+                    }
+
+                    sessionLog("$label fragment: ${fragment.toHexString()}")
+                    val packets = packetAssembler.appendFragment(
+                        fragment = fragment,
+                        startsPacket = startsPacket,
+                    )
+                    packets.forEach { packet ->
+                        sessionLog("RX packet: ${packet.toHexString()}")
+                        onPacketReceived(packet)
+                        onNotification?.invoke(packet)
+                    }
+                }
+        }
+
+        private fun enableUpdates(
+            characteristic: BluetoothGattCharacteristic,
+            label: String,
+        ) = when {
+            characteristic.isNotifiable() ->
+                enableNotifications(characteristic)
+                    .done {
+                        sessionLog("$label notifications enabled.")
+                    }
+                    .fail { _, status ->
+                        sessionLog("$label notifications failed: ${describeRequestFailure(status)}")
+                    }
+
+            characteristic.isIndicatable() ->
+                enableIndications(characteristic)
+                    .done {
+                        sessionLog("$label indications enabled.")
+                    }
+                    .fail { _, status ->
+                        sessionLog("$label indications failed: ${describeRequestFailure(status)}")
+                    }
+
+            else ->
+                enableNotifications(characteristic)
+                    .fail { _, status ->
+                        sessionLog("$label enable attempt failed: ${describeRequestFailure(status)}")
+                    }
         }
     }
 
@@ -621,5 +691,79 @@ class OmronSyncClient(
             ConnectionObserver.REASON_UNKNOWN -> "UNKNOWN"
             else -> "REASON_$reason"
         }
+    }
+}
+
+internal class OmronPacketAssembler {
+    private val bufferedBytes = mutableListOf<Byte>()
+    private var expectedPacketSize: Int? = null
+
+    fun appendFragment(
+        fragment: ByteArray,
+        startsPacket: Boolean,
+    ): List<ByteArray> {
+        if (fragment.isEmpty()) {
+            return emptyList()
+        }
+
+        if (startsPacket) {
+            bufferedBytes.clear()
+            expectedPacketSize = fragment.first().toUByte().toInt()
+        } else if (expectedPacketSize == null) {
+            return emptyList()
+        }
+
+        bufferedBytes += fragment.toList()
+        return drainCompletedPackets()
+    }
+
+    private fun drainCompletedPackets(): List<ByteArray> {
+        val packets = mutableListOf<ByteArray>()
+
+        while (true) {
+            val packetSize = expectedPacketSize ?: break
+            if (bufferedBytes.size < packetSize) {
+                break
+            }
+
+            val packet = ByteArray(packetSize) { index -> bufferedBytes[index] }
+            packets += packet
+            bufferedBytes.subList(0, packetSize).clear()
+            expectedPacketSize = bufferedBytes.firstOrNull()?.toUByte()?.toInt()
+        }
+
+        return packets
+    }
+}
+
+private fun BluetoothGattCharacteristic.supportsWrite(): Boolean {
+    return isWritable() || isWritableWithoutResponse()
+}
+
+private fun BluetoothGattCharacteristic.supportsUpdates(): Boolean {
+    return isNotifiable() || isIndicatable()
+}
+
+private fun BluetoothGattCharacteristic.isWritable(): Boolean {
+    return properties and BluetoothGattCharacteristic.PROPERTY_WRITE != 0
+}
+
+private fun BluetoothGattCharacteristic.isWritableWithoutResponse(): Boolean {
+    return properties and BluetoothGattCharacteristic.PROPERTY_WRITE_NO_RESPONSE != 0
+}
+
+private fun BluetoothGattCharacteristic.isNotifiable(): Boolean {
+    return properties and BluetoothGattCharacteristic.PROPERTY_NOTIFY != 0
+}
+
+private fun BluetoothGattCharacteristic.isIndicatable(): Boolean {
+    return properties and BluetoothGattCharacteristic.PROPERTY_INDICATE != 0
+}
+
+private fun BluetoothGattCharacteristic.bestWriteType(): Int {
+    return when {
+        isWritableWithoutResponse() -> BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE
+        isWritable() -> BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT
+        else -> error("TX characteristic is not writable.")
     }
 }

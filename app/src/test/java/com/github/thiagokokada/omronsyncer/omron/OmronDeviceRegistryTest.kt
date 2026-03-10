@@ -128,6 +128,25 @@ class OmronDeviceRegistryTest {
     }
 
     @Test
+    fun supportedModels_shareExpectedFe4aContinuationAndCacheSettings() {
+        val expectedContinuation = UUID.fromString("4d0bf320-aee8-11e1-a0d9-0002a5d5c51b")
+
+        assertEquals(
+            listOf(
+                expectedContinuation,
+                expectedContinuation,
+                expectedContinuation,
+                expectedContinuation,
+            ),
+            OmronDeviceRegistry.supportedModels.map { it.rxContinuationUuid },
+        )
+        assertEquals(
+            listOf(true, true, true, true),
+            OmronDeviceRegistry.supportedModels.map { it.clearGattCacheOnDisconnect },
+        )
+    }
+
+    @Test
     fun parseMeasurement_rejectsInvalidTimestamp() {
         val measurement = OmronRecordParser.parseMeasurement(
             device = OmronDeviceRegistry.findById("hem_7380t1"),
