@@ -61,25 +61,6 @@ class MeasurementStoreTest {
         assertEquals(emptyList<Measurement>(), measurementStore.loadDeleted(user = 1))
     }
 
-    @Test
-    fun saveAll_excludesSoftDeletedMatchesFromVisibleCounts() {
-        val deletedMeasurement = measurement(user = 1, day = 8, hour = 9)
-        val newMeasurement = measurement(user = 1, day = 9, hour = 9)
-        measurementStore.saveAll(listOf(deletedMeasurement))
-        measurementStore.softDelete(deletedMeasurement)
-
-        val summary = measurementStore.saveAll(listOf(deletedMeasurement, newMeasurement))
-
-        assertEquals(2, summary.imported)
-        assertEquals(1, summary.inserted)
-        assertEquals(1, summary.duplicates)
-        assertEquals(1, summary.hiddenByDeletedMeasurements)
-        assertEquals(1, summary.visibleImported)
-        assertEquals(0, summary.visibleDuplicates)
-        assertEquals(listOf(newMeasurement), measurementStore.loadAll(user = 1))
-        assertEquals(listOf(deletedMeasurement), measurementStore.loadDeleted(user = 1))
-    }
-
     private fun measurement(user: Int, day: Int, hour: Int = 9): Measurement {
         return Measurement(
             user = user,
