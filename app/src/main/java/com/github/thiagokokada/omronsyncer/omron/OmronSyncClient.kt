@@ -41,11 +41,20 @@ class OmronSyncClient(
         } catch (_: SecurityException) {
             "Unknown device"
         }
+        val captureBuilder = SyncCaptureBuilder(
+            model = model,
+            deviceName = try {
+                device.name
+            } catch (_: SecurityException) {
+                null
+            },
+            deviceAddress = device.address,
+        )
 
         log("Model: ${model.modelCode} (${model.marketedName})")
         log("Selected device: $deviceLabel")
 
-        val session = OmronBleSession(context, model, ::log)
+        val session = OmronBleSession(context, model, ::log, captureBuilder)
         try {
             log("Connecting with Nordic BLE Library...")
             session.connect(device)
@@ -65,12 +74,14 @@ class OmronSyncClient(
             SyncResult(
                 measurements = sortedMeasurements,
                 diagnostics = SyncDiagnostics(diagnostics.toList()),
+                capture = captureBuilder.build(),
             )
         } catch (error: Exception) {
             log("Sync failed: ${error.message ?: error.javaClass.simpleName}")
             throw SyncException(
                 message = error.message ?: "Sync failed.",
                 diagnostics = SyncDiagnostics(diagnostics.toList()),
+                capture = captureBuilder.build(),
                 cause = error,
             )
         } finally {
@@ -87,7 +98,14 @@ class OmronSyncClient(
             repeat(userLayout.recordCount) { recordIndex ->
                 val recordAddress = userLayout.startAddress + (recordIndex * model.recordSizeBytes)
                 val recordBytes = session.readRecord(recordAddress, model.recordSizeBytes)
-                OmronRecordParser.parseMeasurement(model, userLayout.user, recordBytes)?.let(::add)
+                val parsedMeasurement = OmronRecordParser.parseMeasurement(model, userLayout.user, recordBytes)
+                session.captureRecord(
+                    user = userLayout.user,
+                    address = recordAddress,
+                    recordBytes = recordBytes,
+                    measurement = parsedMeasurement,
+                )
+                parsedMeasurement?.let(::add)
             }
         }
 
@@ -99,10 +117,18 @@ class OmronSyncClient(
         context: Context,
         model: OmronDeviceDefinition,
         private val log: (String) -> Unit,
+        private val captureBuilder: SyncCaptureBuilder,
     ) {
 
         private val notificationChannel = Channel<ByteArray>(capacity = Channel.UNLIMITED)
-        private val manager = OmronBleManager(context, model, log)
+        private val manager = OmronBleManager(
+            context = context,
+            model = model,
+            sessionLog = log,
+            onPacketReceived = { payload ->
+                captureBuilder.addPacket(SyncPacketDirection.RX, payload)
+            },
+        )
 
         suspend fun connect(device: BluetoothDevice) {
             manager.onNotification = { payload ->
@@ -154,6 +180,20 @@ class OmronSyncClient(
             )
         }
 
+        fun captureRecord(
+            user: Int,
+            address: Int,
+            recordBytes: ByteArray,
+            measurement: Measurement?,
+        ) {
+            captureBuilder.addRecord(
+                user = user,
+                address = address,
+                recordBytes = recordBytes,
+                measurement = measurement,
+            )
+        }
+
         suspend fun close() {
             log("Closing GATT session.")
             notificationChannel.close()
@@ -175,6 +215,7 @@ class OmronSyncClient(
                     }
 
                     log("TX[$attempt]: ${command.toHexString()}")
+                    captureBuilder.addPacket(SyncPacketDirection.TX, command)
                     manager.writeCommand(command)
 
                     return awaitMatchingResponse(
@@ -280,6 +321,7 @@ class OmronSyncClient(
         context: Context,
         private val model: OmronDeviceDefinition,
         private val sessionLog: (String) -> Unit,
+        private val onPacketReceived: (ByteArray) -> Unit,
     ) : BleManager(context) {
 
         private var txCharacteristic: BluetoothGattCharacteristic? = null
@@ -350,6 +392,7 @@ class OmronSyncClient(
                 .with { _, data ->
                     val payload = data.value ?: ByteArray(0)
                     sessionLog("RX: ${payload.toHexString()}")
+                    onPacketReceived(payload)
                     onNotification?.invoke(payload)
                 }
 
@@ -422,6 +465,7 @@ class OmronSyncClient(
     data class SyncResult(
         val measurements: List<Measurement>,
         val diagnostics: SyncDiagnostics,
+        val capture: SyncCapture,
     )
 
     data class SyncDiagnostics(
@@ -433,11 +477,62 @@ class OmronSyncClient(
     class SyncException(
         message: String,
         val diagnostics: SyncDiagnostics,
+        val capture: SyncCapture,
         cause: Throwable? = null,
     ) : IllegalStateException(message, cause)
 
     class CommandTimeoutException(cause: Throwable) :
         IllegalStateException("Timed out waiting for response.", cause)
+
+    private class SyncCaptureBuilder(
+        private val model: OmronDeviceDefinition,
+        private val deviceName: String?,
+        private val deviceAddress: String?,
+    ) {
+        private val packets = mutableListOf<SyncPacketCapture>()
+        private val records = mutableListOf<SyncRecordCapture>()
+
+        fun addPacket(direction: SyncPacketDirection, payload: ByteArray) {
+            packets += SyncPacketCapture(
+                direction = direction,
+                hex = payload.toHexString(),
+            )
+        }
+
+        fun addRecord(
+            user: Int,
+            address: Int,
+            recordBytes: ByteArray,
+            measurement: Measurement?,
+        ) {
+            records += SyncRecordCapture(
+                user = user,
+                address = address,
+                hex = recordBytes.toHexString(),
+                measurement = measurement?.let {
+                    CapturedMeasurement(
+                        recordedAt = it.recordedAt,
+                        systolic = it.systolic,
+                        diastolic = it.diastolic,
+                        pulse = it.pulse,
+                        irregularHeartbeat = it.irregularHeartbeat,
+                        movement = it.movement,
+                    )
+                },
+            )
+        }
+
+        fun build(): SyncCapture {
+            return SyncCapture(
+                modelId = model.id,
+                modelCode = model.modelCode,
+                deviceName = deviceName,
+                deviceAddress = deviceAddress,
+                packets = packets.toList(),
+                records = records.toList(),
+            )
+        }
+    }
 
     private companion object {
         const val MTU = 185

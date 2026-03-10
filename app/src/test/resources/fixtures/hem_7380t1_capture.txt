@@ -1,0 +1,9 @@
+OMSYNCER_SYNC_CAPTURE_V1
+model_id=hem_7380t1
+model_code=HEM-7380T1
+device_name=Fixture Monitor
+device_address=00:11:22:33:44:55
+packet|tx|0800000000100018
+packet|rx|0880000001000000
+record|1|0x1c4|5d4d3d1aeb4c830a0000000000000000|2026-03-07T11:42:03|118|77|61|1|0
+record|1|0x1d4|ffffffffffffffffffffffffffffffff

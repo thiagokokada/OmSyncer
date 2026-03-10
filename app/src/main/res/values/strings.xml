@@ -52,6 +52,7 @@
     <string name="export_csv">Export CSV</string>
     <string name="export_to_health_connect">Export to Health Connect</string>
     <string name="export_sync_log">Export sync log</string>
+    <string name="export_sync_capture">Export capture</string>
     <string name="select_model">Select monitor model</string>
     <string name="select_device">Select bonded device</string>
     <string name="status_idle">Ready.</string>
@@ -85,6 +86,11 @@
     <string name="status_health_connect_deleted_measurements">Removed %1$d deleted measurements from Health Connect.</string>
     <string name="status_health_connect_no_matching_measurements">No measurements match the selected user.</string>
     <string name="status_log_exported">Sync log exported.</string>
+    <string name="status_capture_export_choose_location">Choose where to save the sync capture.</string>
+    <string name="status_capture_exporting">Exporting sync capture...</string>
+    <string name="status_capture_export_cancelled">Sync capture export cancelled.</string>
+    <string name="status_capture_exported">Sync capture exported.</string>
+    <string name="status_capture_empty">No sync capture yet.</string>
     <string name="status_seed_measurements">Seeding sample measurements...</string>
     <string name="status_seeded_measurements">Seeded %1$d sample measurements.</string>
     <string name="status_delete_measurement">Removing measurement...</string>

@@ -11,6 +11,7 @@ data class MainUiState(
     val selectedMeasurementUserIndex: Int,
     val statusMessage: String,
     val syncLog: String,
+    val canExportCapture: Boolean,
     val modelLabels: List<String>,
     val selectedModelIndex: Int,
     val deviceLabels: List<String>,
