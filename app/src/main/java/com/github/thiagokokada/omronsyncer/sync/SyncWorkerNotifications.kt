@@ -7,7 +7,6 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.os.Build
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
@@ -105,6 +104,9 @@ object SyncWorkerNotifications {
         if (!hasNotificationPermission(context)) {
             return
         }
+        if (!shouldShowSuccessfulSyncNotification(inserted)) {
+            return
+        }
 
         ensureNotificationChannel(context)
         val body = SyncUserMessageFormatter.successNotificationBody(
@@ -132,9 +134,6 @@ object SyncWorkerNotifications {
     }
 
     private fun ensureNotificationChannel(context: Context) {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
-            return
-        }
         val notificationManager =
             context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         val existingChannel = notificationManager.getNotificationChannel(CHANNEL_ID)
@@ -164,11 +163,10 @@ object SyncWorkerNotifications {
     }
 
     private fun hasNotificationPermission(context: Context): Boolean {
-        return Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
-            ContextCompat.checkSelfPermission(
-                context,
-                Manifest.permission.POST_NOTIFICATIONS,
-            ) == PackageManager.PERMISSION_GRANTED
+        return ContextCompat.checkSelfPermission(
+            context,
+            Manifest.permission.POST_NOTIFICATIONS,
+        ) == PackageManager.PERMISSION_GRANTED
     }
 
     private fun timestampText(): String {
@@ -177,4 +175,10 @@ object SyncWorkerNotifications {
 
     private val SUCCESS_TIME_FORMATTER: DateTimeFormatter =
         DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")
+}
+
+internal fun shouldShowSuccessfulSyncNotification(
+    insertedMeasurementCount: Int,
+): Boolean {
+    return insertedMeasurementCount > 0
 }
