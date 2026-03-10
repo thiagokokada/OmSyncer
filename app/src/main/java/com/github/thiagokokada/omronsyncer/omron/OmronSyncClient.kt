@@ -7,9 +7,12 @@ import android.content.Context
 import android.util.Log
 import com.github.thiagokokada.omronsyncer.model.Measurement
 import com.github.thiagokokada.omronsyncer.sync.MissingBluetoothPermissionException
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
 import no.nordicsemi.android.ble.BleManager
 import no.nordicsemi.android.ble.callback.FailCallback
 import no.nordicsemi.android.ble.error.GattError
@@ -98,9 +101,13 @@ class OmronSyncClient(
         private val log: (String) -> Unit,
     ) {
 
+        private val notificationChannel = Channel<ByteArray>(capacity = Channel.UNLIMITED)
         private val manager = OmronBleManager(context, model, log)
 
         suspend fun connect(device: BluetoothDevice) {
+            manager.onNotification = { payload ->
+                notificationChannel.trySend(payload)
+            }
             manager.connectTo(device)
         }
 
@@ -149,6 +156,7 @@ class OmronSyncClient(
 
         suspend fun close() {
             log("Closing GATT session.")
+            notificationChannel.close()
             manager.closeConnection()
         }
 
@@ -162,6 +170,10 @@ class OmronSyncClient(
             repeat(COMMAND_RETRY_COUNT) { retryIndex ->
                 val attempt = retryIndex + 1
                 try {
+                    while (notificationChannel.tryReceive().isSuccess) {
+                        // Discard stale packets before a new request.
+                    }
+
                     log("TX[$attempt]: ${command.toHexString()}")
                     manager.writeCommand(command)
 
@@ -192,7 +204,9 @@ class OmronSyncClient(
             expectedAddress: Int?,
         ): OmronResponse {
             while (true) {
-                val payload = manager.awaitNotification(RESPONSE_TIMEOUT_MS)
+                val payload = withTimeout(RESPONSE_TIMEOUT_MS) {
+                    notificationChannel.receive()
+                }
                 val response = parseResponse(payload)
                 log(
                     "Packet[$attempt]: type=0x${response.packetType.toString(16)} " +
@@ -219,10 +233,11 @@ class OmronSyncClient(
         }
 
         private fun normalizeCommandError(error: Exception): Exception {
-            return if (error is RequestFailedException && error.status == FailCallback.REASON_TIMEOUT) {
-                CommandTimeoutException(error)
-            } else {
-                error
+            return when {
+                error is TimeoutCancellationException -> CommandTimeoutException(error)
+                error is RequestFailedException && error.status == FailCallback.REASON_TIMEOUT ->
+                    CommandTimeoutException(error)
+                else -> error
             }
         }
 
@@ -268,6 +283,7 @@ class OmronSyncClient(
 
         private var txCharacteristic: BluetoothGattCharacteristic? = null
         private var rxCharacteristic: BluetoothGattCharacteristic? = null
+        var onNotification: ((ByteArray) -> Unit)? = null
 
         init {
             setConnectionObserver(
@@ -331,7 +347,9 @@ class OmronSyncClient(
             setNotificationCallback(requireRxCharacteristic())
                 .setHandler(null)
                 .with { _, data ->
-                    sessionLog("RX: ${data.value?.toHexString().orEmpty()}")
+                    val payload = data.value ?: ByteArray(0)
+                    sessionLog("RX: ${payload.toHexString()}")
+                    onNotification?.invoke(payload)
                 }
 
             enableNotifications(requireRxCharacteristic())
@@ -378,18 +396,6 @@ class OmronSyncClient(
             }
         }
 
-        suspend fun awaitNotification(timeoutMs: Long): ByteArray {
-            return try {
-                waitForNotification(requireRxCharacteristic())
-                    .timeout(timeoutMs)
-                    .suspend()
-                    .value
-                    ?: ByteArray(0)
-            } catch (_: SecurityException) {
-                throw MissingBluetoothPermissionException()
-            }
-        }
-
         suspend fun closeConnection() {
             if (isConnected) {
                 runCatching {
@@ -429,7 +435,7 @@ class OmronSyncClient(
         cause: Throwable? = null,
     ) : IllegalStateException(message, cause)
 
-    class CommandTimeoutException(cause: RequestFailedException) :
+    class CommandTimeoutException(cause: Throwable) :
         IllegalStateException("Timed out waiting for response.", cause)
 
     private companion object {
