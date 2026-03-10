@@ -147,6 +147,20 @@ class OmronDeviceRegistryTest {
     }
 
     @Test
+    fun hem7380T1_exposesExpectedPairingBootstrapMetadata() {
+        val model = OmronDeviceRegistry.findById("hem_7380t1")
+
+        assertEquals(
+            UUID.fromString("b305b680-aee7-11e1-a730-0002a5d5c51b"),
+            model.pairingBootstrapUuid,
+        )
+        assertEquals(
+            "015542504d2d50616972696e674b657921",
+            model.pairingBootstrapCommandHex,
+        )
+    }
+
+    @Test
     fun parseMeasurement_rejectsInvalidTimestamp() {
         val measurement = OmronRecordParser.parseMeasurement(
             device = OmronDeviceRegistry.findById("hem_7380t1"),

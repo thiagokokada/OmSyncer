@@ -13,6 +13,7 @@ import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.withTimeoutOrNull
 import no.nordicsemi.android.ble.BleManager
 import no.nordicsemi.android.ble.callback.FailCallback
 import no.nordicsemi.android.ble.error.GattError
@@ -58,6 +59,7 @@ class OmronSyncClient(
         try {
             log("Connecting with Nordic BLE Library...")
             session.connect(device)
+            session.bootstrapPairingKeyIfNeeded()
 
             session.startTransmission()
 
@@ -115,12 +117,13 @@ class OmronSyncClient(
 
     private class OmronBleSession(
         context: Context,
-        model: OmronDeviceDefinition,
+        private val model: OmronDeviceDefinition,
         private val log: (String) -> Unit,
         private val captureBuilder: SyncCaptureBuilder,
     ) {
 
         private val notificationChannel = Channel<ByteArray>(capacity = Channel.UNLIMITED)
+        private val pairingChannel = Channel<ByteArray>(capacity = Channel.UNLIMITED)
         private val manager = OmronBleManager(
             context = context,
             model = model,
@@ -134,7 +137,51 @@ class OmronSyncClient(
             manager.onNotification = { payload ->
                 notificationChannel.trySend(payload)
             }
+            manager.onPairingNotification = { payload ->
+                pairingChannel.trySend(payload)
+            }
             manager.connectTo(device)
+        }
+
+        suspend fun bootstrapPairingKeyIfNeeded() {
+            val pairingCommand = model.pairingBootstrapCommandHex?.hexToByteArray() ?: return
+            if (!manager.hasPairingBootstrapCharacteristic()) {
+                log("Omron pairing-key bootstrap skipped: pairing characteristic unavailable.")
+                return
+            }
+
+            while (pairingChannel.tryReceive().isSuccess) {
+                // Discard stale packets before a bootstrap attempt.
+            }
+
+            log("Attempting Omron pairing-key bootstrap.")
+            try {
+                manager.enablePairingUpdates()
+                log("TX[PK]: ${pairingCommand.toHexString()}")
+                manager.writePairingCommand(pairingCommand)
+                val response = withTimeoutOrNull(PAIRING_RESPONSE_TIMEOUT_MS) {
+                    pairingChannel.receive()
+                }
+                if (response == null) {
+                    log("Omron pairing-key bootstrap produced no response; continuing.")
+                } else {
+                    log("RX[PK]: ${response.toHexString()}")
+                }
+            } catch (error: Exception) {
+                log(
+                    "Omron pairing-key bootstrap failed: " +
+                        "${error.message ?: error.javaClass.simpleName}",
+                )
+            } finally {
+                runCatching {
+                    manager.disablePairingUpdates()
+                }.onFailure { error ->
+                    log(
+                        "Failed to disable Omron pairing-key updates: " +
+                            "${error.message ?: error.javaClass.simpleName}",
+                    )
+                }
+            }
         }
 
         suspend fun startTransmission() {
@@ -197,6 +244,7 @@ class OmronSyncClient(
         suspend fun close() {
             log("Closing GATT session.")
             notificationChannel.close()
+            pairingChannel.close()
             manager.closeConnection()
         }
 
@@ -327,8 +375,10 @@ class OmronSyncClient(
         private var txCharacteristic: BluetoothGattCharacteristic? = null
         private var rxCharacteristic: BluetoothGattCharacteristic? = null
         private var rxContinuationCharacteristic: BluetoothGattCharacteristic? = null
+        private var pairingBootstrapCharacteristic: BluetoothGattCharacteristic? = null
         private val packetAssembler = OmronPacketAssembler()
         var onNotification: ((ByteArray) -> Unit)? = null
+        var onPairingNotification: ((ByteArray) -> Unit)? = null
 
         init {
             setConnectionObserver(
@@ -371,12 +421,16 @@ class OmronSyncClient(
             txCharacteristic = service?.getCharacteristic(model.txUuid)
             rxCharacteristic = service?.getCharacteristic(model.rxUuid)
             rxContinuationCharacteristic = model.rxContinuationUuid?.let(service::getCharacteristic)
+            pairingBootstrapCharacteristic = model.pairingBootstrapUuid?.let(service::getCharacteristic)
             val supported = txCharacteristic?.supportsWrite() == true &&
                 rxCharacteristic?.supportsUpdates() == true
             if (!supported) {
                 sessionLog("Required Omron service or characteristics are missing.")
             } else if (model.rxContinuationUuid != null && rxContinuationCharacteristic == null) {
                 sessionLog("Optional Omron RX continuation characteristic is missing.")
+            }
+            if (model.pairingBootstrapUuid != null && pairingBootstrapCharacteristic == null) {
+                sessionLog("Optional Omron pairing-key characteristic is missing.")
             }
             return supported
         }
@@ -413,12 +467,17 @@ class OmronSyncClient(
                     label = "RX continuation",
                 ).enqueue()
             }
+
+            pairingBootstrapCharacteristic?.let { pairingCharacteristic ->
+                registerPairingCallback(pairingCharacteristic)
+            }
         }
 
         override fun onServicesInvalidated() {
             txCharacteristic = null
             rxCharacteristic = null
             rxContinuationCharacteristic = null
+            pairingBootstrapCharacteristic = null
         }
 
         override fun shouldClearCacheWhenDisconnected(): Boolean {
@@ -475,6 +534,38 @@ class OmronSyncClient(
             return rxCharacteristic ?: throw IllegalStateException("RX characteristic not found.")
         }
 
+        fun hasPairingBootstrapCharacteristic(): Boolean = pairingBootstrapCharacteristic != null
+
+        suspend fun enablePairingUpdates() {
+            val characteristic = pairingBootstrapCharacteristic ?: return
+            enableUpdates(
+                characteristic = characteristic,
+                label = "Pairing bootstrap",
+            ).suspend()
+        }
+
+        suspend fun disablePairingUpdates() {
+            val characteristic = pairingBootstrapCharacteristic ?: return
+            disableUpdates(
+                characteristic = characteristic,
+                label = "Pairing bootstrap",
+            ).suspend()
+        }
+
+        suspend fun writePairingCommand(command: ByteArray) {
+            val characteristic = pairingBootstrapCharacteristic
+                ?: throw IllegalStateException("Pairing characteristic not found.")
+            try {
+                writeCharacteristic(
+                    characteristic,
+                    command,
+                    characteristic.bestWriteType(),
+                ).suspend()
+            } catch (_: SecurityException) {
+                throw MissingBluetoothPermissionException()
+            }
+        }
+
         private fun registerUpdateCallback(
             characteristic: BluetoothGattCharacteristic,
             label: String,
@@ -499,6 +590,20 @@ class OmronSyncClient(
                         onPacketReceived(packet)
                         onNotification?.invoke(packet)
                     }
+                }
+        }
+
+        private fun registerPairingCallback(characteristic: BluetoothGattCharacteristic) {
+            setNotificationCallback(characteristic)
+                .setHandler(null)
+                .with { _, data ->
+                    val fragment = data.value ?: ByteArray(0)
+                    if (fragment.isEmpty()) {
+                        sessionLog("Pairing bootstrap fragment was empty.")
+                        return@with
+                    }
+                    sessionLog("Pairing bootstrap fragment: ${fragment.toHexString()}")
+                    onPairingNotification?.invoke(fragment)
                 }
         }
 
@@ -528,6 +633,35 @@ class OmronSyncClient(
                 enableNotifications(characteristic)
                     .fail { _, status ->
                         sessionLog("$label enable attempt failed: ${describeRequestFailure(status)}")
+                    }
+        }
+
+        private fun disableUpdates(
+            characteristic: BluetoothGattCharacteristic,
+            label: String,
+        ) = when {
+            characteristic.isNotifiable() ->
+                disableNotifications(characteristic)
+                    .done {
+                        sessionLog("$label notifications disabled.")
+                    }
+                    .fail { _, status ->
+                        sessionLog("$label notification disable failed: ${describeRequestFailure(status)}")
+                    }
+
+            characteristic.isIndicatable() ->
+                disableIndications(characteristic)
+                    .done {
+                        sessionLog("$label indications disabled.")
+                    }
+                    .fail { _, status ->
+                        sessionLog("$label indication disable failed: ${describeRequestFailure(status)}")
+                    }
+
+            else ->
+                disableNotifications(characteristic)
+                    .fail { _, status ->
+                        sessionLog("$label disable attempt failed: ${describeRequestFailure(status)}")
                     }
         }
     }
@@ -612,6 +746,7 @@ class OmronSyncClient(
         const val COMMAND_RETRY_DELAY_MS = 400L
         const val CONNECTION_RETRY_COUNT = 3
         const val CONNECTION_RETRY_DELAY_MS = 250
+        const val PAIRING_RESPONSE_TIMEOUT_MS = 1_000L
 
         const val RESPONSE_START = 0x8000
         const val RESPONSE_READ = 0x8100
@@ -733,6 +868,15 @@ internal class OmronPacketAssembler {
         }
 
         return packets
+    }
+}
+
+private fun String.hexToByteArray(): ByteArray {
+    require(length % 2 == 0) {
+        "Hex text must have an even number of characters."
+    }
+    return ByteArray(length / 2) { index ->
+        substring(index * 2, index * 2 + 2).toInt(16).toByte()
     }
 }
 

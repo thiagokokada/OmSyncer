@@ -14,6 +14,8 @@ data class OmronDeviceDefinition(
     val txUuid: UUID,
     val rxUuid: UUID,
     val rxContinuationUuid: UUID? = null,
+    val pairingBootstrapUuid: UUID? = null,
+    val pairingBootstrapCommandHex: String? = null,
     val userLayouts: List<OmronUserLayout>,
     val recordSizeBytes: Int,
     val recordParser: OmronRecordParserDefinition,
@@ -69,6 +71,8 @@ object OmronDeviceRegistry {
         UUID.fromString("49123040-aee8-11e1-a74d-0002a5d5c51b")
     private val FE4A_RX_CONTINUATION_UUID: UUID =
         UUID.fromString("4d0bf320-aee8-11e1-a0d9-0002a5d5c51b")
+    private val FE4A_PAIRING_UUID: UUID =
+        UUID.fromString("b305b680-aee7-11e1-a730-0002a5d5c51b")
 
     private val FE4A_LITTLE_ENDIAN_PARSER = OmronRecordParserDefinition(
         endianness = RecordEndianness.LITTLE,
@@ -107,6 +111,8 @@ object OmronDeviceRegistry {
         txUuid = FE4A_TX_UUID,
         rxUuid = FE4A_RX_UUID,
         rxContinuationUuid = FE4A_RX_CONTINUATION_UUID,
+        pairingBootstrapUuid = FE4A_PAIRING_UUID,
+        pairingBootstrapCommandHex = "015542504d2d50616972696e674b657921",
         userLayouts = listOf(
             OmronUserLayout(user = 1, startAddress = 0x01C4, recordCount = 100),
             OmronUserLayout(user = 2, startAddress = 0x0804, recordCount = 100),
