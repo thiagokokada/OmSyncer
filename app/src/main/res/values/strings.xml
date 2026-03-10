@@ -105,14 +105,14 @@
     <string name="nearby_sync_skipped_no_device">Nearby sync skipped: no device selected.</string>
     <string name="nearby_sync_skipped_permission">Nearby sync skipped: Bluetooth permission is required.</string>
     <string name="nearby_sync_failed">Nearby sync failed: %1$s</string>
-    <string name="nearby_sync_summary_success">Nearby sync fetched %1$d, saved %2$d new, skipped %3$d duplicates.</string>
-    <string name="nearby_sync_summary_success_health_connect">Nearby sync fetched %1$d, saved %2$d new, skipped %3$d duplicates. Exported records to Health Connect.</string>
+    <string name="nearby_sync_summary_no_new">Nearby sync complete. No new measurements.</string>
+    <string name="nearby_sync_summary_no_new_health_connect">Nearby sync complete. Health Connect updated.</string>
     <string name="background_sync_notification_channel_name">Monitor sync</string>
     <string name="nearby_sync_notification_title">Syncing nearby blood pressure monitor</string>
     <string name="nearby_sync_notification_body">Reading measurements after the monitor was detected nearby.</string>
     <string name="sync_success_notification_title">Automatic sync complete</string>
-    <string name="sync_success_notification_body">%1$s · fetched %2$d, saved %3$d new, skipped %4$d duplicates.</string>
-    <string name="sync_success_notification_body_health_connect">%1$s · fetched %2$d, saved %3$d new, skipped %4$d duplicates. Health Connect updated.</string>
+    <string name="sync_success_notification_body_no_new">%1$s · No new measurements.</string>
+    <string name="sync_success_notification_body_no_new_health_connect">%1$s · Health Connect updated.</string>
     <string name="health_connect_status_unavailable">Health Connect is not available on this device.</string>
     <string name="health_connect_status_setup_required">Install or update Health Connect to enable blood pressure export.</string>
     <string name="health_connect_status_not_connected">Grant Health Connect access to export blood pressure.</string>
@@ -161,6 +161,22 @@
     <plurals name="toast_sync_saved_new_health_connect">
         <item quantity="one">Sync complete. Saved %d new measurement. Health Connect updated.</item>
         <item quantity="other">Sync complete. Saved %d new measurements. Health Connect updated.</item>
+    </plurals>
+    <plurals name="nearby_sync_summary_saved_new">
+        <item quantity="one">Nearby sync complete. Saved %d new measurement.</item>
+        <item quantity="other">Nearby sync complete. Saved %d new measurements.</item>
+    </plurals>
+    <plurals name="nearby_sync_summary_saved_new_health_connect">
+        <item quantity="one">Nearby sync complete. Saved %d new measurement. Health Connect updated.</item>
+        <item quantity="other">Nearby sync complete. Saved %d new measurements. Health Connect updated.</item>
+    </plurals>
+    <plurals name="sync_success_notification_body_saved_new">
+        <item quantity="one">%1$s · Saved %2$d new measurement.</item>
+        <item quantity="other">%1$s · Saved %2$d new measurements.</item>
+    </plurals>
+    <plurals name="sync_success_notification_body_saved_new_health_connect">
+        <item quantity="one">%1$s · Saved %2$d new measurement. Health Connect updated.</item>
+        <item quantity="other">%1$s · Saved %2$d new measurements. Health Connect updated.</item>
     </plurals>
     <plurals name="measurement_count">
         <item quantity="one">%d measurement</item>

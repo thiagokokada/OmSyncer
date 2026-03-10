@@ -55,18 +55,10 @@ class NearbySyncWorker(
             delay(INITIAL_SYNC_DELAY_MS)
             val result = syncWithRetries(orchestrator)
             logSyncDiagnostics(source = "nearby", syncLog = result.syncLog)
-            val summary = result.healthConnectExportSummary?.let {
-                applicationContext.getString(
-                    R.string.nearby_sync_summary_success_health_connect,
-                    result.imported,
-                    result.inserted,
-                    result.duplicates,
-                )
-            } ?: applicationContext.getString(
-                R.string.nearby_sync_summary_success,
-                result.imported,
-                result.inserted,
-                result.duplicates,
+            val summary = SyncUserMessageFormatter.nearbySummary(
+                context = applicationContext,
+                inserted = result.inserted,
+                exportedToHealthConnect = result.healthConnectExportSummary != null,
             )
             preferences.persistLastNearbySyncStatus(
                 timestampMillis = System.currentTimeMillis(),
@@ -75,9 +67,7 @@ class NearbySyncWorker(
             SyncWorkerNotifications.showSuccessfulSync(
                 context = applicationContext,
                 notificationId = SUCCESS_NOTIFICATION_ID,
-                fetched = result.imported,
                 inserted = result.inserted,
-                duplicates = result.duplicates,
                 exportedToHealthConnect = result.healthConnectExportSummary != null,
             )
             Log.d(TAG, "Nearby sync completed: $summary")

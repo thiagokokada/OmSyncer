@@ -56,9 +56,7 @@ class SyncOrchestrator(
 
         return SyncExecutionResult(
             persistedMeasurements = persistedMeasurements,
-            imported = saveSummary.imported,
             inserted = saveSummary.inserted,
-            duplicates = saveSummary.duplicates,
             syncLog = (syncResult.diagnostics.entries + orchestrationDiagnostics)
                 .joinToString(separator = "\n"),
             healthConnectExportSummary = healthConnectSummary,
@@ -196,9 +194,7 @@ class SyncOrchestrator(
 
 data class SyncExecutionResult(
     val persistedMeasurements: List<Measurement>,
-    val imported: Int,
     val inserted: Int,
-    val duplicates: Int,
     val syncLog: String,
     val healthConnectExportSummary: HealthConnectBloodPressureExporter.ExportSummary?,
 )
