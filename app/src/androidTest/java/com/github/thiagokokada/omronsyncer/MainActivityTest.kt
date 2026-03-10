@@ -169,7 +169,8 @@ class MainActivityTest {
 
             onView(withId(R.id.chart_view)).perform(scrollTo(), click())
 
-            onView(withId(R.id.selected_reading_card)).check(matches(isDisplayed()))
+            onView(withId(R.id.selected_reading_card))
+                .check(matches(withEffectiveVisibility(Visibility.VISIBLE)))
         }
     }
 
