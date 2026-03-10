@@ -7,22 +7,16 @@ import org.junit.Test
 class SyncCaptureTest {
 
     @Test
-    fun parseFixtureText_replaysCapturedRecordsAgainstCurrentParser() {
-        val capture = loadFixture("fixtures/hem_7380t1_capture.txt")
-        val model = OmronDeviceRegistry.findById(capture.modelId)
+    fun parseFixtureText_replaysSampleFixtureAgainstCurrentParser() {
+        assertFixtureReplays("fixtures/hem_7380t1_capture.txt")
+    }
 
-        capture.records.forEach { record ->
-            val replayed = OmronRecordParser.parseMeasurement(
-                device = model,
-                user = record.user,
-                recordBytes = record.recordBytes(),
-            )
+    @Test
+    fun parseFixtureText_replaysRealFixtureAgainstCurrentParser() {
+        val capture = assertFixtureReplays("fixtures/hem_7380t1_real_capture_20260310.txt")
 
-            assertEquals(
-                record.measurement?.toMeasurement(record.user),
-                replayed,
-            )
-        }
+        assertEquals(200, capture.records.size)
+        assertEquals(91, capture.records.count { it.measurement != null })
     }
 
     @Test
@@ -41,5 +35,25 @@ class SyncCaptureTest {
             "Missing test fixture: $path"
         }.readText()
         return SyncCapture.parseFixtureText(text)
+    }
+
+    private fun assertFixtureReplays(path: String): SyncCapture {
+        val capture = loadFixture(path)
+        val model = OmronDeviceRegistry.findById(capture.modelId)
+
+        capture.records.forEach { record ->
+            val replayed = OmronRecordParser.parseMeasurement(
+                device = model,
+                user = record.user,
+                recordBytes = record.recordBytes(),
+            )
+
+            assertEquals(
+                record.measurement?.toMeasurement(record.user),
+                replayed,
+            )
+        }
+
+        return capture
     }
 }
