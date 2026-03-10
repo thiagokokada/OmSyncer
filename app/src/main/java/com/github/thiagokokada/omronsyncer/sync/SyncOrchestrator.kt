@@ -50,15 +50,16 @@ class SyncOrchestrator(
             "Selected measurement user: ${selectedUser ?: "all"}",
             measurementSnapshot("Stored measurements before sync", preSyncMeasurements),
             measurementSnapshot("Imported measurements from device", syncResult.measurements),
+            "Imported measurements hidden by deleted rows: ${saveSummary.hiddenByDeletedMeasurements}",
             measurementSnapshot("Inserted measurements", saveSummary.insertedMeasurements),
             measurementSnapshot("Stored measurements after sync", persistedAllMeasurements),
         )
 
         return SyncExecutionResult(
             persistedMeasurements = persistedMeasurements,
-            imported = saveSummary.imported,
+            imported = saveSummary.visibleImported,
             inserted = saveSummary.inserted,
-            duplicates = saveSummary.duplicates,
+            duplicates = saveSummary.visibleDuplicates,
             syncLog = (syncResult.diagnostics.entries + orchestrationDiagnostics)
                 .joinToString(separator = "\n"),
             healthConnectExportSummary = healthConnectSummary,

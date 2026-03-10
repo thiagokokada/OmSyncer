@@ -27,11 +27,19 @@ class MeasurementStore(context: Context) {
                 imported = 0,
                 inserted = 0,
                 duplicates = 0,
+                hiddenByDeletedMeasurements = 0,
                 insertedMeasurements = emptyList(),
             )
         }
 
         val db = helper.writableDatabase
+        val hiddenByDeletedMeasurements = measurements.count { measurement ->
+            existsWithDeletedState(
+                db = db,
+                measurement = measurement,
+                deleted = true,
+            )
+        }
         val insertedMeasurements = db.transaction {
             measurements.mapNotNull { measurement ->
                 val rowId = insertWithOnConflict(
@@ -49,6 +57,7 @@ class MeasurementStore(context: Context) {
             imported = measurements.size,
             inserted = insertedCount,
             duplicates = measurements.size - insertedCount,
+            hiddenByDeletedMeasurements = hiddenByDeletedMeasurements,
             insertedMeasurements = insertedMeasurements,
         )
     }
@@ -100,6 +109,72 @@ class MeasurementStore(context: Context) {
         }
     }
 
+    private fun existsWithDeletedState(
+        db: SQLiteDatabase,
+        measurement: Measurement,
+        deleted: Boolean,
+    ): Boolean {
+        db.query(
+            TABLE_MEASUREMENTS,
+            arrayOf(COLUMN_ID),
+            deletedMeasurementSelectionClause(),
+            deletedMeasurementSelectionArgs(measurement, deleted),
+            null,
+            null,
+            null,
+            "1",
+        ).use { cursor ->
+            return cursor.moveToFirst()
+        }
+    }
+
+    private fun deletedMeasurementSelectionClause(): String {
+        return """
+            $COLUMN_DELETED = ? AND
+            $COLUMN_USER = ? AND
+            $COLUMN_RECORDED_AT = ? AND
+            $COLUMN_SYSTOLIC = ? AND
+            $COLUMN_DIASTOLIC = ? AND
+            $COLUMN_PULSE = ? AND
+            $COLUMN_IRREGULAR_HEARTBEAT = ? AND
+            $COLUMN_MOVEMENT = ?
+        """.trimIndent().replace("\n", " ")
+    }
+
+    private fun deletedMeasurementSelectionArgs(
+        measurement: Measurement,
+        deleted: Boolean,
+    ): Array<String> {
+        return arrayOf(
+            if (deleted) "1" else "0",
+            *measurementKeySelectionArgs(measurement),
+        )
+    }
+
+    private fun measurementKeySelectionClause(): String {
+        return """
+            $COLUMN_USER = ? AND
+            $COLUMN_RECORDED_AT = ? AND
+            $COLUMN_SYSTOLIC = ? AND
+            $COLUMN_DIASTOLIC = ? AND
+            $COLUMN_PULSE = ? AND
+            $COLUMN_IRREGULAR_HEARTBEAT = ? AND
+            $COLUMN_MOVEMENT = ?
+        """.trimIndent().replace("\n", " ")
+    }
+
+    private fun measurementKeySelectionArgs(measurement: Measurement): Array<String> {
+        return arrayOf(
+            measurement.user.toString(),
+            STORED_TIME_FORMATTER.format(measurement.recordedAt),
+            measurement.systolic.toString(),
+            measurement.diastolic.toString(),
+            measurement.pulse.toString(),
+            if (measurement.irregularHeartbeat) "1" else "0",
+            if (measurement.movement) "1" else "0",
+        )
+    }
+
     private fun updateDeletedState(measurements: List<Measurement>, deleted: Boolean) {
         if (measurements.isEmpty()) {
             return
@@ -119,24 +194,8 @@ class MeasurementStore(context: Context) {
                             put(COLUMN_DELETED_AT, deletedAt)
                         }
                     },
-                    """
-                    $COLUMN_USER = ? AND
-                    $COLUMN_RECORDED_AT = ? AND
-                    $COLUMN_SYSTOLIC = ? AND
-                    $COLUMN_DIASTOLIC = ? AND
-                    $COLUMN_PULSE = ? AND
-                    $COLUMN_IRREGULAR_HEARTBEAT = ? AND
-                    $COLUMN_MOVEMENT = ?
-                    """.trimIndent().replace("\n", " "),
-                    arrayOf(
-                        measurement.user.toString(),
-                        STORED_TIME_FORMATTER.format(measurement.recordedAt),
-                        measurement.systolic.toString(),
-                        measurement.diastolic.toString(),
-                        measurement.pulse.toString(),
-                        if (measurement.irregularHeartbeat) "1" else "0",
-                        if (measurement.movement) "1" else "0",
-                    ),
+                    measurementKeySelectionClause(),
+                    measurementKeySelectionArgs(measurement),
                 )
             }
         }
@@ -161,8 +220,15 @@ class MeasurementStore(context: Context) {
         val imported: Int,
         val inserted: Int,
         val duplicates: Int,
+        val hiddenByDeletedMeasurements: Int,
         val insertedMeasurements: List<Measurement>,
-    )
+    ) {
+        val visibleImported: Int
+            get() = (imported - hiddenByDeletedMeasurements).coerceAtLeast(0)
+
+        val visibleDuplicates: Int
+            get() = (duplicates - hiddenByDeletedMeasurements).coerceAtLeast(0)
+    }
 
     private class MeasurementDatabaseHelper(context: Context) :
         SQLiteOpenHelper(context, DATABASE_NAME, null, DATABASE_VERSION) {
