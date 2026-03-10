@@ -1227,11 +1227,11 @@ class MainActivity : AppCompatActivity(),
     }
 
     private fun modelLabel(model: OmronDeviceDefinition): String {
-        val status = when (model.verificationLevel) {
-            VerificationLevel.VERIFIED -> getString(R.string.model_support_verified)
-            VerificationLevel.EXPERIMENTAL -> getString(R.string.model_support_experimental)
+        return when (model.verificationLevel) {
+            VerificationLevel.VERIFIED -> model.modelCode
+            VerificationLevel.EXPERIMENTAL ->
+                "${model.modelCode} - ${getString(R.string.model_support_experimental)}"
         }
-        return "${model.modelCode} - $status"
     }
 
     private fun formatSyncTimestamp(timestampMillis: Long): String {
