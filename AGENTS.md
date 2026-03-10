@@ -32,7 +32,24 @@ Repository-specific guidance for coding agents working in this project.
 
 - Normal Gradle command:
   - `./gradlew :app:assembleDebug`
-- On this NixOS machine, `aapt2` needs the existing patch workaround before Gradle builds.
+- For NixOS agent work, prefer entering `nix-shell` from the repo root.
+- `shell.nix` provides the tools that have been missing during agent runs:
+  - `patchelf`
+  - `adb`
+  - `gh`
+  - `rg`
+  - `jdk17`
+- Inside `nix-shell`, prefer:
+  - `gradlew-nix <tasks>` instead of calling `./gradlew` directly
+  - `adb-nix <args>` instead of calling the SDK `adb` directly when debugging from the shell
+- The shell patches both of these SDK tools into `/tmp`:
+  - the newest `aapt2`
+  - `platform-tools/adb`
+- `gradlew-nix` passes `-Pandroid.aapt2FromMavenOverride=...` automatically.
+- `connectedDebugAndroidTest` may still work better from Android Studio, because Gradle can insist on using the SDK-owned `adb` path instead of a shell wrapper.
+- The shell expects the Android SDK to be discoverable from either:
+  - `local.properties` via `sdk.dir`
+  - `ANDROID_SDK_ROOT`
 - Instrumentation tests are expected to run from Android Studio or with `:app:connectedDebugAndroidTest`.
 - Espresso/test dependency versions were updated to work on newer Android test devices. Do not casually downgrade them.
 
