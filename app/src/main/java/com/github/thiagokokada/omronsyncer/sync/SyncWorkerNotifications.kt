@@ -98,9 +98,7 @@ object SyncWorkerNotifications {
     fun showSuccessfulSync(
         context: Context,
         notificationId: Int,
-        fetched: Int,
         inserted: Int,
-        duplicates: Int,
         exportedToHealthConnect: Boolean,
     ) {
         if (!hasNotificationPermission(context)) {
@@ -108,16 +106,11 @@ object SyncWorkerNotifications {
         }
 
         ensureNotificationChannel(context)
-        val body = context.getString(
-            if (exportedToHealthConnect) {
-                R.string.sync_success_notification_body_health_connect
-            } else {
-                R.string.sync_success_notification_body
-            },
-            timestampText(),
-            fetched,
-            inserted,
-            duplicates,
+        val body = SyncUserMessageFormatter.successNotificationBody(
+            context = context,
+            timestampText = timestampText(),
+            inserted = inserted,
+            exportedToHealthConnect = exportedToHealthConnect,
         )
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.stat_notify_sync_noanim)

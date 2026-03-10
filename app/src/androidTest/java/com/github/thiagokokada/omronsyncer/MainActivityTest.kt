@@ -5,6 +5,7 @@ import android.content.Context
 import android.view.View
 import androidx.test.core.app.ActivityScenario
 import androidx.test.core.app.ApplicationProvider
+import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.espresso.Espresso.onView
 import androidx.test.espresso.Espresso.onData
 import androidx.test.espresso.Espresso.pressBack
@@ -12,8 +13,10 @@ import androidx.test.espresso.action.ViewActions.click
 import androidx.test.espresso.action.ViewActions.swipeLeft
 import androidx.test.espresso.action.ViewActions.swipeRight
 import androidx.test.espresso.action.ViewActions.scrollTo
+import androidx.test.espresso.matcher.ViewMatchers.isRoot
 import androidx.test.espresso.UiController
 import androidx.test.espresso.ViewAction
+import androidx.test.espresso.PerformException
 import androidx.test.espresso.assertion.ViewAssertions.matches
 import androidx.test.espresso.matcher.ViewMatchers.isChecked
 import androidx.test.espresso.matcher.ViewMatchers.isDisplayed
@@ -24,6 +27,7 @@ import androidx.test.espresso.matcher.ViewMatchers.withId
 import androidx.test.espresso.matcher.ViewMatchers.withSpinnerText
 import androidx.test.espresso.matcher.ViewMatchers.withText
 import androidx.test.espresso.matcher.ViewMatchers.Visibility
+import androidx.test.espresso.util.TreeIterables
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.rule.GrantPermissionRule
 import androidx.recyclerview.widget.RecyclerView
@@ -56,6 +60,7 @@ class MainActivityTest {
 
     @Before
     fun setUp() {
+        grantRuntimePermissions()
         clearPreferences()
         clearMeasurements()
         suppressInitialPermissionPrompt()
@@ -152,13 +157,20 @@ class MainActivityTest {
 
         ActivityScenario.launch(MainActivity::class.java).use {
             onView(withId(R.id.navigation_trends)).perform(click())
+            onView(isRoot()).perform(
+                waitForMatchingView(
+                    allOf(withId(R.id.chart_card), isDisplayed()),
+                    5_000,
+                ),
+            )
 
             onView(withId(R.id.selected_reading_card))
                 .check(matches(withEffectiveVisibility(Visibility.GONE)))
 
-            onView(withId(R.id.chart_view)).perform(click())
+            onView(withId(R.id.chart_view)).perform(scrollTo(), click())
 
-            onView(withId(R.id.selected_reading_card)).check(matches(isDisplayed()))
+            onView(withId(R.id.selected_reading_card))
+                .check(matches(withEffectiveVisibility(Visibility.VISIBLE)))
         }
     }
 
@@ -289,6 +301,23 @@ class MainActivityTest {
         MeasurementStore(context).saveAll(measurements)
     }
 
+    private fun grantRuntimePermissions() {
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        val uiAutomation = instrumentation.uiAutomation
+        val packageName = instrumentation.targetContext.packageName
+
+        uiAutomation.adoptShellPermissionIdentity()
+        try {
+            TEST_PERMISSIONS.forEach { permission ->
+                uiAutomation.grantRuntimePermission(packageName, permission)
+            }
+        } finally {
+            uiAutomation.dropShellPermissionIdentity()
+        }
+
+        instrumentation.waitForIdleSync()
+    }
+
     private fun suppressInitialPermissionPrompt() {
         SyncPreferences(context).setInitialBluetoothPermissionPromptShown(true)
     }
@@ -345,5 +374,44 @@ class MainActivityTest {
                 swipeRight().perform(uiController, viewHolder.itemView)
             }
         }
+    }
+
+    private fun waitForMatchingView(
+        viewMatcher: Matcher<View>,
+        timeoutMillis: Long,
+    ): ViewAction {
+        return object : ViewAction {
+            override fun getConstraints(): Matcher<View> = isRoot()
+
+            override fun getDescription(): String {
+                return "wait up to $timeoutMillis milliseconds for a matching view"
+            }
+
+            override fun perform(uiController: UiController, view: View) {
+                val endTime = System.currentTimeMillis() + timeoutMillis
+                do {
+                    TreeIterables.breadthFirstViewTraversal(view).forEach { child ->
+                        if (viewMatcher.matches(child)) {
+                            return
+                        }
+                    }
+                    uiController.loopMainThreadForAtLeast(50)
+                } while (System.currentTimeMillis() < endTime)
+
+                throw PerformException.Builder()
+                    .withActionDescription(description)
+                    .withViewDescription(view.toString())
+                    .build()
+            }
+        }
+    }
+
+    companion object {
+        private val TEST_PERMISSIONS =
+            arrayOf(
+                Manifest.permission.BLUETOOTH_CONNECT,
+                Manifest.permission.BLUETOOTH_SCAN,
+                Manifest.permission.POST_NOTIFICATIONS,
+            )
     }
 }
