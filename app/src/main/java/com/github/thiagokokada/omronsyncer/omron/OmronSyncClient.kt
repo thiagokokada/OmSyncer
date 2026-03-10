@@ -97,7 +97,7 @@ class OmronSyncClient(
 
     private class OmronBleSession(
         context: Context,
-        private val model: OmronDeviceDefinition,
+        model: OmronDeviceDefinition,
         private val log: (String) -> Unit,
     ) {
 
@@ -233,10 +233,11 @@ class OmronSyncClient(
         }
 
         private fun normalizeCommandError(error: Exception): Exception {
-            return when {
-                error is TimeoutCancellationException -> CommandTimeoutException(error)
-                error is RequestFailedException && error.status == FailCallback.REASON_TIMEOUT ->
+            return when (error) {
+                is TimeoutCancellationException -> CommandTimeoutException(error)
+                is RequestFailedException if error.status == FailCallback.REASON_TIMEOUT ->
                     CommandTimeoutException(error)
+
                 else -> error
             }
         }
