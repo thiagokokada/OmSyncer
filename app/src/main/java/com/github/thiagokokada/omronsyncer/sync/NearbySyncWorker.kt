@@ -31,11 +31,14 @@ class NearbySyncWorker(
         )
 
         val preferences = SyncPreferences(applicationContext)
+        val syncRunCoordinator = SyncRunCoordinator(applicationContext)
         val orchestrator = SyncOrchestrator(
             context = applicationContext,
             syncClient = OmronSyncClient(applicationContext),
             syncPreferences = preferences,
+            syncRunCoordinator = syncRunCoordinator,
         )
+        val triggeredAtMillis = inputData.getLong(KEY_TRIGGERED_AT_MILLIS, -1L)
         preferences.persistLastNearbySyncStatus(
             timestampMillis = System.currentTimeMillis(),
             summary = applicationContext.getString(R.string.nearby_sync_summary_triggered),
@@ -51,8 +54,14 @@ class NearbySyncWorker(
             return Result.success()
         }
 
-        return runCatching {
+        return try {
             delay(INITIAL_SYNC_DELAY_MS)
+            if (syncRunCoordinator.hasSuccessfulSyncSince(triggeredAtMillis)) {
+                return skipNearbySync(
+                    preferences = preferences,
+                    summary = applicationContext.getString(R.string.nearby_sync_skipped_recent_sync),
+                )
+            }
             val result = syncWithRetries(orchestrator)
             logSyncDiagnostics(source = "nearby", syncLog = result.syncLog)
             val summary = SyncUserMessageFormatter.nearbySummary(
@@ -71,32 +80,35 @@ class NearbySyncWorker(
                 exportedToHealthConnect = result.healthConnectExportSummary != null,
             )
             Log.d(TAG, "Nearby sync completed: $summary")
-        }.fold(
-            onSuccess = {
-                SyncWorkerNotifications.dismiss(applicationContext, NOTIFICATION_ID)
-                Result.success()
-            },
-            onFailure = { error ->
-                if (error is OmronSyncClient.SyncException) {
-                    logSyncDiagnostics(source = "nearby-failure", syncLog = error.diagnostics.asText())
-                }
-                val summary = if (error is MissingBluetoothPermissionException) {
-                    applicationContext.getString(R.string.nearby_sync_skipped_permission)
-                } else {
-                    applicationContext.getString(
-                        R.string.nearby_sync_failed,
-                        error.message ?: error.javaClass.simpleName,
-                    )
-                }
-                preferences.persistLastNearbySyncStatus(
-                    timestampMillis = System.currentTimeMillis(),
-                    summary = summary,
+            SyncWorkerNotifications.dismiss(applicationContext, NOTIFICATION_ID)
+            Result.success()
+        } catch (error: Throwable) {
+            if (error is OmronSyncClient.SyncException) {
+                logSyncDiagnostics(source = "nearby-failure", syncLog = error.diagnostics.asText())
+            }
+            if (error is SyncAlreadyInProgressException) {
+                return skipNearbySync(
+                    preferences = preferences,
+                    summary = applicationContext.getString(R.string.nearby_sync_skipped_in_progress),
                 )
-                SyncWorkerNotifications.dismiss(applicationContext, NOTIFICATION_ID)
-                Log.e(TAG, "Nearby sync failed: $summary", error)
-                Result.failure()
-            },
-        )
+            }
+
+            val summary = if (error is MissingBluetoothPermissionException) {
+                applicationContext.getString(R.string.nearby_sync_skipped_permission)
+            } else {
+                applicationContext.getString(
+                    R.string.nearby_sync_failed,
+                    error.message ?: error.javaClass.simpleName,
+                )
+            }
+            preferences.persistLastNearbySyncStatus(
+                timestampMillis = System.currentTimeMillis(),
+                summary = summary,
+            )
+            SyncWorkerNotifications.dismiss(applicationContext, NOTIFICATION_ID)
+            Log.e(TAG, "Nearby sync failed: $summary", error)
+            Result.failure()
+        }
     }
 
     private suspend fun syncWithRetries(orchestrator: SyncOrchestrator): SyncExecutionResult {
@@ -138,12 +150,26 @@ class NearbySyncWorker(
             .filter { it.isNotBlank() }
             .forEach { line ->
                 Log.d(SYNC_LOG_TAG, "[$source] $line")
-            }
+        }
         Log.d(SYNC_LOG_TAG, "[$source] diagnostics end")
+    }
+
+    private fun skipNearbySync(
+        preferences: SyncPreferences,
+        summary: String,
+    ): Result {
+        preferences.persistLastNearbySyncStatus(
+            timestampMillis = System.currentTimeMillis(),
+            summary = summary,
+        )
+        SyncWorkerNotifications.dismiss(applicationContext, NOTIFICATION_ID)
+        Log.d(TAG, summary)
+        return Result.success()
     }
 
     companion object {
         const val UNIQUE_WORK_NAME = "nearby_sync"
+        const val KEY_TRIGGERED_AT_MILLIS = "triggered_at_millis"
         private const val TAG = "OmSyncerNearby"
         private const val SYNC_LOG_TAG = "OmSyncerSync"
         private const val NOTIFICATION_ID = 1002
