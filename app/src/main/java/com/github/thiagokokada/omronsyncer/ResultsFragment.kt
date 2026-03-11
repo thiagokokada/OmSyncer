@@ -24,6 +24,7 @@ class ResultsFragment : Fragment() {
 
     interface Host {
         fun currentUiState(): MainUiState
+        fun onResultsRangeSelected(range: TrendRange)
         fun onMeasurementDeleteRequested(measurement: Measurement)
         fun onSyncRequested()
     }
@@ -61,6 +62,15 @@ class ResultsFragment : Fragment() {
         binding.syncButton.setOnClickListener {
             host.onSyncRequested()
         }
+        binding.resultsRangeSevenDays.setOnClickListener {
+            host.onResultsRangeSelected(TrendRange.SEVEN_DAYS)
+        }
+        binding.resultsRangeThirtyDays.setOnClickListener {
+            host.onResultsRangeSelected(TrendRange.THIRTY_DAYS)
+        }
+        binding.resultsRangeAll.setOnClickListener {
+            host.onResultsRangeSelected(TrendRange.ALL)
+        }
     }
 
     override fun onResume() {
@@ -73,8 +83,15 @@ class ResultsFragment : Fragment() {
             return
         }
 
+        binding.resultsRangeToggle.check(
+            when (state.selectedTrendRange) {
+                TrendRange.SEVEN_DAYS -> R.id.results_range_seven_days
+                TrendRange.THIRTY_DAYS -> R.id.results_range_thirty_days
+                TrendRange.ALL -> R.id.results_range_all
+            },
+        )
         adapter.setShowUserColumn(state.showsMeasurementUserColumn)
-        adapter.submitList(state.measurements)
+        adapter.submitList(state.resultsMeasurements)
 
         binding.syncButton.isEnabled = state.canSync && !state.isWorking
         binding.syncButton.text = if (state.isWorking) {
@@ -85,11 +102,14 @@ class ResultsFragment : Fragment() {
 
         binding.measurementCount.text = resources.getQuantityString(
             R.plurals.measurement_count,
-            state.measurements.size,
-            state.measurements.size,
+            state.resultsMeasurements.size,
+            state.resultsMeasurements.size,
         )
 
-        val latestMeasurement = state.measurements.firstOrNull()
+        val latestMeasurement = state.resultsMeasurements.firstOrNull()
+        val hasActiveFilter =
+            state.selectedTrendRange != TrendRange.ALL ||
+                (state.selectedMeasurementUser != null && state.measurementUserOptions.size > 1)
         binding.latestMeasurement.text = latestMeasurement?.let {
             getString(
                 R.string.latest_measurement_summary,
@@ -98,17 +118,15 @@ class ResultsFragment : Fragment() {
                 it.diastolic,
                 it.pulse,
             )
-        } ?: if (state.selectedMeasurementUser != null && state.measurementUserOptions.size > 1) {
+        } ?: if (hasActiveFilter) {
             getString(R.string.no_measurement_summary_filtered)
         } else {
             getString(R.string.no_measurement_summary)
         }
 
         binding.emptyState.visibility =
-            if (state.measurements.isEmpty()) View.VISIBLE else View.GONE
-        binding.emptyState.text = if (
-            state.selectedMeasurementUser != null && state.measurementUserOptions.size > 1
-        ) {
+            if (state.resultsMeasurements.isEmpty()) View.VISIBLE else View.GONE
+        binding.emptyState.text = if (hasActiveFilter) {
             getString(R.string.empty_measurements_filtered)
         } else {
             getString(R.string.empty_measurements)

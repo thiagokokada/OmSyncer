@@ -57,11 +57,15 @@ enum class TrendRange {
     ALL,
     ;
 
-    fun includes(recordedAt: LocalDateTime, now: LocalDateTime): Boolean {
+    fun recordedAtFrom(now: LocalDateTime): LocalDateTime? {
         return when (this) {
-            SEVEN_DAYS -> !recordedAt.isBefore(now.minusDays(7))
-            THIRTY_DAYS -> !recordedAt.isBefore(now.minusDays(30))
-            ALL -> true
+            SEVEN_DAYS -> now.minusDays(7)
+            THIRTY_DAYS -> now.minusDays(30)
+            ALL -> null
         }
+    }
+
+    fun includes(recordedAt: LocalDateTime, now: LocalDateTime): Boolean {
+        return recordedAtFrom(now)?.let { cutoff -> !recordedAt.isBefore(cutoff) } ?: true
     }
 }
