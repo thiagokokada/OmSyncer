@@ -151,7 +151,7 @@
     <string name="health_connect_status_not_connected">Grant Health Connect access to export blood pressure and pulse.</string>
     <string name="health_connect_status_connected">Ready to export blood pressure records.</string>
     <string name="health_connect_rationale_title">OmSyncer permissions</string>
-    <string name="health_connect_rationale_body">OmSyncer writes blood pressure and pulse measurements from your paired Omron monitor into Health Connect when you sync. OmSyncer does not read Health Connect data in this version, and Omron-only flags like irregular heartbeat and movement stay inside OmSyncer.</string>
+    <string name="health_connect_rationale_body">OmSyncer writes blood pressure and pulse measurements from your paired Omron monitor into Health Connect when you sync. OmSyncer does not import Health Connect data. Some Omron-specific details stay only in OmSyncer.</string>
     <string name="close_label">Close</string>
     <string name="column_time">Time</string>
     <string name="column_sys">SYS</string>
