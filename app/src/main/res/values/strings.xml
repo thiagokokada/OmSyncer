@@ -122,6 +122,7 @@
     <string name="nearby_sync_skipped_permission">Nearby sync skipped: Bluetooth permission is required.</string>
     <string name="nearby_sync_skipped_in_progress">Nearby sync skipped: another sync is already running.</string>
     <string name="nearby_sync_skipped_recent_sync">Nearby sync skipped: the monitor was already synced.</string>
+    <string name="nearby_sync_retry_scheduled">Nearby sync will retry automatically: %1$s</string>
     <string name="nearby_sync_failed">Nearby sync failed: %1$s</string>
     <string name="nearby_sync_summary_no_new">Nearby sync complete. No new measurements.</string>
     <string name="nearby_sync_summary_no_new_health_connect">Nearby sync complete. Health Connect updated.</string>

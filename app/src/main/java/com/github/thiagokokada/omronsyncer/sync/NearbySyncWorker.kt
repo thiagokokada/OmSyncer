@@ -14,7 +14,7 @@ class NearbySyncWorker(
 ) : CoroutineWorker(appContext, workerParams) {
 
     override suspend fun doWork(): Result {
-        Log.d(TAG, "Nearby sync worker started.")
+        Log.d(TAG, "Nearby sync worker started. runAttemptCount=$runAttemptCount")
         SyncWorkerNotifications.showRunningSync(
             context = applicationContext,
             notificationId = NOTIFICATION_ID,
@@ -62,7 +62,7 @@ class NearbySyncWorker(
                     summary = applicationContext.getString(R.string.nearby_sync_skipped_recent_sync),
                 )
             }
-            val result = syncWithRetries(orchestrator)
+            val result = syncWithImmediateRetries(orchestrator)
             logSyncDiagnostics(source = "nearby", syncLog = result.syncLog)
             val summary = SyncUserMessageFormatter.nearbySummary(
                 context = applicationContext,
@@ -95,6 +95,11 @@ class NearbySyncWorker(
 
             val summary = if (error is MissingBluetoothPermissionException) {
                 applicationContext.getString(R.string.nearby_sync_skipped_permission)
+            } else if (NearbySyncRetryPolicy.shouldRetryWithWorkManager(error, runAttemptCount)) {
+                applicationContext.getString(
+                    R.string.nearby_sync_retry_scheduled,
+                    error.message ?: error.javaClass.simpleName,
+                )
             } else {
                 applicationContext.getString(
                     R.string.nearby_sync_failed,
@@ -106,27 +111,32 @@ class NearbySyncWorker(
                 summary = summary,
             )
             SyncWorkerNotifications.dismiss(applicationContext, NOTIFICATION_ID)
+            if (NearbySyncRetryPolicy.shouldRetryWithWorkManager(error, runAttemptCount)) {
+                Log.w(TAG, "Nearby sync failed with a retryable error; handing off retry to WorkManager.", error)
+                return Result.retry()
+            }
+            preferences.clearLastNearbySyncTriggerAtMillis()
             Log.e(TAG, "Nearby sync failed: $summary", error)
             Result.failure()
         }
     }
 
-    private suspend fun syncWithRetries(orchestrator: SyncOrchestrator): SyncExecutionResult {
+    private suspend fun syncWithImmediateRetries(orchestrator: SyncOrchestrator): SyncExecutionResult {
         var lastError: Throwable? = null
 
-        repeat(MAX_SYNC_ATTEMPTS) { attemptIndex ->
+        repeat(NearbySyncRetryPolicy.IMMEDIATE_ATTEMPT_COUNT) { attemptIndex ->
             try {
                 return orchestrator.syncSelectedDevice(syncSource = "nearby")
             } catch (error: Throwable) {
                 lastError = error
-                val hasRetryRemaining = attemptIndex + 1 < MAX_SYNC_ATTEMPTS
-                if (!hasRetryRemaining || !isRetryableBackgroundFailure(error)) {
+                val attemptNumber = attemptIndex + 1
+                if (!NearbySyncRetryPolicy.shouldRetryImmediately(error, attemptNumber)) {
                     throw error
                 }
-                val retryDelayMillis = RETRY_DELAY_MS * (attemptIndex + 1L)
+                val retryDelayMillis = NearbySyncRetryPolicy.IMMEDIATE_RETRY_DELAY_MS * attemptNumber
                 Log.w(
                     TAG,
-                    "Nearby sync attempt ${attemptIndex + 1} failed, retrying in " +
+                    "Nearby sync attempt $attemptNumber failed, retrying in " +
                         "${retryDelayMillis}ms: ${error.message ?: error.javaClass.simpleName}",
                     error,
                 )
@@ -134,11 +144,7 @@ class NearbySyncWorker(
             }
         }
 
-        throw IllegalStateException("Nearby sync failed after retries.", lastError)
-    }
-
-    private fun isRetryableBackgroundFailure(error: Throwable): Boolean {
-        return RetryableSyncFailureClassifier.isRetryable(error)
+        throw IllegalStateException("Nearby sync failed after immediate retries.", lastError)
     }
 
     private fun logSyncDiagnostics(source: String, syncLog: String) {
@@ -174,8 +180,6 @@ class NearbySyncWorker(
         private const val SYNC_LOG_TAG = "OmSyncerSync"
         private const val NOTIFICATION_ID = 1002
         private const val SUCCESS_NOTIFICATION_ID = 1003
-        private const val MAX_SYNC_ATTEMPTS = 5
         private const val INITIAL_SYNC_DELAY_MS = 6_000L
-        private const val RETRY_DELAY_MS = 5_000L
     }
 }

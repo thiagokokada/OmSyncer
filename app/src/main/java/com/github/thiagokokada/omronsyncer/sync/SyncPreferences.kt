@@ -127,6 +127,12 @@ class SyncPreferences(context: Context) {
         }
     }
 
+    fun clearLastNearbySyncTriggerAtMillis() {
+        preferences.edit(commit = true) {
+            remove(PREF_LAST_NEARBY_SYNC_TRIGGER_AT_MILLIS)
+        }
+    }
+
     companion object {
         const val PREFERENCES_NAME = "om_syncer_prefs"
         const val PREF_SELECTED_MODEL_ID = "selected_model_id"

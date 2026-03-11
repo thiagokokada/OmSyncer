@@ -6,11 +6,13 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.util.Log
+import androidx.work.BackoffPolicy
 import androidx.work.ExistingWorkPolicy
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.OutOfQuotaPolicy
 import androidx.work.WorkManager
 import androidx.work.workDataOf
+import java.util.concurrent.TimeUnit
 
 class NearbySyncReceiver : BroadcastReceiver() {
 
@@ -58,6 +60,11 @@ class NearbySyncReceiver : BroadcastReceiver() {
                 workDataOf(
                     NearbySyncWorker.KEY_TRIGGERED_AT_MILLIS to now,
                 ),
+            )
+            .setBackoffCriteria(
+                BackoffPolicy.EXPONENTIAL,
+                NearbySyncRetryPolicy.WORK_REQUEST_BACKOFF_DELAY_MS,
+                TimeUnit.MILLISECONDS,
             )
             .setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)
             .build()
