@@ -20,6 +20,7 @@ import no.nordicsemi.android.ble.exception.RequestFailedException
 import no.nordicsemi.android.ble.ktx.suspend
 import no.nordicsemi.android.ble.observer.ConnectionObserver
 import java.time.Instant
+import java.time.LocalDateTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
@@ -58,7 +59,7 @@ class OmronSyncClient(
         try {
             log("Connecting with Nordic BLE Library...")
             session.connect(device)
-
+            session.performSyncSessionHandshakeIfRequired()
             session.startTransmission()
 
             val measurements = buildList {
@@ -89,6 +90,73 @@ class OmronSyncClient(
         }
     }
 
+    suspend fun pair(
+        device: BluetoothDevice,
+        model: OmronDeviceDefinition,
+    ): PairingResult = withContext(Dispatchers.IO) {
+        val diagnostics = mutableListOf<String>()
+        fun log(message: String) {
+            diagnostics += "${timestampText()} - $message"
+        }
+
+        val deviceLabel = try {
+            "${device.name ?: "Unknown"} (${device.address})"
+        } catch (_: SecurityException) {
+            "Unknown device"
+        }
+        val captureBuilder = SyncCaptureBuilder(
+            model = model,
+            deviceName = try {
+                device.name
+            } catch (_: SecurityException) {
+                null
+            },
+            deviceAddress = device.address,
+        )
+
+        log("Model: ${model.modelCode} (${model.marketedName})")
+        log("Selected device: $deviceLabel")
+
+        try {
+            if (!model.supportsAppPairingStep) {
+                throw IllegalStateException("This monitor model does not expose an Omron pairing step in the app.")
+            }
+
+            val bondState = try {
+                device.bondState
+            } catch (_: SecurityException) {
+                throw MissingBluetoothPermissionException()
+            }
+            if (bondState != BluetoothDevice.BOND_BONDED) {
+                throw IllegalStateException("Pair the monitor in Android Bluetooth settings first.")
+            }
+            log("Bluetooth bond already present.")
+
+            val session = OmronBleSession(context, model, ::log, captureBuilder)
+            try {
+                log("Connecting with Nordic BLE Library...")
+                session.connect(device)
+                session.performOhqInitialPairingFinalization()
+            } finally {
+                session.close()
+            }
+
+            log("Pairing completed successfully.")
+            return@withContext PairingResult(
+                diagnostics = SyncDiagnostics(diagnostics.toList()),
+                capture = captureBuilder.build(),
+            )
+        } catch (error: Exception) {
+            log("Pairing failed: ${error.message ?: error.javaClass.simpleName}")
+            throw PairingException(
+                message = error.message ?: "Pairing failed.",
+                diagnostics = SyncDiagnostics(diagnostics.toList()),
+                capture = captureBuilder.build(),
+                cause = error,
+            )
+        }
+    }
+
     private suspend fun readUser(
         session: OmronBleSession,
         model: OmronDeviceDefinition,
@@ -115,12 +183,13 @@ class OmronSyncClient(
 
     private class OmronBleSession(
         context: Context,
-        model: OmronDeviceDefinition,
+        private val model: OmronDeviceDefinition,
         private val log: (String) -> Unit,
         private val captureBuilder: SyncCaptureBuilder,
     ) {
 
         private val notificationChannel = Channel<ByteArray>(capacity = Channel.UNLIMITED)
+        private val pairingChannel = Channel<ByteArray>(capacity = Channel.UNLIMITED)
         private val manager = OmronBleManager(
             context = context,
             model = model,
@@ -134,7 +203,95 @@ class OmronSyncClient(
             manager.onNotification = { payload ->
                 notificationChannel.trySend(payload)
             }
+            manager.onPairingNotification = { payload ->
+                pairingChannel.trySend(payload)
+            }
             manager.connectTo(device)
+        }
+
+        suspend fun performOhqInitialPairingFinalization() {
+            require(model.pairingWorkflow == OmronPairingWorkflow.OHQ_SESSION_FINALIZATION) {
+                "This monitor model does not expose an OHQ first-time pairing session."
+            }
+            val setupWriteData = model.pairingSetupWriteHex?.hexToByteArray()
+                ?: throw IllegalStateException("OHQ pairing setup payload is unavailable for this monitor.")
+
+            performSyncSessionHandshakeIfRequired()
+            startTransmission()
+
+            log("Reading first-time pairing configuration blocks.")
+            readRecord(
+                address = OmronOhqProtocol.PAIRING_SETTINGS_READ_ADDRESS,
+                recordSize = OmronOhqProtocol.PAIRING_SETTINGS_READ_SIZE,
+            )
+            val clockSeedBlock = readRecord(
+                address = OmronOhqProtocol.PAIRING_CLOCK_SEED_READ_ADDRESS,
+                recordSize = OmronOhqProtocol.PAIRING_CLOCK_SEED_READ_SIZE,
+            )
+
+            log("Writing first-time pairing configuration block.")
+            writeMemoryBlock(
+                address = OmronOhqProtocol.PAIRING_SETTINGS_WRITE_ADDRESS,
+                data = setupWriteData,
+            )
+
+            log("Writing monitor clock during pairing.")
+            writeMemoryBlock(
+                address = OmronOhqProtocol.PAIRING_CLOCK_WRITE_ADDRESS,
+                data = OmronOhqProtocol.buildClockWriteData(
+                    seedBlock = clockSeedBlock,
+                    timestamp = LocalDateTime.now(),
+                ),
+            )
+
+            endTransmission()
+        }
+
+        suspend fun performSyncSessionHandshakeIfRequired() {
+            if (!model.syncSessionHandshakeEnabled) {
+                return
+            }
+            if (!manager.hasPairingBootstrapCharacteristic()) {
+                throw IllegalStateException("Omron sync-session handshake characteristic is unavailable.")
+            }
+
+            while (pairingChannel.tryReceive().isSuccess) {
+                // Discard stale packets before the per-sync session handshake.
+            }
+
+            val command = buildSyncSessionHandshakeCommand()
+            log("Starting Omron sync-session handshake.")
+            try {
+                manager.enablePairingUpdates()
+                delay(PAIRING_CHARACTERISTIC_SETTLE_DELAY_MS)
+                log("TX[SK1]: ${command.toHexString()}")
+                captureBuilder.addPacket(SyncPacketDirection.TX, command)
+                manager.writePairingCommand(command)
+                val response = withTimeout(SYNC_SESSION_HANDSHAKE_TIMEOUT_MS) {
+                    pairingChannel.receive()
+                }
+                log("RX[SK1]: ${response.toHexString()}")
+                captureBuilder.addPacket(SyncPacketDirection.RX, response)
+
+                require(response.size >= 6) {
+                    "Sync-session handshake response was too short: ${response.size} bytes."
+                }
+                require(response[0] == 0x91.toByte() && response[1] == 0x00.toByte()) {
+                    "Unexpected sync-session handshake response header: ${response.toHexString()}"
+                }
+                require(response.copyOfRange(2, 6).contentEquals(command.copyOfRange(1, 5))) {
+                    "Sync-session handshake response did not echo the request token."
+                }
+            } finally {
+                runCatching {
+                    manager.disablePairingUpdates()
+                }.onFailure { error ->
+                    log(
+                        "Failed to disable Omron sync-session updates: " +
+                            "${error.message ?: error.javaClass.simpleName}",
+                    )
+                }
+            }
         }
 
         suspend fun startTransmission() {
@@ -197,7 +354,19 @@ class OmronSyncClient(
         suspend fun close() {
             log("Closing GATT session.")
             notificationChannel.close()
+            pairingChannel.close()
             manager.closeConnection()
+        }
+
+        private suspend fun writeMemoryBlock(address: Int, data: ByteArray) {
+            val response = sendCommand(
+                command = OmronOhqProtocol.buildWriteCommand(address = address, data = data),
+                expectedPacketType = RESPONSE_WRITE,
+                expectedAddress = address,
+            )
+            require(response.data.contentEquals(data)) {
+                "Write response mismatch for 0x${address.toString(16)}."
+            }
         }
 
         private suspend fun sendCommand(
@@ -207,7 +376,7 @@ class OmronSyncClient(
         ): OmronResponse {
             var lastError: Exception? = null
 
-            repeat(COMMAND_RETRY_COUNT) { retryIndex ->
+            repeat(OmronRetryPolicy.COMMAND_RETRY_COUNT) { retryIndex ->
                 val attempt = retryIndex + 1
                 try {
                     while (notificationChannel.tryReceive().isSuccess) {
@@ -227,16 +396,21 @@ class OmronSyncClient(
                     val normalizedError = normalizeCommandError(error)
                     lastError = normalizedError
                     log(
-                        "Command attempt $attempt/$COMMAND_RETRY_COUNT failed: " +
+                        "Command attempt $attempt/${OmronRetryPolicy.COMMAND_RETRY_COUNT} failed: " +
                             "${normalizedError.message ?: normalizedError.javaClass.simpleName}",
                     )
-                    if (attempt < COMMAND_RETRY_COUNT) {
-                        delay(COMMAND_RETRY_DELAY_MS)
+                    if (attempt < OmronRetryPolicy.COMMAND_RETRY_COUNT) {
+                        val retryDelayMs = OmronRetryPolicy.commandRetryDelayMs(attempt)
+                        log("Waiting ${retryDelayMs}ms before retrying command.")
+                        delay(retryDelayMs)
                     }
                 }
             }
 
-            throw IllegalStateException("Command failed after $COMMAND_RETRY_COUNT attempts.", lastError)
+            throw IllegalStateException(
+                "Command failed after ${OmronRetryPolicy.COMMAND_RETRY_COUNT} attempts.",
+                lastError,
+            )
         }
 
         private suspend fun awaitMatchingResponse(
@@ -326,7 +500,11 @@ class OmronSyncClient(
 
         private var txCharacteristic: BluetoothGattCharacteristic? = null
         private var rxCharacteristic: BluetoothGattCharacteristic? = null
+        private var rxContinuationCharacteristic: BluetoothGattCharacteristic? = null
+        private var pairingBootstrapCharacteristic: BluetoothGattCharacteristic? = null
+        private val packetAssembler = OmronPacketAssembler()
         var onNotification: ((ByteArray) -> Unit)? = null
+        var onPairingNotification: ((ByteArray) -> Unit)? = null
 
         init {
             setConnectionObserver(
@@ -368,9 +546,18 @@ class OmronSyncClient(
             val service = gatt.getService(model.serviceUuid)
             txCharacteristic = service?.getCharacteristic(model.txUuid)
             rxCharacteristic = service?.getCharacteristic(model.rxUuid)
-            val supported = txCharacteristic != null && rxCharacteristic != null
+            rxContinuationCharacteristic = model.rxContinuationUuid?.let(service::getCharacteristic)
+            pairingBootstrapCharacteristic = model.pairingBootstrapUuid?.let(service::getCharacteristic)
+            val supported =
+                txCharacteristic?.supportsWrite() == true &&
+                    rxCharacteristic?.supportsUpdates() == true
             if (!supported) {
                 sessionLog("Required Omron service or characteristics are missing.")
+            } else if (model.rxContinuationUuid != null && rxContinuationCharacteristic == null) {
+                sessionLog("Optional Omron RX continuation characteristic is missing.")
+            }
+            if (model.pairingBootstrapUuid != null && pairingBootstrapCharacteristic == null) {
+                sessionLog("Optional Omron pairing-key characteristic is missing.")
             }
             return supported
         }
@@ -386,29 +573,42 @@ class OmronSyncClient(
                 }
                 .enqueue()
 
-            sessionLog("Enabling RX notifications...")
-            setNotificationCallback(requireRxCharacteristic())
-                .setHandler(null)
-                .with { _, data ->
-                    val payload = data.value ?: ByteArray(0)
-                    sessionLog("RX: ${payload.toHexString()}")
-                    onPacketReceived(payload)
-                    onNotification?.invoke(payload)
-                }
+            registerUpdateCallback(
+                characteristic = requireRxCharacteristic(),
+                label = "RX primary",
+                startsPacket = true,
+            )
+            enableUpdates(
+                characteristic = requireRxCharacteristic(),
+                label = "RX primary",
+            ).enqueue()
 
-            enableNotifications(requireRxCharacteristic())
-                .done {
-                    sessionLog("RX notifications enabled.")
-                }
-                .fail { _, status ->
-                    sessionLog("Enable notifications failed: ${describeRequestFailure(status)}")
-                }
-                .enqueue()
+            rxContinuationCharacteristic?.let { continuationCharacteristic ->
+                registerUpdateCallback(
+                    characteristic = continuationCharacteristic,
+                    label = "RX continuation",
+                    startsPacket = false,
+                )
+                enableUpdates(
+                    characteristic = continuationCharacteristic,
+                    label = "RX continuation",
+                ).enqueue()
+            }
+
+            pairingBootstrapCharacteristic?.let { pairingCharacteristic ->
+                registerPairingCallback(pairingCharacteristic)
+            }
         }
 
         override fun onServicesInvalidated() {
             txCharacteristic = null
             rxCharacteristic = null
+            rxContinuationCharacteristic = null
+            pairingBootstrapCharacteristic = null
+        }
+
+        override fun shouldClearCacheWhenDisconnected(): Boolean {
+            return model.clearGattCacheOnDisconnect
         }
 
         override fun log(priority: Int, message: String) {
@@ -433,7 +633,7 @@ class OmronSyncClient(
                 writeCharacteristic(
                     requireTxCharacteristic(),
                     command,
-                    BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE,
+                    requireTxCharacteristic().bestWriteType(),
                 ).suspend()
             } catch (_: SecurityException) {
                 throw MissingBluetoothPermissionException()
@@ -460,10 +660,148 @@ class OmronSyncClient(
         private fun requireRxCharacteristic(): BluetoothGattCharacteristic {
             return rxCharacteristic ?: throw IllegalStateException("RX characteristic not found.")
         }
+
+        fun hasPairingBootstrapCharacteristic(): Boolean = pairingBootstrapCharacteristic != null
+
+        suspend fun enablePairingUpdates() {
+            val characteristic = pairingBootstrapCharacteristic ?: return
+            enableUpdates(
+                characteristic = characteristic,
+                label = "Pairing bootstrap",
+            ).suspend()
+        }
+
+        suspend fun disablePairingUpdates() {
+            val characteristic = pairingBootstrapCharacteristic ?: return
+            disableUpdates(
+                characteristic = characteristic,
+                label = "Pairing bootstrap",
+            ).suspend()
+        }
+
+        suspend fun writePairingCommand(
+            command: ByteArray,
+        ) {
+            val characteristic = pairingBootstrapCharacteristic
+                ?: throw IllegalStateException("Pairing characteristic not found.")
+            try {
+                writeCharacteristic(
+                    characteristic,
+                    command,
+                    characteristic.bestWriteType(),
+                ).suspend()
+            } catch (_: SecurityException) {
+                throw MissingBluetoothPermissionException()
+            }
+        }
+
+        private fun registerUpdateCallback(
+            characteristic: BluetoothGattCharacteristic,
+            label: String,
+            startsPacket: Boolean,
+        ) {
+            setNotificationCallback(characteristic)
+                .setHandler(null)
+                .with { _, data ->
+                    val fragment = data.value ?: ByteArray(0)
+                    if (fragment.isEmpty()) {
+                        sessionLog("$label fragment was empty.")
+                        return@with
+                    }
+
+                    sessionLog("$label fragment: ${fragment.toHexString()}")
+                    val packets = packetAssembler.appendFragment(
+                        fragment = fragment,
+                        startsPacket = startsPacket,
+                    )
+                    packets.forEach { packet ->
+                        sessionLog("RX packet: ${packet.toHexString()}")
+                        onPacketReceived(packet)
+                        onNotification?.invoke(packet)
+                    }
+                }
+        }
+
+        private fun registerPairingCallback(characteristic: BluetoothGattCharacteristic) {
+            setNotificationCallback(characteristic)
+                .setHandler(null)
+                .with { _, data ->
+                    val fragment = data.value ?: ByteArray(0)
+                    if (fragment.isEmpty()) {
+                        sessionLog("Pairing bootstrap fragment was empty.")
+                        return@with
+                    }
+                    sessionLog("Pairing bootstrap fragment: ${fragment.toHexString()}")
+                    onPairingNotification?.invoke(fragment)
+                }
+        }
+
+        private fun enableUpdates(
+            characteristic: BluetoothGattCharacteristic,
+            label: String,
+        ) = when {
+            characteristic.isNotifiable() ->
+                enableNotifications(characteristic)
+                    .done {
+                        sessionLog("$label notifications enabled.")
+                    }
+                    .fail { _, status ->
+                        sessionLog("$label notifications failed: ${describeRequestFailure(status)}")
+                    }
+
+            characteristic.isIndicatable() ->
+                enableIndications(characteristic)
+                    .done {
+                        sessionLog("$label indications enabled.")
+                    }
+                    .fail { _, status ->
+                        sessionLog("$label indications failed: ${describeRequestFailure(status)}")
+                    }
+
+            else ->
+                enableNotifications(characteristic)
+                    .fail { _, status ->
+                        sessionLog("$label enable attempt failed: ${describeRequestFailure(status)}")
+                    }
+        }
+
+        private fun disableUpdates(
+            characteristic: BluetoothGattCharacteristic,
+            label: String,
+        ) = when {
+            characteristic.isNotifiable() ->
+                disableNotifications(characteristic)
+                    .done {
+                        sessionLog("$label notifications disabled.")
+                    }
+                    .fail { _, status ->
+                        sessionLog("$label notification disable failed: ${describeRequestFailure(status)}")
+                    }
+
+            characteristic.isIndicatable() ->
+                disableIndications(characteristic)
+                    .done {
+                        sessionLog("$label indications disabled.")
+                    }
+                    .fail { _, status ->
+                        sessionLog("$label indication disable failed: ${describeRequestFailure(status)}")
+                    }
+
+            else ->
+                disableNotifications(characteristic)
+                    .fail { _, status ->
+                        sessionLog("$label disable attempt failed: ${describeRequestFailure(status)}")
+                    }
+        }
     }
 
     data class SyncResult(
         val measurements: List<Measurement>,
+        val diagnostics: SyncDiagnostics,
+        val capture: SyncCapture,
+    )
+
+    data class PairingResult(
         val diagnostics: SyncDiagnostics,
         val capture: SyncCapture,
     )
@@ -475,6 +813,13 @@ class OmronSyncClient(
     }
 
     class SyncException(
+        message: String,
+        val diagnostics: SyncDiagnostics,
+        val capture: SyncCapture,
+        cause: Throwable? = null,
+    ) : IllegalStateException(message, cause)
+
+    class PairingException(
         message: String,
         val diagnostics: SyncDiagnostics,
         val capture: SyncCapture,
@@ -538,13 +883,14 @@ class OmronSyncClient(
         const val MTU = 185
         const val RESPONSE_TIMEOUT_MS = 5_000L
         const val CONNECTION_TIMEOUT_MS = 15_000L
-        const val COMMAND_RETRY_COUNT = 3
-        const val COMMAND_RETRY_DELAY_MS = 400L
         const val CONNECTION_RETRY_COUNT = 3
         const val CONNECTION_RETRY_DELAY_MS = 250
+        const val PAIRING_CHARACTERISTIC_SETTLE_DELAY_MS = 250L
+        const val SYNC_SESSION_HANDSHAKE_TIMEOUT_MS = 2_000L
 
         const val RESPONSE_START = 0x8000
         const val RESPONSE_READ = 0x8100
+        const val RESPONSE_WRITE = 0x81C0
         const val RESPONSE_END = 0x8F00
         val DIAGNOSTIC_TIME_FORMATTER: DateTimeFormatter =
             DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss").withZone(ZoneId.systemDefault())
@@ -589,6 +935,17 @@ class OmronSyncClient(
             return payload
         }
 
+        fun buildSyncSessionHandshakeCommand(): ByteArray {
+            val token = Instant.now().toEpochMilli().toInt()
+            return byteArrayOf(
+                0x11,
+                (token and 0xFF).toByte(),
+                ((token shr 8) and 0xFF).toByte(),
+                ((token shr 16) and 0xFF).toByte(),
+                ((token shr 24) and 0xFF).toByte(),
+            ) + ByteArray(15)
+        }
+
         fun ByteArray.toHexString(): String = joinToString(separator = "") { "%02x".format(it) }
 
         fun timestampText(): String = DIAGNOSTIC_TIME_FORMATTER.format(Instant.now())
@@ -621,5 +978,88 @@ class OmronSyncClient(
             ConnectionObserver.REASON_UNKNOWN -> "UNKNOWN"
             else -> "REASON_$reason"
         }
+    }
+}
+
+internal class OmronPacketAssembler {
+    private val bufferedBytes = mutableListOf<Byte>()
+    private var expectedPacketSize: Int? = null
+
+    fun appendFragment(
+        fragment: ByteArray,
+        startsPacket: Boolean,
+    ): List<ByteArray> {
+        if (fragment.isEmpty()) {
+            return emptyList()
+        }
+
+        if (startsPacket) {
+            bufferedBytes.clear()
+            expectedPacketSize = fragment.first().toUByte().toInt()
+        } else if (expectedPacketSize == null) {
+            return emptyList()
+        }
+
+        bufferedBytes += fragment.toList()
+        return drainCompletedPackets()
+    }
+
+    private fun drainCompletedPackets(): List<ByteArray> {
+        val packets = mutableListOf<ByteArray>()
+
+        while (true) {
+            val packetSize = expectedPacketSize ?: break
+            if (bufferedBytes.size < packetSize) {
+                break
+            }
+
+            val packet = ByteArray(packetSize) { index -> bufferedBytes[index] }
+            packets += packet
+            bufferedBytes.subList(0, packetSize).clear()
+            expectedPacketSize = bufferedBytes.firstOrNull()?.toUByte()?.toInt()
+        }
+
+        return packets
+    }
+}
+
+private fun String.hexToByteArray(): ByteArray {
+    require(length % 2 == 0) {
+        "Hex text must have an even number of characters."
+    }
+    return ByteArray(length / 2) { index ->
+        substring(index * 2, index * 2 + 2).toInt(16).toByte()
+    }
+}
+
+private fun BluetoothGattCharacteristic.supportsWrite(): Boolean {
+    return isWritable() || isWritableWithoutResponse()
+}
+
+private fun BluetoothGattCharacteristic.supportsUpdates(): Boolean {
+    return isNotifiable() || isIndicatable()
+}
+
+private fun BluetoothGattCharacteristic.isWritable(): Boolean {
+    return properties and BluetoothGattCharacteristic.PROPERTY_WRITE != 0
+}
+
+private fun BluetoothGattCharacteristic.isWritableWithoutResponse(): Boolean {
+    return properties and BluetoothGattCharacteristic.PROPERTY_WRITE_NO_RESPONSE != 0
+}
+
+private fun BluetoothGattCharacteristic.isNotifiable(): Boolean {
+    return properties and BluetoothGattCharacteristic.PROPERTY_NOTIFY != 0
+}
+
+private fun BluetoothGattCharacteristic.isIndicatable(): Boolean {
+    return properties and BluetoothGattCharacteristic.PROPERTY_INDICATE != 0
+}
+
+private fun BluetoothGattCharacteristic.bestWriteType(): Int {
+    return when {
+        isWritableWithoutResponse() -> BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE
+        isWritable() -> BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT
+        else -> error("TX characteristic is not writable.")
     }
 }

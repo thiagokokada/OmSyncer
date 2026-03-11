@@ -17,6 +17,7 @@ class SettingsFragment : Fragment() {
         fun onMeasurementUserSelected(user: Int?)
         fun onBluetoothSettingsRequested()
         fun onRefreshDevicesRequested()
+        fun onPairSelectedDeviceRequested()
         fun onExportRequested()
         fun onHealthConnectRequested()
         fun onHealthConnectExportRequested()
@@ -121,6 +122,9 @@ class SettingsFragment : Fragment() {
         binding.refreshButton.setOnClickListener {
             host.onRefreshDevicesRequested()
         }
+        binding.pairDeviceButton.setOnClickListener {
+            host.onPairSelectedDeviceRequested()
+        }
         binding.exportButton.setOnClickListener {
             host.onExportRequested()
         }
@@ -203,6 +207,8 @@ class SettingsFragment : Fragment() {
 
         binding.refreshButton.isEnabled = !state.isWorking
         binding.bluetoothSettingsButton.isEnabled = !state.isWorking
+        binding.pairDeviceButton.visibility = if (state.canPairSelectedDevice) View.VISIBLE else View.GONE
+        binding.pairDeviceButton.isEnabled = state.canPairSelectedDevice && !state.isWorking
         binding.exportButton.isEnabled = state.canExport && !state.isWorking
         binding.healthConnectStatusValue.text = state.healthConnectStatusMessage
         binding.healthConnectActionButton.isEnabled = state.canOpenHealthConnect && !state.isWorking

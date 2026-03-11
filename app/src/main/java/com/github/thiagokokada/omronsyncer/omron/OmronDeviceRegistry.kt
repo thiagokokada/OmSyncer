@@ -13,11 +13,18 @@ data class OmronDeviceDefinition(
     val serviceUuid: UUID,
     val txUuid: UUID,
     val rxUuid: UUID,
+    val rxContinuationUuid: UUID? = null,
+    val pairingBootstrapUuid: UUID? = null,
+    val pairingWorkflow: OmronPairingWorkflow = OmronPairingWorkflow.NONE,
+    val pairingSetupWriteHex: String? = null,
+    val syncSessionHandshakeEnabled: Boolean = false,
     val userLayouts: List<OmronUserLayout>,
     val recordSizeBytes: Int,
     val recordParser: OmronRecordParserDefinition,
+    val clearGattCacheOnDisconnect: Boolean = false,
 ) {
     val userCount: Int get() = userLayouts.size
+    val supportsAppPairingStep: Boolean get() = pairingWorkflow != OmronPairingWorkflow.NONE
 }
 
 data class OmronUserLayout(
@@ -58,6 +65,11 @@ enum class RecordEndianness {
     WORD_SWAPPED,
 }
 
+enum class OmronPairingWorkflow {
+    NONE,
+    OHQ_SESSION_FINALIZATION,
+}
+
 object OmronDeviceRegistry {
     private val FE4A_SERVICE_UUID: UUID =
         UUID.fromString("0000fe4a-0000-1000-8000-00805f9b34fb")
@@ -65,6 +77,10 @@ object OmronDeviceRegistry {
         UUID.fromString("db5b55e0-aee7-11e1-965e-0002a5d5c51b")
     private val FE4A_RX_UUID: UUID =
         UUID.fromString("49123040-aee8-11e1-a74d-0002a5d5c51b")
+    private val FE4A_RX_CONTINUATION_UUID: UUID =
+        UUID.fromString("4d0bf320-aee8-11e1-a0d9-0002a5d5c51b")
+    private val FE4A_PAIRING_UUID: UUID =
+        UUID.fromString("b305b680-aee7-11e1-a730-0002a5d5c51b")
 
     private val FE4A_LITTLE_ENDIAN_PARSER = OmronRecordParserDefinition(
         endianness = RecordEndianness.LITTLE,
@@ -102,12 +118,18 @@ object OmronDeviceRegistry {
         serviceUuid = FE4A_SERVICE_UUID,
         txUuid = FE4A_TX_UUID,
         rxUuid = FE4A_RX_UUID,
+        rxContinuationUuid = FE4A_RX_CONTINUATION_UUID,
+        pairingBootstrapUuid = FE4A_PAIRING_UUID,
+        pairingWorkflow = OmronPairingWorkflow.OHQ_SESSION_FINALIZATION,
+        pairingSetupWriteHex = "0080008000800080710000800800000080808080808080800001010001000000030000",
+        syncSessionHandshakeEnabled = true,
         userLayouts = listOf(
             OmronUserLayout(user = 1, startAddress = 0x01C4, recordCount = 100),
             OmronUserLayout(user = 2, startAddress = 0x0804, recordCount = 100),
         ),
         recordSizeBytes = 0x10,
         recordParser = FE4A_LITTLE_ENDIAN_PARSER,
+        clearGattCacheOnDisconnect = true,
     )
 
     private fun hem7155TV2() = OmronDeviceDefinition(
@@ -118,12 +140,14 @@ object OmronDeviceRegistry {
         serviceUuid = FE4A_SERVICE_UUID,
         txUuid = FE4A_TX_UUID,
         rxUuid = FE4A_RX_UUID,
+        rxContinuationUuid = FE4A_RX_CONTINUATION_UUID,
         userLayouts = listOf(
             OmronUserLayout(user = 1, startAddress = 0x0098, recordCount = 60),
             OmronUserLayout(user = 2, startAddress = 0x0458, recordCount = 60),
         ),
         recordSizeBytes = 0x10,
         recordParser = FE4A_LITTLE_ENDIAN_PARSER,
+        clearGattCacheOnDisconnect = true,
     )
 
     private fun hem7155TV3() = OmronDeviceDefinition(
@@ -134,12 +158,14 @@ object OmronDeviceRegistry {
         serviceUuid = FE4A_SERVICE_UUID,
         txUuid = FE4A_TX_UUID,
         rxUuid = FE4A_RX_UUID,
+        rxContinuationUuid = FE4A_RX_CONTINUATION_UUID,
         userLayouts = listOf(
             OmronUserLayout(user = 1, startAddress = 0x02E8, recordCount = 60),
             OmronUserLayout(user = 2, startAddress = 0x06A8, recordCount = 60),
         ),
         recordSizeBytes = 0x10,
         recordParser = FE4A_LITTLE_ENDIAN_PARSER,
+        clearGattCacheOnDisconnect = true,
     )
 
     private fun hem7146T() = OmronDeviceDefinition(
@@ -150,11 +176,13 @@ object OmronDeviceRegistry {
         serviceUuid = FE4A_SERVICE_UUID,
         txUuid = FE4A_TX_UUID,
         rxUuid = FE4A_RX_UUID,
+        rxContinuationUuid = FE4A_RX_CONTINUATION_UUID,
         userLayouts = listOf(
             OmronUserLayout(user = 1, startAddress = 0x02E8, recordCount = 30),
         ),
         recordSizeBytes = 0x0E,
         recordParser = FE4A_LITTLE_ENDIAN_PARSER,
+        clearGattCacheOnDisconnect = true,
     )
 
 }

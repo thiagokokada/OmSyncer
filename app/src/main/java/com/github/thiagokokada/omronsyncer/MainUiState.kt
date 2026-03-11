@@ -21,6 +21,7 @@ data class MainUiState(
     val canExport: Boolean,
     val canExportLog: Boolean,
     val canRestoreDeletedMeasurements: Boolean,
+    val canPairSelectedDevice: Boolean,
     val healthConnectAvailable: Boolean,
     val healthConnectNeedsSetup: Boolean,
     val healthConnectConnected: Boolean,

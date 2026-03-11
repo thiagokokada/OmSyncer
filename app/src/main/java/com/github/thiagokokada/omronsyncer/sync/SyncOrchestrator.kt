@@ -25,7 +25,9 @@ class SyncOrchestrator(
     private val syncRunCoordinator: SyncRunCoordinator = SyncRunCoordinator(context),
 ) {
 
-    suspend fun syncSelectedDevice(syncSource: String = "manual"): SyncExecutionResult {
+    suspend fun syncSelectedDevice(
+        syncSource: String = "manual",
+    ): SyncExecutionResult {
         val lease = syncRunCoordinator.acquireOrThrow(syncSource)
         return try {
             requireBluetoothConnectPermission()
@@ -35,7 +37,10 @@ class SyncOrchestrator(
             val preSyncMeasurements = withContext(Dispatchers.IO) {
                 measurementStore.loadAll()
             }
-            val syncResult = syncClient.sync(device, model)
+            val syncResult = syncClient.sync(
+                device = device,
+                model = model,
+            )
             val saveSummary = withContext(Dispatchers.IO) {
                 measurementStore.saveAll(syncResult.measurements)
             }
@@ -128,9 +133,15 @@ class SyncOrchestrator(
         val bondedDevices = adapter.bondedDevices
             .filter { it.type != BluetoothDevice.DEVICE_TYPE_CLASSIC }
 
+        require(bondedDevices.isNotEmpty()) {
+            "No bonded Bluetooth devices found."
+        }
+        require(selectedAddress != null) {
+            "No bonded monitor is selected. Pick the monitor in Settings first."
+        }
+
         val device = bondedDevices.firstOrNull { it.address == selectedAddress }
-            ?: bondedDevices.firstOrNull()
-            ?: error("No bonded Bluetooth devices found.")
+            ?: error("The selected bonded monitor was not found. Refresh devices and select it again.")
 
         require(device.bondState == BluetoothDevice.BOND_BONDED) {
             "This monitor is not bonded yet. Pair it in Android Bluetooth settings first."

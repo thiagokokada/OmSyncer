@@ -33,6 +33,7 @@ import com.github.thiagokokada.omronsyncer.model.Measurement
 import com.github.thiagokokada.omronsyncer.omron.OmronDeviceDefinition
 import com.github.thiagokokada.omronsyncer.omron.OmronDeviceRegistry
 import com.github.thiagokokada.omronsyncer.omron.OmronSyncClient
+import com.github.thiagokokada.omronsyncer.omron.OmronSyncClient.PairingException
 import com.github.thiagokokada.omronsyncer.omron.OmronSyncClient.SyncException
 import com.github.thiagokokada.omronsyncer.omron.VerificationLevel
 import com.github.thiagokokada.omronsyncer.sync.MissingBluetoothPermissionException
@@ -96,7 +97,7 @@ class MainActivity : AppCompatActivity(),
     private val permissionLauncher =
         registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { result ->
             if (result.values.all { it }) {
-                loadBondedDevices()
+                refreshAvailableDevices()
             } else {
                 updateStatus(getString(R.string.permission_denied))
                 showBluetoothPermissionExplanation {
@@ -226,7 +227,7 @@ class MainActivity : AppCompatActivity(),
     override fun onResume() {
         super.onResume()
         loadPersistedMeasurements()
-        loadBondedDevices(requestPermission = false)
+        refreshAvailableDevices(requestPermission = false)
         refreshHealthConnectState()
         refreshNearbySyncRegistration()
     }
@@ -260,10 +261,7 @@ class MainActivity : AppCompatActivity(),
                 ?: getString(R.string.measurement_user_all)
         }
         val deviceLabels = if (hasBluetoothPermission()) {
-            bondedDevices.map { device ->
-                val displayName = device.name ?: getString(R.string.device_name_placeholder)
-                "$displayName (${device.address})"
-            }
+            bondedDevices.map(::deviceLabel)
         } else {
             emptyList()
         }
@@ -272,6 +270,7 @@ class MainActivity : AppCompatActivity(),
         } else {
             -1
         }
+        val selectedDevice = selectedBondedDevice()
         val nearbySyncCooldownOptions = nearbySyncCooldownOptions()
         val selectedNearbySyncCooldownMinutes = syncPreferences.nearbySyncCooldownMinutes()
             .takeIf { minutes -> nearbySyncCooldownOptions.any { it.minutes == minutes } }
@@ -308,10 +307,11 @@ class MainActivity : AppCompatActivity(),
             deviceLabels = deviceLabels,
             selectedDeviceIndex = selectedDeviceIndex,
             isWorking = isWorking,
-            canSync = bondedDevices.isNotEmpty(),
+            canSync = selectedDevice?.bondState == BluetoothDevice.BOND_BONDED,
             canExport = measurements.isNotEmpty(),
             canExportLog = lastSyncLog.isNotBlank(),
             canRestoreDeletedMeasurements = deletedMeasurements.isNotEmpty(),
+            canPairSelectedDevice = selectedModel.supportsAppPairingStep && selectedDevice != null,
             healthConnectAvailable = isHealthConnectAvailable,
             healthConnectNeedsSetup = isHealthConnectSetupRequired,
             healthConnectConnected = isHealthConnectConnected,
@@ -342,6 +342,7 @@ class MainActivity : AppCompatActivity(),
             }
             refreshNearbySyncRegistration()
             loadPersistedMeasurements()
+            refreshAvailableDevices(requestPermission = false)
         }
     }
 
@@ -368,7 +369,11 @@ class MainActivity : AppCompatActivity(),
     }
 
     override fun onRefreshDevicesRequested() {
-        loadBondedDevices(requestPermission = true)
+        refreshAvailableDevices(requestPermission = true)
+    }
+
+    override fun onPairSelectedDeviceRequested() {
+        confirmExplicitPairing()
     }
 
     override fun onExportRequested() {
@@ -507,14 +512,12 @@ class MainActivity : AppCompatActivity(),
     }
 
     @SuppressLint("MissingPermission")
-    private fun loadBondedDevices(requestPermission: Boolean = false) {
+    private fun refreshAvailableDevices(requestPermission: Boolean = false) {
         if (!ensureBluetoothPermission(requestPermission = requestPermission)) {
             bondedDevices.clear()
             notifyCurrentFragment()
             return
         }
-
-        updateStatus(getString(R.string.status_loading_devices))
 
         val bluetoothAdapter = bluetoothAdapter()
         if (bluetoothAdapter == null) {
@@ -523,6 +526,8 @@ class MainActivity : AppCompatActivity(),
             notifyCurrentFragment()
             return
         }
+
+        updateStatus(getString(R.string.status_loading_devices))
 
         bondedDevices.clear()
         bondedDevices += bluetoothAdapter.bondedDevices
@@ -534,10 +539,10 @@ class MainActivity : AppCompatActivity(),
         }
 
         updateStatus(
-            if (bondedDevices.isEmpty()) {
-                getString(R.string.status_no_devices)
-            } else {
+            if (bondedDevices.isNotEmpty()) {
                 getString(R.string.status_idle)
+            } else {
+                getString(R.string.status_no_devices)
             },
         )
         notifyCurrentFragment()
@@ -550,11 +555,16 @@ class MainActivity : AppCompatActivity(),
         }
 
         val selectedAddress = selectedDeviceAddress()
-        val device = bondedDevices.firstOrNull { it.address == selectedAddress }
-            ?: bondedDevices.firstOrNull()
+        val device = selectedBondedDevice()
 
         if (device == null) {
-            updateStatus(getString(R.string.status_no_devices))
+            updateStatus(
+                if (selectedAddress == null) {
+                    getString(R.string.status_no_devices)
+                } else {
+                    getString(R.string.status_selected_device_not_found)
+                },
+            )
             return
         }
         if (device.bondState != BluetoothDevice.BOND_BONDED) {
@@ -600,6 +610,92 @@ class MainActivity : AppCompatActivity(),
             setWorking(false)
             notifyCurrentFragment()
         }
+    }
+
+    @SuppressLint("MissingPermission")
+    private fun confirmExplicitPairing() {
+        if (!ensureBluetoothPermission(requestPermission = true)) {
+            return
+        }
+
+        val model = selectedModel()
+        if (!model.supportsAppPairingStep) {
+            updateStatus(getString(R.string.status_pairing_not_supported))
+            return
+        }
+
+        val selectedAddress = selectedDeviceAddress()
+        val device = selectedBondedDevice()
+        if (device == null) {
+            updateStatus(
+                if (selectedAddress == null) {
+                    getString(R.string.status_no_devices)
+                } else {
+                    getString(R.string.status_selected_device_not_found)
+                },
+            )
+            return
+        }
+
+        MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.pairing_dialog_title)
+            .setMessage(R.string.pairing_dialog_message)
+            .setNegativeButton(R.string.close_label, null)
+            .setPositiveButton(R.string.pairing_dialog_confirm) { _, _ ->
+                startExplicitPairing(device, model)
+            }
+            .show()
+    }
+
+    private fun startExplicitPairing(
+        device: BluetoothDevice,
+        model: OmronDeviceDefinition,
+    ) {
+        persistSelectedDeviceAddress(device.address)
+        beginManualSync()
+        setWorking(true)
+        updateStatus(getString(R.string.status_pairing))
+
+        launchUi {
+            runCatching {
+                syncClient.pair(device, model)
+            }.onSuccess { result ->
+                logSyncDiagnostics(source = "manual-pair", syncLog = result.diagnostics.asText())
+                renderSyncLog(result.diagnostics.asText())
+                renderSyncCapture(result.capture.asFixtureText())
+                updateStatus(getString(R.string.status_pairing_complete))
+                showToast(getString(R.string.status_pairing_complete))
+                finishManualSync()
+            }.onFailure { error ->
+                if (error is PairingException) {
+                    logSyncDiagnostics(source = "manual-pair-failure", syncLog = error.diagnostics.asText())
+                    renderSyncLog(error.diagnostics.asText())
+                    renderSyncCapture(error.capture.asFixtureText())
+                }
+                val message = when (error) {
+                    is MissingBluetoothPermissionException -> getString(R.string.status_missing_permission)
+                    else -> error.message ?: error.javaClass.simpleName
+                }
+                updateStatus(message)
+                showToast(getString(R.string.toast_pairing_failed, message))
+                finishManualSync()
+            }
+
+            setWorking(false)
+            notifyCurrentFragment()
+        }
+    }
+
+    @SuppressLint("MissingPermission")
+    private fun selectedBondedDevice(): BluetoothDevice? {
+        val selectedAddress = selectedDeviceAddress()
+        return bondedDevices.firstOrNull { it.address == selectedAddress }
+    }
+
+    @SuppressLint("MissingPermission")
+    private fun deviceLabel(device: BluetoothDevice): String {
+        val displayName = device.name ?: getString(R.string.device_name_placeholder)
+        return "$displayName (${device.address})"
     }
 
     private fun renderSyncResult(result: SyncExecutionResult) {

@@ -5,6 +5,7 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertSame
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.LocalDateTime
 import java.util.UUID
@@ -125,6 +126,53 @@ class OmronDeviceRegistryTest {
             listOf(expectedService, expectedService, expectedService, expectedService),
             OmronDeviceRegistry.supportedModels.map { it.serviceUuid },
         )
+    }
+
+    @Test
+    fun supportedModels_shareExpectedFe4aContinuationAndCacheSettings() {
+        val expectedContinuation = UUID.fromString("4d0bf320-aee8-11e1-a0d9-0002a5d5c51b")
+
+        assertEquals(
+            listOf(
+                expectedContinuation,
+                expectedContinuation,
+                expectedContinuation,
+                expectedContinuation,
+            ),
+            OmronDeviceRegistry.supportedModels.map { it.rxContinuationUuid },
+        )
+        assertEquals(
+            listOf(true, true, true, true),
+            OmronDeviceRegistry.supportedModels.map { it.clearGattCacheOnDisconnect },
+        )
+    }
+
+    @Test
+    fun hem7380T1_exposesExpectedAppPairingMetadata() {
+        val model = OmronDeviceRegistry.findById("hem_7380t1")
+
+        assertEquals(
+            UUID.fromString("b305b680-aee7-11e1-a730-0002a5d5c51b"),
+            model.pairingBootstrapUuid,
+        )
+        assertEquals(OmronPairingWorkflow.OHQ_SESSION_FINALIZATION, model.pairingWorkflow)
+        assertEquals(
+            "0080008000800080710000800800000080808080808080800001010001000000030000",
+            model.pairingSetupWriteHex,
+        )
+        assertEquals(true, model.syncSessionHandshakeEnabled)
+        assertTrue(model.supportsAppPairingStep)
+    }
+
+    @Test
+    fun experimentalFe4aModels_doNotExposeAppPairingStep() {
+        val models = listOf(
+            OmronDeviceRegistry.findById("hem_7155t_v2"),
+            OmronDeviceRegistry.findById("hem_7155t_v3"),
+            OmronDeviceRegistry.findById("hem_7146t"),
+        )
+
+        assertTrue(models.all { !it.supportsAppPairingStep })
     }
 
     @Test
