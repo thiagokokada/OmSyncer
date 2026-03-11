@@ -85,6 +85,58 @@ class MainActivityTest {
     }
 
     @Test
+    fun resultsRangeSelection_filtersMeasurements() {
+        val now = LocalDateTime.now().withNano(0)
+        seedMeasurements(
+            listOf(
+                measurementAt(user = 1, recordedAt = now.minusDays(3)),
+                measurementAt(user = 1, recordedAt = now.minusDays(15)),
+                measurementAt(user = 1, recordedAt = now.minusDays(40)),
+            ),
+        )
+
+        ActivityScenario.launch(MainActivity::class.java).use {
+            waitForMeasurementCount("3 measurements")
+
+            onView(withId(R.id.results_range_thirty_days)).perform(click())
+            waitForMeasurementCount("2 measurements")
+
+            onView(withId(R.id.results_range_seven_days)).perform(click())
+            waitForMeasurementCount("1 measurement")
+
+            onView(withId(R.id.results_range_all)).perform(click())
+            waitForMeasurementCount("3 measurements")
+        }
+    }
+
+    @Test
+    fun rangeSelection_isSharedBetweenResultsAndTrends() {
+        val now = LocalDateTime.now().withNano(0)
+        seedMeasurements(
+            listOf(
+                measurementAt(user = 1, recordedAt = now.minusDays(3)),
+                measurementAt(user = 1, recordedAt = now.minusDays(15)),
+                measurementAt(user = 1, recordedAt = now.minusDays(40)),
+            ),
+        )
+
+        ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+            onView(withId(R.id.results_range_seven_days)).perform(click())
+            waitForMeasurementCount("1 measurement")
+
+            openTrendsScreen(scenario)
+            onView(withId(R.id.range_seven_days)).check(matches(isChecked()))
+
+            onView(withId(R.id.range_thirty_days)).perform(click())
+            onView(withId(R.id.range_thirty_days)).check(matches(isChecked()))
+
+            openResultsScreen(scenario)
+            onView(withId(R.id.results_range_thirty_days)).check(matches(isChecked()))
+            waitForMeasurementCount("2 measurements")
+        }
+    }
+
+    @Test
     fun resultsDeleteHint_isShownOnlyOnce() {
         seedMeasurements(listOf(measurement(user = 1, day = 8)))
 
@@ -347,6 +399,11 @@ class MainActivityTest {
         MeasurementStore(context).saveAll(measurements)
     }
 
+    private fun waitForMeasurementCount(text: String) {
+        onView(isRoot()).perform(waitForMatchingView(withText(text), 5_000))
+        onView(withId(R.id.measurement_count)).check(matches(withText(text)))
+    }
+
     private fun grantRuntimePermissions() {
         val instrumentation = InstrumentationRegistry.getInstrumentation()
         val uiAutomation = instrumentation.uiAutomation
@@ -376,6 +433,18 @@ class MainActivityTest {
         return Measurement(
             user = user,
             recordedAt = LocalDateTime.of(2026, 3, day, 9, 30),
+            systolic = 120 + user,
+            diastolic = 80 + user,
+            pulse = 64 + user,
+            irregularHeartbeat = false,
+            movement = false,
+        )
+    }
+
+    private fun measurementAt(user: Int, recordedAt: LocalDateTime): Measurement {
+        return Measurement(
+            user = user,
+            recordedAt = recordedAt,
             systolic = 120 + user,
             diastolic = 80 + user,
             pulse = 64 + user,
