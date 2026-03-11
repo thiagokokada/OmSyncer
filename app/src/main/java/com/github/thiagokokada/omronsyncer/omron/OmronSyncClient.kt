@@ -377,7 +377,7 @@ class OmronSyncClient(
         ): OmronResponse {
             var lastError: Exception? = null
 
-            repeat(COMMAND_RETRY_COUNT) { retryIndex ->
+            repeat(OmronRetryPolicy.COMMAND_RETRY_COUNT) { retryIndex ->
                 val attempt = retryIndex + 1
                 try {
                     while (notificationChannel.tryReceive().isSuccess) {
@@ -397,16 +397,21 @@ class OmronSyncClient(
                     val normalizedError = normalizeCommandError(error)
                     lastError = normalizedError
                     log(
-                        "Command attempt $attempt/$COMMAND_RETRY_COUNT failed: " +
+                        "Command attempt $attempt/${OmronRetryPolicy.COMMAND_RETRY_COUNT} failed: " +
                             "${normalizedError.message ?: normalizedError.javaClass.simpleName}",
                     )
-                    if (attempt < COMMAND_RETRY_COUNT) {
-                        delay(COMMAND_RETRY_DELAY_MS)
+                    if (attempt < OmronRetryPolicy.COMMAND_RETRY_COUNT) {
+                        val retryDelayMs = OmronRetryPolicy.commandRetryDelayMs(attempt)
+                        log("Waiting ${retryDelayMs}ms before retrying command.")
+                        delay(retryDelayMs)
                     }
                 }
             }
 
-            throw IllegalStateException("Command failed after $COMMAND_RETRY_COUNT attempts.", lastError)
+            throw IllegalStateException(
+                "Command failed after ${OmronRetryPolicy.COMMAND_RETRY_COUNT} attempts.",
+                lastError,
+            )
         }
 
         private suspend fun awaitMatchingResponse(
@@ -879,8 +884,6 @@ class OmronSyncClient(
         const val MTU = 185
         const val RESPONSE_TIMEOUT_MS = 5_000L
         const val CONNECTION_TIMEOUT_MS = 15_000L
-        const val COMMAND_RETRY_COUNT = 3
-        const val COMMAND_RETRY_DELAY_MS = 400L
         const val CONNECTION_RETRY_COUNT = 3
         const val CONNECTION_RETRY_DELAY_MS = 250
         const val PAIRING_CHARACTERISTIC_SETTLE_DELAY_MS = 250L
