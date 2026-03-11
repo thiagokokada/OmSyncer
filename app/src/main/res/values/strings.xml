@@ -105,10 +105,10 @@
     <string name="status_seed_measurements_failed">Could not seed sample measurements.</string>
     <string name="status_delete_measurement">Removing measurement…</string>
     <string name="status_measurement_deleted">Measurement deleted.</string>
-    <string name="status_measurement_deleted_health_connect_warning">Measurement deleted. Health Connect will be updated on the next Health Connect export.</string>
+    <string name="status_measurement_deleted_health_connect_warning">Measurement deleted. Health Connect will update on the next export.</string>
     <string name="status_measurement_delete_failed">Could not delete the measurement.</string>
     <string name="status_measurement_restored">Measurement restored.</string>
-    <string name="status_measurement_restored_health_connect_warning">Measurement restored in OmSyncer. Health Connect will be updated on the next Health Connect export.</string>
+    <string name="status_measurement_restored_health_connect_warning">Measurement restored in OmSyncer. Health Connect will update on the next export.</string>
     <string name="status_measurement_restore_failed">Could not restore the measurement.</string>
     <string name="status_pair_device">Pair the monitor in Android Bluetooth settings first.</string>
     <string name="status_pairing">Finishing Omron pairing…</string>

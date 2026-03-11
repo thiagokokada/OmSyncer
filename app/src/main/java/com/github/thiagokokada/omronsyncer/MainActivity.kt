@@ -768,7 +768,7 @@ class MainActivity : AppCompatActivity(),
                     getString(R.string.status_measurement_deleted)
                 }
                 updateStatus(message)
-                showToast(message)
+                showToast(getString(R.string.status_measurement_deleted))
             }.onFailure {
                 updateStatus(getString(R.string.status_measurement_delete_failed))
             }
@@ -821,7 +821,7 @@ class MainActivity : AppCompatActivity(),
                     getString(R.string.status_measurement_restored)
                 }
                 updateStatus(message)
-                showToast(message)
+                showToast(getString(R.string.status_measurement_restored))
             }.onFailure {
                 updateStatus(getString(R.string.status_measurement_restore_failed))
             }
