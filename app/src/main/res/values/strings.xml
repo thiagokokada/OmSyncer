@@ -159,6 +159,7 @@
     <string name="deleted_measurements_empty">There are no deleted measurements for the current selection.</string>
     <string name="restore_measurement_button">Restore</string>
     <string name="restore_measurement_item">%1$s · %2$d/%3$d, pulse %4$d, flags %5$s</string>
+    <string name="results_delete_hint">Swipe left or right on a measurement to hide it from OmSyncer.</string>
     <string name="empty_measurements">Synced measurements will appear here.</string>
     <string name="empty_measurements_filtered">No synced measurements for the current filters.</string>
     <string name="latest_measurement_summary">Latest: %1$s, %2$d/%3$d, pulse %4$d</string>

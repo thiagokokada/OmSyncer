@@ -19,6 +19,8 @@ import com.github.thiagokokada.omronsyncer.databinding.FragmentResultsBinding
 import com.github.thiagokokada.omronsyncer.model.Measurement
 import androidx.core.graphics.toColorInt
 import androidx.core.graphics.drawable.toDrawable
+import com.github.thiagokokada.omronsyncer.sync.SyncPreferences
+import com.google.android.material.snackbar.Snackbar
 
 class ResultsFragment : Fragment() {
 
@@ -34,11 +36,13 @@ class ResultsFragment : Fragment() {
     private lateinit var host: Host
     private lateinit var adapter: MeasurementAdapter
     private lateinit var deleteSwipeBackground: ColorDrawable
+    private lateinit var syncPreferences: SyncPreferences
 
     override fun onAttach(context: Context) {
         super.onAttach(context)
         host = context as? Host
             ?: error("MainActivity must implement ResultsFragment.Host")
+        syncPreferences = SyncPreferences(context)
     }
 
     override fun onCreateView(
@@ -133,11 +137,21 @@ class ResultsFragment : Fragment() {
         }
         binding.userColumnLabel.visibility =
             if (state.showsMeasurementUserColumn) View.VISIBLE else View.GONE
+        maybeShowDeleteHint(state.resultsMeasurements.isNotEmpty())
     }
 
     override fun onDestroyView() {
         super.onDestroyView()
         _binding = null
+    }
+
+    private fun maybeShowDeleteHint(hasMeasurements: Boolean) {
+        if (!hasMeasurements || syncPreferences.resultsDeleteHintShown()) {
+            return
+        }
+
+        syncPreferences.setResultsDeleteHintShown(true)
+        Snackbar.make(binding.root, R.string.results_delete_hint, Snackbar.LENGTH_LONG).show()
     }
 
     private inner class DeleteMeasurementSwipeCallback : ItemTouchHelper.SimpleCallback(

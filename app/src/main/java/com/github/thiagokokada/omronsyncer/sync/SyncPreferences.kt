@@ -96,6 +96,16 @@ class SyncPreferences(context: Context) {
         }
     }
 
+    fun resultsDeleteHintShown(): Boolean {
+        return preferences.getBoolean(PREF_RESULTS_DELETE_HINT_SHOWN, false)
+    }
+
+    fun setResultsDeleteHintShown(shown: Boolean) {
+        preferences.edit {
+            putBoolean(PREF_RESULTS_DELETE_HINT_SHOWN, shown)
+        }
+    }
+
     fun nearbySyncCooldownMillis(): Long {
         return nearbySyncCooldownMinutes() * 60_000L
     }
@@ -144,6 +154,7 @@ class SyncPreferences(context: Context) {
         const val PREF_NEARBY_SYNC_COOLDOWN_MINUTES = "nearby_sync_cooldown_minutes"
         const val PREF_SELECTED_MEASUREMENT_USER = "selected_measurement_user"
         const val PREF_SELECTED_TREND_RANGE = "selected_trend_range"
+        const val PREF_RESULTS_DELETE_HINT_SHOWN = "results_delete_hint_shown"
         const val PREF_LAST_NEARBY_SYNC_SUMMARY = "last_nearby_sync_summary"
         const val PREF_LAST_NEARBY_SYNC_AT_MILLIS = "last_nearby_sync_at_millis"
         const val PREF_LAST_NEARBY_SYNC_TRIGGER_AT_MILLIS = "last_nearby_sync_trigger_at_millis"
