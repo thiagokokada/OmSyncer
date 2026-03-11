@@ -86,8 +86,8 @@ class SyncPreferences(context: Context) {
     }
 
     fun selectedTrendRange(): TrendRange {
-        val storedValue = preferences.getString(PREF_SELECTED_TREND_RANGE, TrendRange.THIRTY_DAYS.name)
-        return TrendRange.entries.firstOrNull { it.name == storedValue } ?: TrendRange.THIRTY_DAYS
+        val storedValue = preferences.getString(PREF_SELECTED_TREND_RANGE, TrendRange.ALL.name)
+        return TrendRange.entries.firstOrNull { it.name == storedValue } ?: TrendRange.ALL
     }
 
     fun setSelectedTrendRange(range: TrendRange) {
