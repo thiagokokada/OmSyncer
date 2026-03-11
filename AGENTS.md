@@ -23,10 +23,23 @@ Repository-specific guidance for coding agents working in this project.
 - Do not assume all devices have multiple users.
 - Treat non-`HEM-7380T1` device support as experimental unless the user explicitly verifies it on hardware.
 - Keep Health Connect sync one-way unless the user asks for read/reconciliation support.
+- Keep user-facing copy out of lower layers like `omron/`, `sync/`, `export/`, and `healthconnect/` when possible.
+  - Prefer typed exceptions or structured results from those layers.
+  - Map failures to `strings.xml` at the UI boundary (`MainActivity`, fragments, workers that surface user summaries).
+  - Technical diagnostics may stay in sync logs and logcat.
+- Keep UI-facing text task-focused and non-technical.
+  - Prefer concise user language over implementation terms like payloads, characteristics, handshakes, records, or internal flags unless the screen is explicitly diagnostic.
+  - Avoid version-specific wording unless it is necessary to explain current behavior.
+  - Match message length to the UI surface.
+    - Keep transient surfaces like `Toast`s and short status summaries brief enough to read without truncation.
+    - Put longer explanations in persistent status text, dialogs, or dedicated detail screens instead.
 - When touching background sync, preserve the current design:
   - WorkManager scheduling
   - foreground execution during actual sync
   - user-selectable interval
+- Results and Trends currently share the same persisted date-range filter (`All` / `7D` / `30D`).
+  - Keep that behavior unless the user explicitly asks to split them again.
+  - Prefer DB-backed filtering for Results rather than loading all measurements and trimming in memory.
 
 ## Build and test notes
 
@@ -76,3 +89,8 @@ When changing sync behavior, prioritize:
 2. unit tests for parser/export logic
 3. instrumentation tests for UI/settings flows
 4. real-device verification on `HEM-7380T1` when applicable
+
+When changing filter behavior or shared UI state, also prioritize:
+
+1. unit tests for filtering logic such as `TrendChartData.filterMeasurements`
+2. instrumentation tests that verify Results and Trends stay in sync when they share preferences
