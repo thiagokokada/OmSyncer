@@ -160,10 +160,10 @@
     <string name="restore_measurement_button">Restore</string>
     <string name="restore_measurement_item">%1$s · %2$d/%3$d, pulse %4$d, flags %5$s</string>
     <string name="empty_measurements">Synced measurements will appear here.</string>
-    <string name="empty_measurements_filtered">No synced measurements for the selected user.</string>
+    <string name="empty_measurements_filtered">No synced measurements for the current filters.</string>
     <string name="latest_measurement_summary">Latest: %1$s, %2$d/%3$d, pulse %4$d</string>
     <string name="no_measurement_summary">No synced measurements yet.</string>
-    <string name="no_measurement_summary_filtered">No synced measurements for the selected user.</string>
+    <string name="no_measurement_summary_filtered">No synced measurements for the current filters.</string>
     <string name="permission_denied">Bluetooth permission was denied.</string>
     <string name="permission_try_again">Try again</string>
     <string name="permission_open_settings">Open settings</string>

@@ -60,6 +60,38 @@
                     android:text="@string/sync_now" />
             </LinearLayout>
 
+            <com.google.android.material.button.MaterialButtonToggleGroup
+                android:id="@+id/results_range_toggle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                app:singleSelection="true">
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/results_range_seven_days"
+                    style="@style/Widget.Material3.Button.OutlinedButton"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:minWidth="0dp"
+                    android:text="@string/trends_range_7d" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/results_range_thirty_days"
+                    style="@style/Widget.Material3.Button.OutlinedButton"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:minWidth="0dp"
+                    android:text="@string/trends_range_30d" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/results_range_all"
+                    style="@style/Widget.Material3.Button.OutlinedButton"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:minWidth="0dp"
+                    android:text="@string/trends_range_all" />
+            </com.google.android.material.button.MaterialButtonToggleGroup>
+
         </LinearLayout>
     </com.google.android.material.card.MaterialCardView>
 

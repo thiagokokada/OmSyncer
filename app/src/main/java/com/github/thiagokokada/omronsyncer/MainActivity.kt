@@ -79,6 +79,7 @@ class MainActivity : AppCompatActivity(),
     }
 
     private var measurements: List<Measurement> = emptyList()
+    private var resultsMeasurements: List<Measurement> = emptyList()
     private var deletedMeasurements: List<Measurement> = emptyList()
     private var statusMessage: String = ""
     private var lastSyncLog: String = ""
@@ -293,6 +294,7 @@ class MainActivity : AppCompatActivity(),
         }
         return MainUiState(
             measurements = measurements,
+            resultsMeasurements = resultsMeasurements,
             deletedMeasurements = deletedMeasurements,
             measurementUserOptions = measurementUserOptions,
             measurementUserLabels = measurementUserLabels,
@@ -359,9 +361,14 @@ class MainActivity : AppCompatActivity(),
         confirmDeleteMeasurement(measurement)
     }
 
+    override fun onResultsRangeSelected(range: TrendRange) {
+        syncPreferences.setSelectedTrendRange(range)
+        loadPersistedMeasurements()
+    }
+
     override fun onTrendRangeSelected(range: TrendRange) {
         syncPreferences.setSelectedTrendRange(range)
-        notifyCurrentFragment()
+        loadPersistedMeasurements()
     }
 
     override fun onBluetoothSettingsRequested() {
@@ -699,13 +706,13 @@ class MainActivity : AppCompatActivity(),
     }
 
     private fun renderSyncResult(result: SyncExecutionResult) {
-        measurements = result.persistedMeasurements
         renderSyncLog(result.syncLog)
         renderSyncCapture(result.syncCapture.asFixtureText())
         launchUi {
-            deletedMeasurements = withContext(Dispatchers.IO) {
-                measurementStore.loadDeleted(selectedMeasurementUser())
+            val measurementState = withContext(Dispatchers.IO) {
+                loadStoredMeasurementState(selectedMeasurementUser())
             }
+            applyStoredMeasurementState(measurementState)
             notifyCurrentFragment()
         }
     }
@@ -714,10 +721,9 @@ class MainActivity : AppCompatActivity(),
         launchUi {
             val selectedUser = selectedMeasurementUser()
             val measurementState = withContext(Dispatchers.IO) {
-                measurementStore.loadAll(selectedUser) to measurementStore.loadDeleted(selectedUser)
+                loadStoredMeasurementState(selectedUser)
             }
-            measurements = measurementState.first
-            deletedMeasurements = measurementState.second
+            applyStoredMeasurementState(measurementState)
             notifyCurrentFragment()
         }
     }
@@ -762,11 +768,10 @@ class MainActivity : AppCompatActivity(),
 
                 val selectedUser = selectedMeasurementUser()
                 withContext(Dispatchers.IO) {
-                    measurementStore.loadAll(selectedUser) to measurementStore.loadDeleted(selectedUser)
+                    loadStoredMeasurementState(selectedUser)
                 }
-            }.onSuccess { (activeMeasurements, removedMeasurements) ->
-                measurements = activeMeasurements
-                deletedMeasurements = removedMeasurements
+            }.onSuccess { measurementState ->
+                applyStoredMeasurementState(measurementState)
                 val message = if (healthConnectWarning) {
                     getString(R.string.status_measurement_deleted_health_connect_warning)
                 } else {
@@ -816,11 +821,10 @@ class MainActivity : AppCompatActivity(),
 
                 val selectedUser = selectedMeasurementUser()
                 withContext(Dispatchers.IO) {
-                    measurementStore.loadAll(selectedUser) to measurementStore.loadDeleted(selectedUser)
+                    loadStoredMeasurementState(selectedUser)
                 }
-            }.onSuccess { (activeMeasurements, removedMeasurements) ->
-                measurements = activeMeasurements
-                deletedMeasurements = removedMeasurements
+            }.onSuccess { measurementState ->
+                applyStoredMeasurementState(measurementState)
                 val message = if (healthConnectWarning) {
                     getString(R.string.status_measurement_restored_health_connect_warning)
                 } else {
@@ -845,13 +849,13 @@ class MainActivity : AppCompatActivity(),
         launchUi {
             runCatching {
                 val seededMeasurements = sampleMeasurementsForModel(model)
-                val storedMeasurements = withContext(Dispatchers.IO) {
+                val measurementState = withContext(Dispatchers.IO) {
                     measurementStore.saveAll(seededMeasurements)
-                    measurementStore.loadAll(selectedMeasurementUser(model))
+                    loadStoredMeasurementState(selectedMeasurementUser(model))
                 }
-                storedMeasurements to seededMeasurements.size
-            }.onSuccess { (storedMeasurements, seededCount) ->
-                measurements = storedMeasurements
+                measurementState to seededMeasurements.size
+            }.onSuccess { (measurementState, seededCount) ->
+                applyStoredMeasurementState(measurementState)
                 updateStatus(getString(R.string.status_seeded_measurements, seededCount))
                 showToast(getString(R.string.status_seeded_measurements, seededCount))
             }.onFailure { error ->
@@ -1295,6 +1299,27 @@ class MainActivity : AppCompatActivity(),
         }
     }
 
+    private fun applyStoredMeasurementState(state: StoredMeasurementState) {
+        measurements = state.measurements
+        resultsMeasurements = state.resultsMeasurements
+        deletedMeasurements = state.deletedMeasurements
+    }
+
+    private fun loadStoredMeasurementState(
+        selectedUser: Int?,
+    ): StoredMeasurementState {
+        val resultsRecordedAtFrom = syncPreferences.selectedTrendRange()
+            .recordedAtFrom(LocalDateTime.now())
+        return StoredMeasurementState(
+            measurements = measurementStore.loadAll(selectedUser),
+            resultsMeasurements = measurementStore.loadAll(
+                user = selectedUser,
+                recordedAtFrom = resultsRecordedAtFrom,
+            ),
+            deletedMeasurements = measurementStore.loadDeleted(selectedUser),
+        )
+    }
+
     private fun selectedModel(): OmronDeviceDefinition {
         return syncPreferences.selectedModel()
     }
@@ -1433,6 +1458,13 @@ class MainActivity : AppCompatActivity(),
             }
         binding.bottomNavigation.visibility = if (isDetailScreen) View.GONE else View.VISIBLE
     }
+
+    private data class StoredMeasurementState(
+        val measurements: List<Measurement>,
+        val resultsMeasurements: List<Measurement>,
+        val deletedMeasurements: List<Measurement>,
+    )
+
     private data class NearbySyncCooldownOption(
         val minutes: Int,
         val label: String,
