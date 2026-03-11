@@ -15,7 +15,7 @@
     <string name="trends_selected_reading_summary">Mean %1$d/%2$d, pulse %3$d across %4$d readings</string>
     <string name="trends_selected_reading_value">%1$s - %2$d/%3$d, pulse %4$d, flags %5$s</string>
     <string name="trends_empty_state">Sync more measurements to see a trend chart.</string>
-    <string name="settings_device_title">Device configuration</string>
+    <string name="settings_device_title">Monitor setup</string>
     <string name="settings_device_body">Choose your monitor model and a bonded Bluetooth monitor.\n\n1. Pair the monitor in Android Bluetooth settings.\n2. Finish Omron pairing here if your model supports it.\n\nIf that step fails, try pairing in Omron Connect instead.</string>
     <string name="settings_export_title">Data export</string>
     <string name="settings_export_body">Export your locally stored measurements as a CSV file.</string>
@@ -30,7 +30,7 @@
     <string name="open_bluetooth_settings">Bluetooth settings</string>
     <string name="open_health_connect">Open Health Connect</string>
     <string name="manage_health_connect">Manage Health Connect</string>
-    <string name="grant_health_connect_access">Grant Health Connect access</string>
+    <string name="grant_health_connect_access">Grant access to Health Connect</string>
     <string name="health_connect_auto_export_label">Auto-export after sync</string>
     <string name="measurement_user_label">User</string>
     <string name="nearby_sync_section_title">When monitor is nearby</string>
@@ -55,11 +55,11 @@
     <string name="export_sync_log">Export sync log</string>
     <string name="export_sync_capture">Export capture</string>
     <string name="select_model">Select monitor model</string>
-    <string name="select_device">Select bonded device</string>
+    <string name="select_device">Select paired monitor</string>
     <string name="status_idle">Ready.</string>
     <string name="status_missing_permission">Bluetooth permission is required.</string>
     <string name="status_no_adapter">This device does not have a Bluetooth adapter.</string>
-    <string name="status_no_devices">No bonded Bluetooth monitors found.</string>
+    <string name="status_no_devices">No paired Bluetooth monitors found.</string>
     <string name="status_selected_device_not_found">The selected monitor was not found. Refresh devices and select it again.</string>
     <string name="status_loading_devices">Loading bonded devices…</string>
     <string name="status_syncing">Syncing measurements…</string>
@@ -79,7 +79,7 @@
     <string name="toast_sync_failed">Sync failed: %1$s</string>
     <string name="toast_health_connect_exported">Health Connect updated.</string>
     <string name="status_exported">CSV exported.</string>
-    <string name="status_health_connect_permissions_granted">Health Connect access granted.</string>
+    <string name="status_health_connect_permissions_granted">Health Connect access is ready.</string>
     <string name="status_health_connect_permissions_denied">Health Connect access was not granted.</string>
     <string name="status_health_connect_auto_export_failed">Device sync completed, but Health Connect export failed: %1$s</string>
     <string name="status_health_connect_exporting">Exporting blood pressure to Health Connect…</string>
@@ -96,8 +96,8 @@
     <string name="status_seed_measurements">Seeding sample measurements…</string>
     <string name="status_seeded_measurements">Seeded %1$d sample measurements.</string>
     <string name="status_delete_measurement">Removing measurement…</string>
-    <string name="status_measurement_deleted">Measurement removed.</string>
-    <string name="status_measurement_deleted_health_connect_warning">Measurement removed from OmSyncer. Health Connect will be updated on the next Health Connect export.</string>
+    <string name="status_measurement_deleted">Measurement deleted.</string>
+    <string name="status_measurement_deleted_health_connect_warning">Measurement deleted. Health Connect will be updated on the next Health Connect export.</string>
     <string name="status_measurement_restored">Measurement restored.</string>
     <string name="status_measurement_restored_health_connect_warning">Measurement restored in OmSyncer. Health Connect will be updated on the next Health Connect export.</string>
     <string name="status_pair_device">Pair the monitor in Android Bluetooth settings first.</string>
@@ -137,7 +137,7 @@
     <string name="sync_success_notification_body_no_new_health_connect">%1$s · Health Connect updated.</string>
     <string name="health_connect_status_unavailable">Health Connect is not available on this device.</string>
     <string name="health_connect_status_setup_required">Install or update Health Connect to enable blood pressure export.</string>
-    <string name="health_connect_status_not_connected">Grant Health Connect access to export blood pressure.</string>
+    <string name="health_connect_status_not_connected">Grant Health Connect access to export blood pressure and pulse.</string>
     <string name="health_connect_status_connected">Ready to export blood pressure records.</string>
     <string name="health_connect_rationale_title">OmSyncer permissions</string>
     <string name="health_connect_rationale_body">OmSyncer writes blood pressure and pulse measurements from your paired Omron monitor into Health Connect when you sync. OmSyncer does not read Health Connect data in this version, and Omron-only flags like irregular heartbeat and movement stay inside OmSyncer.</string>
@@ -152,7 +152,7 @@
     <string name="sync_log_empty">No sync log yet.</string>
     <string name="delete_measurement">Delete measurement</string>
     <string name="delete_measurement_title">Delete measurement?</string>
-    <string name="delete_measurement_message">This hides the measurement in OmSyncer so it does not reappear on the next sync. The monitor still keeps the original reading.\n\nYou can restore it later in Settings under Deleted measurements.</string>
+    <string name="delete_measurement_message">This deletes the measurement from OmSyncer, not the monitor.\n\nYou can restore it later in Settings under Deleted measurements.</string>
     <string name="delete_measurement_message_health_connect_warning">Health Connect is not available right now, so its copy may remain until the next Health Connect export.</string>
     <string name="delete_measurement_confirm">Delete</string>
     <string name="deleted_measurements_title">Deleted measurements</string>
