@@ -15,13 +15,16 @@ data class OmronDeviceDefinition(
     val rxUuid: UUID,
     val rxContinuationUuid: UUID? = null,
     val pairingBootstrapUuid: UUID? = null,
-    val pairingBootstrapCommandHex: String? = null,
+    val pairingWorkflow: OmronPairingWorkflow = OmronPairingWorkflow.NONE,
+    val pairingSetupWriteHex: String? = null,
+    val syncSessionHandshakeEnabled: Boolean = false,
     val userLayouts: List<OmronUserLayout>,
     val recordSizeBytes: Int,
     val recordParser: OmronRecordParserDefinition,
     val clearGattCacheOnDisconnect: Boolean = false,
 ) {
     val userCount: Int get() = userLayouts.size
+    val supportsAppPairingStep: Boolean get() = pairingWorkflow != OmronPairingWorkflow.NONE
 }
 
 data class OmronUserLayout(
@@ -60,6 +63,11 @@ enum class VerificationLevel {
 enum class RecordEndianness {
     LITTLE,
     WORD_SWAPPED,
+}
+
+enum class OmronPairingWorkflow {
+    NONE,
+    OHQ_SESSION_FINALIZATION,
 }
 
 object OmronDeviceRegistry {
@@ -112,7 +120,9 @@ object OmronDeviceRegistry {
         rxUuid = FE4A_RX_UUID,
         rxContinuationUuid = FE4A_RX_CONTINUATION_UUID,
         pairingBootstrapUuid = FE4A_PAIRING_UUID,
-        pairingBootstrapCommandHex = "015542504d2d50616972696e674b657921",
+        pairingWorkflow = OmronPairingWorkflow.OHQ_SESSION_FINALIZATION,
+        pairingSetupWriteHex = "0080008000800080710000800800000080808080808080800001010001000000030000",
+        syncSessionHandshakeEnabled = true,
         userLayouts = listOf(
             OmronUserLayout(user = 1, startAddress = 0x01C4, recordCount = 100),
             OmronUserLayout(user = 2, startAddress = 0x0804, recordCount = 100),

@@ -16,7 +16,7 @@
     <string name="trends_selected_reading_value">%1$s - %2$d/%3$d, pulse %4$d, flags %5$s</string>
     <string name="trends_empty_state">Sync more measurements to see a trend chart.</string>
     <string name="settings_device_title">Device configuration</string>
-    <string name="settings_device_body">Choose the monitor model and bonded Bluetooth device to sync. Pair the monitor in Android settings before using it here.</string>
+    <string name="settings_device_body">Choose the monitor model and a bonded Bluetooth monitor to sync.\n\nPair in Android Bluetooth settings first, then run the Omron pair step.\n\nIf that step is unavailable for your monitor or it fails, try pairing using Omron Connect instead.</string>
     <string name="settings_export_title">Data export</string>
     <string name="settings_export_body">Save the locally stored measurements as a CSV file wherever you want.</string>
     <string name="settings_health_connect_title">Health Connect</string>
@@ -47,6 +47,7 @@
     <string name="manage_deleted_measurements">Deleted measurements</string>
     <string name="seed_sample_measurements">Seed sample measurements (Debug)</string>
     <string name="refresh_devices">Refresh devices</string>
+    <string name="pair_in_omsyncer">Omron pair step</string>
     <string name="sync_now">Sync now</string>
     <string name="syncing_button_label">Syncing...</string>
     <string name="export_csv">Export CSV</string>
@@ -58,7 +59,8 @@
     <string name="status_idle">Ready.</string>
     <string name="status_missing_permission">Bluetooth permission is required.</string>
     <string name="status_no_adapter">This device does not have a Bluetooth adapter.</string>
-    <string name="status_no_devices">No bonded Bluetooth devices found.</string>
+    <string name="status_no_devices">No bonded Bluetooth monitors found.</string>
+    <string name="status_selected_device_not_found">The selected monitor was not found. Refresh devices and select it again.</string>
     <string name="status_loading_devices">Loading bonded devices...</string>
     <string name="status_syncing">Syncing measurements...</string>
     <string name="status_sync_already_in_progress">Another sync is already in progress.</string>
@@ -98,7 +100,14 @@
     <string name="status_measurement_deleted_health_connect_warning">Measurement removed from OmSyncer. Health Connect will be updated on the next Health Connect export.</string>
     <string name="status_measurement_restored">Measurement restored.</string>
     <string name="status_measurement_restored_health_connect_warning">Measurement restored in OmSyncer. Health Connect will be updated on the next Health Connect export.</string>
-    <string name="status_pair_device">This monitor is not bonded yet. Pair it in Android Bluetooth settings first.</string>
+    <string name="status_pair_device">Pair the monitor in Android Bluetooth settings first.</string>
+    <string name="status_pairing">Finishing Omron pairing...</string>
+    <string name="status_pairing_complete">Omron pairing step completed.</string>
+    <string name="status_pairing_not_supported">This monitor model does not currently expose an Omron pairing step in the app. Use Omron Connect instead.</string>
+    <string name="toast_pairing_failed">Omron pairing failed: %1$s</string>
+    <string name="pairing_dialog_title">Run Omron pairing?</string>
+    <string name="pairing_dialog_message">Put the monitor in pairing mode so the display shows a flashing P, and run this step to finish Omron-specific setup.\n\nIf it fails, use Omron Connect to finish pairing instead.</string>
+    <string name="pairing_dialog_confirm">Pair monitor</string>
     <string name="status_nearby_sync_enabled">Nearby sync enabled.</string>
     <string name="status_nearby_sync_disabled">Nearby sync disabled.</string>
     <string name="nearby_sync_permission_required">Bluetooth scan permission is required for nearby sync.</string>
