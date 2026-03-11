@@ -18,6 +18,7 @@ import androidx.test.espresso.UiController
 import androidx.test.espresso.ViewAction
 import androidx.test.espresso.PerformException
 import androidx.test.espresso.assertion.ViewAssertions.matches
+import androidx.test.espresso.assertion.ViewAssertions.doesNotExist
 import androidx.test.espresso.matcher.ViewMatchers.isChecked
 import androidx.test.espresso.matcher.ViewMatchers.isDisplayed
 import androidx.test.espresso.matcher.ViewMatchers.isEnabled
@@ -34,11 +35,13 @@ import androidx.recyclerview.widget.RecyclerView
 import com.github.thiagokokada.omronsyncer.data.MeasurementStore
 import com.github.thiagokokada.omronsyncer.model.Measurement
 import com.github.thiagokokada.omronsyncer.sync.SyncPreferences
+import com.google.android.material.bottomnavigation.BottomNavigationView
 import org.hamcrest.CoreMatchers.`is`
 import org.hamcrest.Matcher
 import org.hamcrest.Matchers.allOf
 import org.hamcrest.Matchers.not
 import org.junit.After
+import org.junit.Assume.assumeTrue
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -82,9 +85,77 @@ class MainActivityTest {
     }
 
     @Test
-    fun settingsScreen_showsHealthConnectControls() {
+    fun resultsRangeSelection_filtersMeasurements() {
+        val now = LocalDateTime.now().withNano(0)
+        seedMeasurements(
+            listOf(
+                measurementAt(user = 1, recordedAt = now.minusDays(3)),
+                measurementAt(user = 1, recordedAt = now.minusDays(15)),
+                measurementAt(user = 1, recordedAt = now.minusDays(40)),
+            ),
+        )
+
         ActivityScenario.launch(MainActivity::class.java).use {
-            onView(withId(R.id.navigation_settings)).perform(click())
+            waitForMeasurementCount("3 measurements")
+
+            onView(withId(R.id.results_range_thirty_days)).perform(click())
+            waitForMeasurementCount("2 measurements")
+
+            onView(withId(R.id.results_range_seven_days)).perform(click())
+            waitForMeasurementCount("1 measurement")
+
+            onView(withId(R.id.results_range_all)).perform(click())
+            waitForMeasurementCount("3 measurements")
+        }
+    }
+
+    @Test
+    fun rangeSelection_isSharedBetweenResultsAndTrends() {
+        val now = LocalDateTime.now().withNano(0)
+        seedMeasurements(
+            listOf(
+                measurementAt(user = 1, recordedAt = now.minusDays(3)),
+                measurementAt(user = 1, recordedAt = now.minusDays(15)),
+                measurementAt(user = 1, recordedAt = now.minusDays(40)),
+            ),
+        )
+
+        ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+            onView(withId(R.id.results_range_seven_days)).perform(click())
+            waitForMeasurementCount("1 measurement")
+
+            openTrendsScreen(scenario)
+            onView(withId(R.id.range_seven_days)).check(matches(isChecked()))
+
+            onView(withId(R.id.range_thirty_days)).perform(click())
+            onView(withId(R.id.range_thirty_days)).check(matches(isChecked()))
+
+            openResultsScreen(scenario)
+            onView(withId(R.id.results_range_thirty_days)).check(matches(isChecked()))
+            waitForMeasurementCount("2 measurements")
+        }
+    }
+
+    @Test
+    fun resultsDeleteHint_isShownOnlyOnce() {
+        seedMeasurements(listOf(measurement(user = 1, day = 8)))
+
+        ActivityScenario.launch(MainActivity::class.java).use {
+            onView(isRoot()).perform(
+                waitForMatchingView(withText(R.string.results_delete_hint), 5_000),
+            )
+            onView(withText(R.string.results_delete_hint)).check(matches(isDisplayed()))
+        }
+
+        ActivityScenario.launch(MainActivity::class.java).use {
+            onView(withText(R.string.results_delete_hint)).check(doesNotExist())
+        }
+    }
+
+    @Test
+    fun settingsScreen_showsHealthConnectControls() {
+        ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+            openSettingsScreen(scenario)
 
             onView(withId(R.id.health_connect_action_button)).perform(scrollTo())
             onView(withText(R.string.settings_health_connect_title)).perform(scrollTo())
@@ -100,16 +171,16 @@ class MainActivityTest {
 
     @Test
     fun healthConnectAutoExportSwitch_persistsAcrossActivityRestart() {
-        ActivityScenario.launch(MainActivity::class.java).use {
-            onView(withId(R.id.navigation_settings)).perform(click())
+        ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+            openSettingsScreen(scenario)
             onView(withId(R.id.health_connect_auto_export_switch)).perform(scrollTo())
             onView(withId(R.id.health_connect_auto_export_switch)).check(matches(isChecked()))
             onView(withId(R.id.health_connect_auto_export_switch)).perform(click())
             onView(withId(R.id.health_connect_auto_export_switch)).check(matches(isNotChecked()))
         }
 
-        ActivityScenario.launch(MainActivity::class.java).use {
-            onView(withId(R.id.navigation_settings)).perform(click())
+        ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+            openSettingsScreen(scenario)
             onView(withId(R.id.health_connect_auto_export_switch)).perform(scrollTo())
             onView(withId(R.id.health_connect_auto_export_switch)).check(matches(isNotChecked()))
         }
@@ -117,8 +188,8 @@ class MainActivityTest {
 
     @Test
     fun syncLogButton_opensLogScreen() {
-        ActivityScenario.launch(MainActivity::class.java).use {
-            onView(withId(R.id.navigation_settings)).perform(click())
+        ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+            openSettingsScreen(scenario)
             onView(withId(R.id.sync_log_button)).perform(scrollTo())
             onView(withId(R.id.sync_log_button)).perform(click())
 
@@ -131,16 +202,16 @@ class MainActivityTest {
     fun nearbySyncSwitch_persistsAcrossActivityRestart() {
         setSelectedDeviceAddress("00:11:22:33:44:55")
 
-        ActivityScenario.launch(MainActivity::class.java).use {
-            onView(withId(R.id.navigation_settings)).perform(click())
+        ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+            openSettingsScreen(scenario)
             onView(withId(R.id.nearby_sync_switch)).perform(scrollTo())
             onView(withId(R.id.nearby_sync_switch)).check(matches(isNotChecked()))
             onView(withId(R.id.nearby_sync_switch)).perform(click())
             onView(withId(R.id.nearby_sync_switch)).check(matches(isChecked()))
         }
 
-        ActivityScenario.launch(MainActivity::class.java).use {
-            onView(withId(R.id.navigation_settings)).perform(click())
+        ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+            openSettingsScreen(scenario)
             onView(withId(R.id.nearby_sync_switch)).perform(scrollTo())
             onView(withId(R.id.nearby_sync_switch)).check(matches(isChecked()))
         }
@@ -155,8 +226,8 @@ class MainActivityTest {
             ),
         )
 
-        ActivityScenario.launch(MainActivity::class.java).use {
-            onView(withId(R.id.navigation_trends)).perform(click())
+        ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+            openTrendsScreen(scenario)
             onView(isRoot()).perform(
                 waitForMatchingView(
                     allOf(withId(R.id.chart_card), isDisplayed()),
@@ -183,14 +254,14 @@ class MainActivityTest {
             ),
         )
 
-        ActivityScenario.launch(MainActivity::class.java).use {
-            onView(withId(R.id.navigation_trends)).perform(click())
+        ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+            openTrendsScreen(scenario)
             onView(withId(R.id.range_all)).perform(click())
             onView(withId(R.id.range_all)).check(matches(isChecked()))
         }
 
-        ActivityScenario.launch(MainActivity::class.java).use {
-            onView(withId(R.id.navigation_trends)).perform(click())
+        ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+            openTrendsScreen(scenario)
             onView(withId(R.id.range_all)).check(matches(isChecked()))
         }
     }
@@ -205,32 +276,32 @@ class MainActivityTest {
         )
         val userTwoLabel = context.getString(R.string.measurement_user_single, 2)
 
-        ActivityScenario.launch(MainActivity::class.java).use {
+        ActivityScenario.launch(MainActivity::class.java).use { scenario ->
             onView(withId(R.id.measurement_count)).check(matches(withText("2 measurements")))
 
-            onView(withId(R.id.navigation_settings)).perform(click())
+            openSettingsScreen(scenario)
             onView(withId(R.id.measurement_user_spinner)).perform(scrollTo(), click())
             onData(`is`(userTwoLabel)).perform(click())
             onView(withId(R.id.measurement_user_spinner)).check(matches(withSpinnerText(userTwoLabel)))
 
-            onView(withId(R.id.navigation_results)).perform(click())
+            openResultsScreen(scenario)
             onView(withId(R.id.measurement_count)).check(matches(withText("1 measurement")))
 
-            onView(withId(R.id.navigation_settings)).perform(click())
+            openSettingsScreen(scenario)
             onView(withId(R.id.measurement_user_spinner)).perform(scrollTo(), click())
             onData(`is`(allUsersLabel())).perform(click())
-            onView(withId(R.id.navigation_results)).perform(click())
+            openResultsScreen(scenario)
             onView(withId(R.id.measurement_count)).check(matches(withText("2 measurements")))
 
-            onView(withId(R.id.navigation_settings)).perform(click())
+            openSettingsScreen(scenario)
             onView(withId(R.id.measurement_user_spinner)).perform(scrollTo(), click())
             onData(`is`(userTwoLabel)).perform(click())
-            onView(withId(R.id.navigation_trends)).perform(click())
+            openTrendsScreen(scenario)
             onView(withId(R.id.chart_card)).check(matches(isDisplayed()))
         }
 
-        ActivityScenario.launch(MainActivity::class.java).use {
-            onView(withId(R.id.navigation_settings)).perform(click())
+        ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+            openSettingsScreen(scenario)
             onView(withId(R.id.measurement_user_spinner)).perform(scrollTo())
             onView(withId(R.id.measurement_user_spinner)).check(matches(withSpinnerText(userTwoLabel)))
         }
@@ -238,16 +309,18 @@ class MainActivityTest {
 
     @Test
     fun seedSampleMeasurements_populatesResultsInDebugBuild() {
-        ActivityScenario.launch(MainActivity::class.java).use {
+        assumeTrue(BuildConfig.DEBUG)
+
+        ActivityScenario.launch(MainActivity::class.java).use { scenario ->
             onView(withId(R.id.measurement_count)).check(matches(withText("0 measurements")))
 
-            onView(withId(R.id.navigation_settings)).perform(click())
+            openSettingsScreen(scenario)
             onView(withId(R.id.seed_measurements_button)).perform(scrollTo(), click())
 
-            onView(withId(R.id.navigation_results)).perform(click())
+            openResultsScreen(scenario)
             onView(withId(R.id.measurement_count)).check(matches(withText("100 measurements")))
 
-            onView(withId(R.id.navigation_settings)).perform(click())
+            openSettingsScreen(scenario)
             onView(withId(R.id.seed_measurements_button)).perform(scrollTo())
             onView(withId(R.id.seed_measurements_button)).check(matches(not(isEnabled())))
         }
@@ -257,20 +330,45 @@ class MainActivityTest {
     fun deleteAndRestoreMeasurement_updatesResultsAndSettings() {
         seedMeasurements(listOf(measurement(user = 1, day = 8)))
 
-        ActivityScenario.launch(MainActivity::class.java).use {
+        ActivityScenario.launch(MainActivity::class.java).use { scenario ->
             onView(withId(R.id.measurement_count)).check(matches(withText("1 measurement")))
             onView(withId(R.id.measurements_list)).perform(swipeRecyclerItemLeftAtPosition(0))
             onView(withText(R.string.delete_measurement_confirm)).perform(click())
             onView(withId(R.id.measurement_count)).check(matches(withText("0 measurements")))
 
-            onView(withId(R.id.navigation_settings)).perform(click())
+            openSettingsScreen(scenario)
             onView(withId(R.id.restore_measurements_button)).perform(scrollTo(), click())
             onView(withId(R.id.restore_measurement_button)).perform(click())
             pressBack()
 
-            onView(withId(R.id.navigation_results)).perform(click())
+            openResultsScreen(scenario)
             onView(withId(R.id.measurement_count)).check(matches(withText("1 measurement")))
         }
+    }
+
+    private fun openResultsScreen(scenario: ActivityScenario<MainActivity>) {
+        selectBottomNavItem(scenario, R.id.navigation_results)
+        onView(isRoot()).perform(waitForMatchingView(withId(R.id.measurement_count), 5_000))
+    }
+
+    private fun openSettingsScreen(scenario: ActivityScenario<MainActivity>) {
+        selectBottomNavItem(scenario, R.id.navigation_settings)
+        onView(isRoot()).perform(waitForMatchingView(withId(R.id.status_value), 5_000))
+    }
+
+    private fun openTrendsScreen(scenario: ActivityScenario<MainActivity>) {
+        selectBottomNavItem(scenario, R.id.navigation_trends)
+        onView(isRoot()).perform(waitForMatchingView(withId(R.id.range_toggle), 5_000))
+    }
+
+    private fun selectBottomNavItem(
+        scenario: ActivityScenario<MainActivity>,
+        itemId: Int,
+    ) {
+        scenario.onActivity { activity ->
+            activity.findViewById<BottomNavigationView>(R.id.bottom_navigation).selectedItemId = itemId
+        }
+        InstrumentationRegistry.getInstrumentation().waitForIdleSync()
     }
 
     @Test
@@ -299,6 +397,11 @@ class MainActivityTest {
 
     private fun seedMeasurements(measurements: List<Measurement>) {
         MeasurementStore(context).saveAll(measurements)
+    }
+
+    private fun waitForMeasurementCount(text: String) {
+        onView(isRoot()).perform(waitForMatchingView(withText(text), 5_000))
+        onView(withId(R.id.measurement_count)).check(matches(withText(text)))
     }
 
     private fun grantRuntimePermissions() {
@@ -330,6 +433,18 @@ class MainActivityTest {
         return Measurement(
             user = user,
             recordedAt = LocalDateTime.of(2026, 3, day, 9, 30),
+            systolic = 120 + user,
+            diastolic = 80 + user,
+            pulse = 64 + user,
+            irregularHeartbeat = false,
+            movement = false,
+        )
+    }
+
+    private fun measurementAt(user: Int, recordedAt: LocalDateTime): Measurement {
+        return Measurement(
+            user = user,
+            recordedAt = recordedAt,
             systolic = 120 + user,
             diastolic = 80 + user,
             pulse = 64 + user,

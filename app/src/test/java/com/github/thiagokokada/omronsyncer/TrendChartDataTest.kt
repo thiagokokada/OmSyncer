@@ -65,6 +65,23 @@ class TrendChartDataTest {
     }
 
     @Test
+    fun filterMeasurements_keepsOnlyMeasurementsWithinThirtyDays() {
+        val now = LocalDateTime.of(2026, 3, 8, 12, 0)
+        val withinThirtyDays = measurement(user = 1, daysAgo = 12, now = now)
+        val exactlyThirtyDays = measurement(user = 2, daysAgo = 30, now = now, hour = 12)
+        val olderThanThirtyDays = measurement(user = 1, daysAgo = 31, now = now)
+
+        val filtered = TrendChartData.filterMeasurements(
+            measurements = listOf(withinThirtyDays, exactlyThirtyDays, olderThanThirtyDays),
+            selectedUser = null,
+            selectedRange = TrendRange.THIRTY_DAYS,
+            now = now,
+        )
+
+        assertEquals(listOf(withinThirtyDays, exactlyThirtyDays), filtered)
+    }
+
+    @Test
     fun chartBuckets_groupsMeasurementsByDayAndAveragesValues() {
         val now = LocalDateTime.of(2026, 3, 8, 12, 0)
         val measurements = listOf(
