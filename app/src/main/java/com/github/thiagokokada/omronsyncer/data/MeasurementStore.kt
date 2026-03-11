@@ -13,12 +13,18 @@ class MeasurementStore(context: Context) {
 
     private val helper = MeasurementDatabaseHelper(context)
 
-    fun loadAll(user: Int? = null): List<Measurement> {
-        return loadByDeletedState(user = user, deleted = false)
+    fun loadAll(
+        user: Int? = null,
+        recordedAtFrom: LocalDateTime? = null,
+    ): List<Measurement> {
+        return loadByDeletedState(user = user, deleted = false, recordedAtFrom = recordedAtFrom)
     }
 
-    fun loadDeleted(user: Int? = null): List<Measurement> {
-        return loadByDeletedState(user = user, deleted = true)
+    fun loadDeleted(
+        user: Int? = null,
+        recordedAtFrom: LocalDateTime? = null,
+    ): List<Measurement> {
+        return loadByDeletedState(user = user, deleted = true, recordedAtFrom = recordedAtFrom)
     }
 
     fun saveAll(measurements: List<Measurement>): SaveSummary {
@@ -75,13 +81,21 @@ class MeasurementStore(context: Context) {
         }
     }
 
-    private fun loadByDeletedState(user: Int?, deleted: Boolean): List<Measurement> {
+    private fun loadByDeletedState(
+        user: Int?,
+        deleted: Boolean,
+        recordedAtFrom: LocalDateTime?,
+    ): List<Measurement> {
         val db = helper.readableDatabase
         val selectionParts = mutableListOf("$COLUMN_DELETED = ?")
         val selectionArgs = mutableListOf(if (deleted) "1" else "0")
         if (user != null) {
             selectionParts += "$COLUMN_USER = ?"
             selectionArgs += user.toString()
+        }
+        if (recordedAtFrom != null) {
+            selectionParts += "$COLUMN_RECORDED_AT >= ?"
+            selectionArgs += STORED_TIME_FORMATTER.format(recordedAtFrom)
         }
         db.query(
             TABLE_MEASUREMENTS,
@@ -193,6 +207,7 @@ class MeasurementStore(context: Context) {
                 )
                 """.trimIndent(),
             )
+            createIndexes(db)
         }
 
         override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
@@ -204,14 +219,27 @@ class MeasurementStore(context: Context) {
                     "ALTER TABLE $TABLE_MEASUREMENTS ADD COLUMN $COLUMN_DELETED_AT TEXT",
                 )
             }
+            if (oldVersion < 3) {
+                createIndexes(db)
+            }
+        }
+
+        private fun createIndexes(db: SQLiteDatabase) {
+            db.execSQL(
+                """
+                CREATE INDEX IF NOT EXISTS $INDEX_MEASUREMENTS_RECORDED_AT
+                ON $TABLE_MEASUREMENTS ($COLUMN_RECORDED_AT DESC)
+                """.trimIndent(),
+            )
         }
     }
 
     private companion object {
         const val DATABASE_NAME = "measurements.db"
-        const val DATABASE_VERSION = 2
+        const val DATABASE_VERSION = 3
 
         const val TABLE_MEASUREMENTS = "measurements"
+        const val INDEX_MEASUREMENTS_RECORDED_AT = "idx_measurements_recorded_at"
         const val COLUMN_ID = "_id"
         const val COLUMN_USER = "user_id"
         const val COLUMN_RECORDED_AT = "recorded_at"

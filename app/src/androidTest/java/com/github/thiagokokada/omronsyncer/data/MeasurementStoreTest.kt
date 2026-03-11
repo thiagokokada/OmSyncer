@@ -46,6 +46,26 @@ class MeasurementStoreTest {
     }
 
     @Test
+    fun loadAll_filtersByRecordedAtFromAndKeepsNewestFirst() {
+        val tooOld = measurement(user = 1, day = 1, hour = 9)
+        val withinRangeOlder = measurement(user = 1, day = 8, hour = 7)
+        val withinRangeNewest = measurement(user = 2, day = 8, hour = 9)
+        measurementStore.saveAll(
+            listOf(
+                tooOld,
+                withinRangeOlder,
+                withinRangeNewest,
+            ),
+        )
+
+        val filtered = measurementStore.loadAll(
+            recordedAtFrom = LocalDateTime.of(2026, 3, 8, 0, 0),
+        )
+
+        assertEquals(listOf(withinRangeNewest, withinRangeOlder), filtered)
+    }
+
+    @Test
     fun softDelete_hidesMeasurementUntilUndeleted() {
         val measurement = measurement(user = 1, day = 8, hour = 9)
         measurementStore.saveAll(listOf(measurement))
