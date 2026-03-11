@@ -36,7 +36,6 @@ import com.github.thiagokokada.omronsyncer.omron.OmronSyncClient
 import com.github.thiagokokada.omronsyncer.omron.OmronSyncClient.PairingException
 import com.github.thiagokokada.omronsyncer.omron.OmronSyncClient.SyncException
 import com.github.thiagokokada.omronsyncer.omron.VerificationLevel
-import com.github.thiagokokada.omronsyncer.sync.MissingBluetoothPermissionException
 import com.github.thiagokokada.omronsyncer.sync.NearbySyncRegistrar
 import com.github.thiagokokada.omronsyncer.sync.SyncAlreadyInProgressException
 import com.github.thiagokokada.omronsyncer.sync.SyncExecutionResult
@@ -673,10 +672,7 @@ class MainActivity : AppCompatActivity(),
                     renderSyncLog(error.diagnostics.asText())
                     renderSyncCapture(error.capture.asFixtureText())
                 }
-                val message = when (error) {
-                    is MissingBluetoothPermissionException -> getString(R.string.status_missing_permission)
-                    else -> error.message ?: error.javaClass.simpleName
-                }
+                val message = SyncFailureMessageFormatter.userFacingMessage(this@MainActivity, error)
                 updateStatus(message)
                 showToast(getString(R.string.toast_pairing_failed, message))
                 finishManualSync()
@@ -773,8 +769,8 @@ class MainActivity : AppCompatActivity(),
                 }
                 updateStatus(message)
                 showToast(message)
-            }.onFailure { error ->
-                updateStatus(error.message ?: error.javaClass.simpleName)
+            }.onFailure {
+                updateStatus(getString(R.string.status_measurement_delete_failed))
             }
 
             setWorking(false)
@@ -826,8 +822,8 @@ class MainActivity : AppCompatActivity(),
                 }
                 updateStatus(message)
                 showToast(message)
-            }.onFailure { error ->
-                updateStatus(error.message ?: error.javaClass.simpleName)
+            }.onFailure {
+                updateStatus(getString(R.string.status_measurement_restore_failed))
             }
 
             setWorking(false)
@@ -852,8 +848,8 @@ class MainActivity : AppCompatActivity(),
                 applyStoredMeasurementState(measurementState)
                 updateStatus(getString(R.string.status_seeded_measurements, seededCount))
                 showToast(getString(R.string.status_seeded_measurements, seededCount))
-            }.onFailure { error ->
-                updateStatus(error.message ?: error.javaClass.simpleName)
+            }.onFailure {
+                updateStatus(getString(R.string.status_seed_measurements_failed))
             }
 
             setWorking(false)
@@ -985,15 +981,18 @@ class MainActivity : AppCompatActivity(),
                 val storedMeasurements = withContext(Dispatchers.IO) {
                     measurementStore.loadAll(selectedMeasurementUser())
                 }
+                if (storedMeasurements.isEmpty()) {
+                    throw IllegalStateException(NO_MEASUREMENTS_TO_EXPORT)
+                }
                 withContext(Dispatchers.IO) {
                     contentResolver.openOutputStream(uri)?.use { outputStream ->
                         csvExporter.export(outputStream, storedMeasurements)
-                    } ?: error("Could not open the selected destination for writing.")
+                    } ?: throw IllegalStateException(EXPORT_DESTINATION_UNAVAILABLE)
                 }
             }.onSuccess {
                 updateStatus(getString(R.string.status_exported))
             }.onFailure { error ->
-                updateStatus(error.message ?: error.javaClass.simpleName)
+                updateStatus(exportFailureMessage(error, R.string.status_export_failed))
             }
 
             setWorking(false)
@@ -1009,12 +1008,12 @@ class MainActivity : AppCompatActivity(),
                 withContext(Dispatchers.IO) {
                     contentResolver.openOutputStream(uri)?.bufferedWriter()?.use { writer ->
                         writer.write(lastSyncLog)
-                    } ?: error("Could not open the selected destination for writing.")
+                    } ?: throw IllegalStateException(EXPORT_DESTINATION_UNAVAILABLE)
                 }
             }.onSuccess {
                 updateStatus(getString(R.string.status_log_exported))
             }.onFailure { error ->
-                updateStatus(error.message ?: error.javaClass.simpleName)
+                updateStatus(exportFailureMessage(error, R.string.status_log_export_failed))
             }
 
             setWorking(false)
@@ -1030,12 +1029,12 @@ class MainActivity : AppCompatActivity(),
                 withContext(Dispatchers.IO) {
                     contentResolver.openOutputStream(uri)?.bufferedWriter()?.use { writer ->
                         writer.write(lastSyncCapture)
-                    } ?: error("Could not open the selected destination for writing.")
+                    } ?: throw IllegalStateException(EXPORT_DESTINATION_UNAVAILABLE)
                 }
             }.onSuccess {
                 updateStatus(getString(R.string.status_capture_exported))
             }.onFailure { error ->
-                updateStatus(error.message ?: error.javaClass.simpleName)
+                updateStatus(exportFailureMessage(error, R.string.status_capture_export_failed))
             }
 
             setWorking(false)
@@ -1428,6 +1427,14 @@ class MainActivity : AppCompatActivity(),
         Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
     }
 
+    private fun exportFailureMessage(error: Throwable, genericMessageRes: Int): String {
+        return when (error.message) {
+            NO_MEASUREMENTS_TO_EXPORT -> getString(R.string.status_export_no_measurements)
+            EXPORT_DESTINATION_UNAVAILABLE -> getString(R.string.status_export_destination_unavailable)
+            else -> getString(genericMessageRes)
+        }
+    }
+
     private fun updateTopLevelUi() {
         val currentFragment = supportFragmentManager.findFragmentById(R.id.fragment_container)
         val isLogScreen = currentFragment is SyncLogFragment
@@ -1486,6 +1493,8 @@ class MainActivity : AppCompatActivity(),
         const val MANUAL_SYNC_SUCCESS_NOTIFICATION_ID = 1005
         const val SAMPLE_MEASUREMENTS_TOTAL = 100
         const val SAMPLE_MEASUREMENTS_DAY_SPAN = 90L
+        const val NO_MEASUREMENTS_TO_EXPORT = "no-measurements-to-export"
+        const val EXPORT_DESTINATION_UNAVAILABLE = "destination-unavailable"
         val SYNC_TIME_FORMATTER: DateTimeFormatter =
             DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")
     }

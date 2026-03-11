@@ -80,7 +80,6 @@ class OmronSyncClient(
         } catch (error: Exception) {
             log("Sync failed: ${error.message ?: error.javaClass.simpleName}")
             throw SyncException(
-                message = error.message ?: "Sync failed.",
                 diagnostics = SyncDiagnostics(diagnostics.toList()),
                 capture = captureBuilder.build(),
                 cause = error,
@@ -149,7 +148,6 @@ class OmronSyncClient(
         } catch (error: Exception) {
             log("Pairing failed: ${error.message ?: error.javaClass.simpleName}")
             throw PairingException(
-                message = error.message ?: "Pairing failed.",
                 diagnostics = SyncDiagnostics(diagnostics.toList()),
                 capture = captureBuilder.build(),
                 cause = error,
@@ -813,18 +811,16 @@ class OmronSyncClient(
     }
 
     class SyncException(
-        message: String,
         val diagnostics: SyncDiagnostics,
         val capture: SyncCapture,
         cause: Throwable? = null,
-    ) : IllegalStateException(message, cause)
+    ) : IllegalStateException(cause)
 
     class PairingException(
-        message: String,
         val diagnostics: SyncDiagnostics,
         val capture: SyncCapture,
         cause: Throwable? = null,
-    ) : IllegalStateException(message, cause)
+    ) : IllegalStateException(cause)
 
     class CommandTimeoutException(cause: Throwable) :
         IllegalStateException("Timed out waiting for response.", cause)

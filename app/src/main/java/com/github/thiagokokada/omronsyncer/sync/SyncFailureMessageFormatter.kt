@@ -2,6 +2,7 @@ package com.github.thiagokokada.omronsyncer.sync
 
 import android.content.Context
 import com.github.thiagokokada.omronsyncer.R
+import com.github.thiagokokada.omronsyncer.omron.OmronSyncClient
 
 object SyncFailureMessageFormatter {
 
@@ -19,7 +20,21 @@ object SyncFailureMessageFormatter {
         error: Throwable,
         strings: SyncFailureMessageStrings,
     ): String {
+        knownMessage(error.cause, strings)?.let { return it }
+        knownMessage(error, strings)?.let { return it }
         return when (error) {
+            is OmronSyncClient.SyncException -> strings.syncFailed()
+            is OmronSyncClient.PairingException -> strings.pairingFailed()
+            else -> error.message ?: error.javaClass.simpleName
+        }
+    }
+
+    private fun knownMessage(
+        error: Throwable?,
+        strings: SyncFailureMessageStrings,
+    ): String? {
+        return when (error) {
+            null -> null
             is MissingBluetoothPermissionException -> strings.missingBluetoothPermission()
             is NoBluetoothAdapterException -> strings.noBluetoothAdapter()
             is NoBondedBluetoothDevicesException -> strings.noBondedDevices()
@@ -28,7 +43,7 @@ object SyncFailureMessageFormatter {
             is MonitorNotBondedException -> strings.monitorNotBonded()
             is NoMeasurementsForSelectedUserException -> strings.noMeasurementsForSelectedUser()
             is SyncAlreadyInProgressException -> strings.syncAlreadyInProgress()
-            else -> error.message ?: error.javaClass.simpleName
+            else -> knownMessage(error.cause, strings)
         }
     }
 
@@ -41,6 +56,8 @@ object SyncFailureMessageFormatter {
         fun monitorNotBonded(): String
         fun noMeasurementsForSelectedUser(): String
         fun syncAlreadyInProgress(): String
+        fun syncFailed(): String
+        fun pairingFailed(): String
     }
 
     private class AndroidSyncFailureMessageStrings(
@@ -76,6 +93,14 @@ object SyncFailureMessageFormatter {
 
         override fun syncAlreadyInProgress(): String {
             return context.getString(R.string.status_sync_already_in_progress)
+        }
+
+        override fun syncFailed(): String {
+            return context.getString(R.string.status_sync_failed_generic)
+        }
+
+        override fun pairingFailed(): String {
+            return context.getString(R.string.status_pairing_failed_generic)
         }
     }
 }
