@@ -60,6 +60,7 @@
     <string name="status_missing_permission">Bluetooth permission is required.</string>
     <string name="status_no_adapter">This device does not have a Bluetooth adapter.</string>
     <string name="status_no_devices">No paired Bluetooth monitors found.</string>
+    <string name="status_select_monitor_first">Select a paired monitor in Settings first.</string>
     <string name="status_selected_device_not_found">The selected monitor was not found. Refresh devices and select it again.</string>
     <string name="status_loading_devices">Loading paired devices…</string>
     <string name="status_syncing">Syncing measurements…</string>

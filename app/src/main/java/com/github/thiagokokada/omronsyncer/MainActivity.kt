@@ -40,6 +40,7 @@ import com.github.thiagokokada.omronsyncer.sync.MissingBluetoothPermissionExcept
 import com.github.thiagokokada.omronsyncer.sync.NearbySyncRegistrar
 import com.github.thiagokokada.omronsyncer.sync.SyncAlreadyInProgressException
 import com.github.thiagokokada.omronsyncer.sync.SyncExecutionResult
+import com.github.thiagokokada.omronsyncer.sync.SyncFailureMessageFormatter
 import com.github.thiagokokada.omronsyncer.sync.SyncOrchestrator
 import com.github.thiagokokada.omronsyncer.sync.SyncPreferences
 import com.github.thiagokokada.omronsyncer.sync.SyncWorkerNotifications
@@ -597,12 +598,7 @@ class MainActivity : AppCompatActivity(),
                     renderSyncLog(error.diagnostics.asText())
                     renderSyncCapture(error.capture.asFixtureText())
                 }
-                val message = when (error) {
-                    is MissingBluetoothPermissionException -> getString(R.string.status_missing_permission)
-                    is SyncAlreadyInProgressException ->
-                        getString(R.string.status_sync_already_in_progress)
-                    else -> error.message ?: error.javaClass.simpleName
-                }
+                val message = SyncFailureMessageFormatter.userFacingMessage(this@MainActivity, error)
                 updateStatus(message)
                 if (error is SyncAlreadyInProgressException) {
                     showToast(message)
@@ -940,7 +936,7 @@ class MainActivity : AppCompatActivity(),
                 updateStatus(healthConnectExportMessage(summary))
                 showToast(getString(R.string.toast_health_connect_exported))
             }.onFailure { error ->
-                updateStatus(error.message ?: error.javaClass.simpleName)
+                updateStatus(SyncFailureMessageFormatter.userFacingMessage(this@MainActivity, error))
             }
 
             setWorking(false)
