@@ -18,6 +18,7 @@ import androidx.test.espresso.UiController
 import androidx.test.espresso.ViewAction
 import androidx.test.espresso.PerformException
 import androidx.test.espresso.assertion.ViewAssertions.matches
+import androidx.test.espresso.assertion.ViewAssertions.doesNotExist
 import androidx.test.espresso.matcher.ViewMatchers.isChecked
 import androidx.test.espresso.matcher.ViewMatchers.isDisplayed
 import androidx.test.espresso.matcher.ViewMatchers.isEnabled
@@ -80,6 +81,22 @@ class MainActivityTest {
             onView(withId(R.id.sync_button)).check(matches(isDisplayed()))
             onView(allOf(withId(R.id.screen_title), withText(R.string.results_title)))
                 .check(matches(isDisplayed()))
+        }
+    }
+
+    @Test
+    fun resultsDeleteHint_isShownOnlyOnce() {
+        seedMeasurements(listOf(measurement(user = 1, day = 8)))
+
+        ActivityScenario.launch(MainActivity::class.java).use {
+            onView(isRoot()).perform(
+                waitForMatchingView(withText(R.string.results_delete_hint), 5_000),
+            )
+            onView(withText(R.string.results_delete_hint)).check(matches(isDisplayed()))
+        }
+
+        ActivityScenario.launch(MainActivity::class.java).use {
+            onView(withText(R.string.results_delete_hint)).check(doesNotExist())
         }
     }
 
