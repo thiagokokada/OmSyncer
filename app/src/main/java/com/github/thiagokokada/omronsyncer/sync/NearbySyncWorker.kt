@@ -98,12 +98,12 @@ class NearbySyncWorker(
             } else if (NearbySyncRetryPolicy.shouldRetryWithWorkManager(error, runAttemptCount)) {
                 applicationContext.getString(
                     R.string.nearby_sync_retry_scheduled,
-                    error.message ?: error.javaClass.simpleName,
+                    SyncFailureMessageFormatter.userFacingMessage(applicationContext, error),
                 )
             } else {
                 applicationContext.getString(
                     R.string.nearby_sync_failed,
-                    error.message ?: error.javaClass.simpleName,
+                    SyncFailureMessageFormatter.userFacingMessage(applicationContext, error),
                 )
             }
             preferences.persistLastNearbySyncStatus(

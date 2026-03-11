@@ -58,10 +58,6 @@ class HealthConnectBloodPressureExporter(private val context: Context) : HealthC
         activeMeasurements: List<Measurement>,
         deletedMeasurements: List<Measurement>,
     ): ExportSummary {
-        require(activeMeasurements.isNotEmpty() || deletedMeasurements.isNotEmpty()) {
-            "No measurements available to sync."
-        }
-
         if (activeMeasurements.isNotEmpty()) {
             client().insertRecords(activeMeasurements.flatMap(::toHealthConnectRecords))
         }

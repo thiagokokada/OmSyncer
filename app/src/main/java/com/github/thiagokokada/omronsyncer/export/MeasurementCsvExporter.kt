@@ -8,10 +8,6 @@ import java.time.format.DateTimeFormatter
 class MeasurementCsvExporter {
 
     fun export(outputStream: OutputStream, measurements: List<Measurement>) {
-        require(measurements.isNotEmpty()) {
-            "No measurements available to export."
-        }
-
         outputStream.bufferedWriter().use { writer ->
             writer.appendLine("recorded_at,user,systolic,diastolic,pulse,irregular_heartbeat,movement")
             measurements.forEach { measurement ->

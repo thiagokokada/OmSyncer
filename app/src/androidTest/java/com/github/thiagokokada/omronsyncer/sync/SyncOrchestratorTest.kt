@@ -12,6 +12,7 @@ import com.github.thiagokokada.omronsyncer.omron.OmronDeviceRegistry
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertThrows
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -90,6 +91,22 @@ class SyncOrchestratorTest {
         assertEquals(listOf(deletedUserOne), exporter.deletedMeasurements)
         assertEquals(0, summary.bloodPressureExported)
         assertEquals(1, summary.deletedMeasurements)
+    }
+
+    @Test
+    fun exportStoredMeasurementsToHealthConnect_throwsTypedFailureWhenNoMeasurementsMatch() {
+        val orchestrator = SyncOrchestrator(
+            context = context,
+            measurementStore = measurementStore,
+            healthConnectExporter = FakeHealthConnectExporter(),
+            syncPreferences = syncPreferences,
+        )
+
+        assertThrows(NoMeasurementsForSelectedUserException::class.java) {
+            runBlocking {
+                orchestrator.exportStoredMeasurementsToHealthConnect()
+            }
+        }
     }
 
     private fun measurement(user: Int, day: Int, hour: Int): Measurement {

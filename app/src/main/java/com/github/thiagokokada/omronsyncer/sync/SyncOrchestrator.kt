@@ -84,8 +84,8 @@ class SyncOrchestrator(
         val measurementState = withContext(Dispatchers.IO) {
             measurementStore.loadAll(selectedUser) to measurementStore.loadDeleted(selectedUser)
         }
-        require(measurementState.first.isNotEmpty() || measurementState.second.isNotEmpty()) {
-            "No measurements match the selected user."
+        if (measurementState.first.isEmpty() && measurementState.second.isEmpty()) {
+            throw NoMeasurementsForSelectedUserException()
         }
         return healthConnectExporter.sync(
             activeMeasurements = measurementState.first,
@@ -128,23 +128,23 @@ class SyncOrchestrator(
 
     private fun requireSelectedBondedDevice(): BluetoothDevice {
         val adapter = bluetoothAdapter()
-            ?: error("This device does not have a Bluetooth adapter.")
+            ?: throw NoBluetoothAdapterException()
         val selectedAddress = syncPreferences.selectedDeviceAddress()
         val bondedDevices = adapter.bondedDevices
             .filter { it.type != BluetoothDevice.DEVICE_TYPE_CLASSIC }
 
-        require(bondedDevices.isNotEmpty()) {
-            "No bonded Bluetooth devices found."
+        if (bondedDevices.isEmpty()) {
+            throw NoBondedBluetoothDevicesException()
         }
-        require(selectedAddress != null) {
-            "No bonded monitor is selected. Pick the monitor in Settings first."
+        if (selectedAddress == null) {
+            throw NoSelectedMonitorException()
         }
 
         val device = bondedDevices.firstOrNull { it.address == selectedAddress }
-            ?: error("The selected bonded monitor was not found. Refresh devices and select it again.")
+            ?: throw SelectedMonitorNotFoundException()
 
-        require(device.bondState == BluetoothDevice.BOND_BONDED) {
-            "This monitor is not bonded yet. Pair it in Android Bluetooth settings first."
+        if (device.bondState != BluetoothDevice.BOND_BONDED) {
+            throw MonitorNotBondedException()
         }
         return device
     }

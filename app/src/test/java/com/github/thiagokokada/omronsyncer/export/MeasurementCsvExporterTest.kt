@@ -2,7 +2,6 @@ package com.github.thiagokokada.omronsyncer.export
 
 import com.github.thiagokokada.omronsyncer.model.Measurement
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertThrows
 import org.junit.Test
 import java.io.ByteArrayOutputStream
 import java.time.LocalDateTime
@@ -51,14 +50,15 @@ class MeasurementCsvExporterTest {
     }
 
     @Test
-    fun export_rejectsEmptyMeasurementList() {
+    fun export_writesHeaderForEmptyMeasurementList() {
         val output = ByteArrayOutputStream()
 
-        val error = assertThrows(IllegalArgumentException::class.java) {
-            exporter.export(output, emptyList())
-        }
+        exporter.export(output, emptyList())
 
-        assertEquals("No measurements available to export.", error.message)
+        assertEquals(
+            "recorded_at,user,systolic,diastolic,pulse,irregular_heartbeat,movement\n",
+            output.toString(Charsets.UTF_8),
+        )
     }
 
     @Test
