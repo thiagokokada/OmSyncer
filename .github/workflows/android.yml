@@ -105,6 +105,9 @@ jobs:
           retention-days: 14
 
   release-build:
+    needs:
+      - build
+      - android-test
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
