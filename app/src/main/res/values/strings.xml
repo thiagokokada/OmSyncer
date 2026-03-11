@@ -16,7 +16,7 @@
     <string name="trends_selected_reading_value">%1$s - %2$d/%3$d, pulse %4$d, flags %5$s</string>
     <string name="trends_empty_state">Sync more measurements to see a trend chart.</string>
     <string name="settings_device_title">Monitor setup</string>
-    <string name="settings_device_body">Choose your monitor model and a bonded Bluetooth monitor.\n\n1. Pair the monitor in Android Bluetooth settings.\n2. Finish Omron pairing here if your model supports it.\n\nIf that step fails, try pairing in Omron Connect instead.</string>
+    <string name="settings_device_body">Choose your monitor model and a paired Bluetooth monitor.\n\n1. Pair the monitor in Android Bluetooth settings.\n2. Finish Omron pairing here if your model supports it.\n\nIf that step fails, try pairing in Omron Connect instead.</string>
     <string name="settings_export_title">Data export</string>
     <string name="settings_export_body">Export your locally stored measurements as a CSV file.</string>
     <string name="settings_health_connect_title">Health Connect</string>
@@ -61,7 +61,7 @@
     <string name="status_no_adapter">This device does not have a Bluetooth adapter.</string>
     <string name="status_no_devices">No paired Bluetooth monitors found.</string>
     <string name="status_selected_device_not_found">The selected monitor was not found. Refresh devices and select it again.</string>
-    <string name="status_loading_devices">Loading bonded devices…</string>
+    <string name="status_loading_devices">Loading paired devices…</string>
     <string name="status_syncing">Syncing measurements…</string>
     <string name="status_sync_already_in_progress">Another sync is already in progress.</string>
     <string name="status_export_choose_location">Choose where to save the CSV file.</string>
