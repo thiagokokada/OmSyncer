@@ -472,12 +472,10 @@ class MainActivity : AppCompatActivity(),
 
         supportFragmentManager.beginTransaction()
             .replace(R.id.fragment_container, fragment)
-            .commit()
+            .commitNow()
 
-        binding.root.post {
-            updateTopLevelUi()
-            notifyCurrentFragment()
-        }
+        updateTopLevelUi()
+        notifyCurrentFragment()
     }
 
     private fun showSyncLog() {
