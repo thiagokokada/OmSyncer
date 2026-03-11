@@ -32,6 +32,25 @@ jobs:
       - name: Build debug app and run unit tests
         run: ./gradlew :app:assembleDebug :app:testDebugUnitTest
 
+      - name: Upload debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: omsyncer-debug-apk-${{ github.sha }}
+          path: app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload unit test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: omsyncer-unit-test-reports-${{ github.sha }}
+          path: |
+            app/build/test-results/testDebugUnitTest/**
+            app/build/reports/tests/testDebugUnitTest/**
+          if-no-files-found: warn
+          retention-days: 14
+
   android-test:
     runs-on: ubuntu-latest
     timeout-minutes: 45
@@ -68,3 +87,14 @@ jobs:
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -no-metrics
           script: ./gradlew :app:connectedDebugAndroidTest
+
+      - name: Upload instrumentation test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: omsyncer-android-test-reports-${{ github.sha }}
+          path: |
+            app/build/outputs/androidTest-results/connected/**
+            app/build/reports/androidTests/connected/**
+          if-no-files-found: warn
+          retention-days: 14
