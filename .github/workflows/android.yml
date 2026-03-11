@@ -147,8 +147,26 @@ jobs:
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
-          OMSYNCER_VERSION_NAME: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || '' }}
-        run: ./gradlew :app:assembleRelease :app:bundleRelease
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            version_name="${GITHUB_REF_NAME#v}"
+            IFS='.' read -r major minor patch extra <<< "$version_name"
+
+            test -n "$major"
+            test -n "$minor"
+            test -n "$patch"
+            test -z "$extra"
+            [[ "$major" =~ ^[0-9]+$ ]]
+            [[ "$minor" =~ ^[0-9]+$ ]]
+            [[ "$patch" =~ ^[0-9]+$ ]]
+            (( 10#$minor <= 99 ))
+            (( 10#$patch <= 99 ))
+
+            export OMSYNCER_VERSION_NAME="$version_name"
+            export OMSYNCER_VERSION_CODE="$((10#$major * 10000 + 10#$minor * 100 + 10#$patch))"
+          fi
+
+          ./gradlew :app:assembleRelease :app:bundleRelease
 
       - name: Upload release APK
         if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
