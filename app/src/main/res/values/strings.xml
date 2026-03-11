@@ -16,7 +16,7 @@
     <string name="trends_selected_reading_value">%1$s - %2$d/%3$d, pulse %4$d, flags %5$s</string>
     <string name="trends_empty_state">Sync more measurements to see a trend chart.</string>
     <string name="settings_device_title">Device configuration</string>
-    <string name="settings_device_body">Choose your monitor model and a bonded Bluetooth monitor.\n\n1. Pair the monitor in Android Bluetooth settings.\n2. Finish Omron pairing here if your model supports it.\n\nIf that step fails, try Omron Connect instead.</string>
+    <string name="settings_device_body">Choose your monitor model and a bonded Bluetooth monitor.\n\n1. Pair the monitor in Android Bluetooth settings.\n2. Finish Omron pairing here if your model supports it.\n\nIf that step fails, try pairing in Omron Connect instead.</string>
     <string name="settings_export_title">Data export</string>
     <string name="settings_export_body">Export your locally stored measurements as a CSV file.</string>
     <string name="settings_health_connect_title">Health Connect</string>
@@ -24,10 +24,10 @@
     <string name="settings_automatic_sync_title">Automatic sync</string>
     <string name="settings_automatic_sync_body">Automatically sync the selected monitor when it is detected nearby after a measurement.</string>
     <string name="settings_deleted_measurements_title">Deleted measurements</string>
-    <string name="settings_deleted_measurements_body">Review deleted measurements and restore any entries you want back.\n\nTo remove a measurement from OmSyncer, swipe it left or right on the Results screen.</string>
+    <string name="settings_deleted_measurements_body">Review deleted measurements and restore any entries you want back.\n\nTo remove a measurement, swipe it left or right on the Results screen.</string>
     <string name="settings_diagnostics_title">Diagnostics</string>
     <string name="settings_log_body">Open the latest BLE session log and export it to inspect a failed sync.</string>
-    <string name="open_bluetooth_settings">Open Bluetooth settings</string>
+    <string name="open_bluetooth_settings">Bluetooth settings</string>
     <string name="open_health_connect">Open Health Connect</string>
     <string name="manage_health_connect">Manage Health Connect</string>
     <string name="grant_health_connect_access">Grant Health Connect access</string>
