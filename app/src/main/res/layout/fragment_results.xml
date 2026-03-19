@@ -45,7 +45,7 @@
                         android:layout_height="wrap_content"
                         android:layout_marginTop="2dp"
                         android:textAppearance="?attr/textAppearanceBodySmall"
-                        tools:text="Latest: 2026-03-07 11:42, 118/77, pulse 61" />
+                        tools:text="Last measurement: 1 day ago" />
                 </LinearLayout>
 
                 <com.google.android.material.button.MaterialButton

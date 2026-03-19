@@ -6,6 +6,7 @@ import android.graphics.Color
 import android.graphics.drawable.ColorDrawable
 import android.graphics.drawable.Drawable
 import android.os.Bundle
+import android.text.format.DateUtils
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -21,6 +22,7 @@ import androidx.core.graphics.toColorInt
 import androidx.core.graphics.drawable.toDrawable
 import com.github.thiagokokada.omronsyncer.sync.SyncPreferences
 import com.google.android.material.snackbar.Snackbar
+import java.time.ZoneId
 
 class ResultsFragment : Fragment() {
 
@@ -117,10 +119,7 @@ class ResultsFragment : Fragment() {
         binding.latestMeasurement.text = latestMeasurement?.let {
             getString(
                 R.string.latest_measurement_summary,
-                adapter.formatTimestamp(it.recordedAt),
-                it.systolic,
-                it.diastolic,
-                it.pulse,
+                formatRelativeMeasurementTime(it),
             )
         } ?: if (hasActiveFilter) {
             getString(R.string.no_measurement_summary_filtered)
@@ -152,6 +151,18 @@ class ResultsFragment : Fragment() {
 
         syncPreferences.setResultsDeleteHintShown(true)
         Snackbar.make(binding.root, R.string.results_delete_hint, Snackbar.LENGTH_LONG).show()
+    }
+
+    private fun formatRelativeMeasurementTime(measurement: Measurement): CharSequence {
+        val measurementTimeMillis = measurement.recordedAt
+            .atZone(ZoneId.systemDefault())
+            .toInstant()
+            .toEpochMilli()
+        return DateUtils.getRelativeTimeSpanString(
+            measurementTimeMillis,
+            System.currentTimeMillis(),
+            DateUtils.MINUTE_IN_MILLIS,
+        )
     }
 
     private inner class DeleteMeasurementSwipeCallback : ItemTouchHelper.SimpleCallback(
