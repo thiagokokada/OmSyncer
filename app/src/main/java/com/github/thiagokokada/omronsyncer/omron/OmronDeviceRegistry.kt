@@ -18,6 +18,7 @@ data class OmronDeviceDefinition(
     val pairingWorkflow: OmronPairingWorkflow = OmronPairingWorkflow.NONE,
     val pairingSetupWriteHex: String? = null,
     val syncSessionHandshakeEnabled: Boolean = false,
+    val normalSyncClockWriteEnabled: Boolean = false,
     val userLayouts: List<OmronUserLayout>,
     val recordSizeBytes: Int,
     val recordParser: OmronRecordParserDefinition,
@@ -123,6 +124,7 @@ object OmronDeviceRegistry {
         pairingWorkflow = OmronPairingWorkflow.OHQ_SESSION_FINALIZATION,
         pairingSetupWriteHex = "0080008000800080710000800800000080808080808080800001010001000000030000",
         syncSessionHandshakeEnabled = true,
+        normalSyncClockWriteEnabled = true,
         userLayouts = listOf(
             OmronUserLayout(user = 1, startAddress = 0x01C4, recordCount = 100),
             OmronUserLayout(user = 2, startAddress = 0x0804, recordCount = 100),

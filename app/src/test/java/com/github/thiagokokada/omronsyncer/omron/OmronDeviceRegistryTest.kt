@@ -161,11 +161,12 @@ class OmronDeviceRegistryTest {
             model.pairingSetupWriteHex,
         )
         assertEquals(true, model.syncSessionHandshakeEnabled)
+        assertEquals(true, model.normalSyncClockWriteEnabled)
         assertTrue(model.supportsAppPairingStep)
     }
 
     @Test
-    fun experimentalFe4aModels_doNotExposeAppPairingStep() {
+    fun experimentalFe4aModels_doNotExposeAppPairingStepOrNormalSyncClockWrite() {
         val models = listOf(
             OmronDeviceRegistry.findById("hem_7155t_v2"),
             OmronDeviceRegistry.findById("hem_7155t_v3"),
@@ -173,6 +174,7 @@ class OmronDeviceRegistryTest {
         )
 
         assertTrue(models.all { !it.supportsAppPairingStep })
+        assertTrue(models.all { !it.normalSyncClockWriteEnabled })
     }
 
     @Test

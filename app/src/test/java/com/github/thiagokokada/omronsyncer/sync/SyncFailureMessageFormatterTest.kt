@@ -44,6 +44,13 @@ class SyncFailureMessageFormatterTest {
             SyncFailureMessageFormatter.userFacingMessage(SyncAlreadyInProgressException("manual"), strings),
         )
         assertEquals(
+            "clock sync failed",
+            SyncFailureMessageFormatter.userFacingMessage(
+                syncException(cause = OmronSyncClient.ClockSyncException(IllegalStateException("boom"))),
+                strings,
+            ),
+        )
+        assertEquals(
             "sync failed",
             SyncFailureMessageFormatter.userFacingMessage(syncException(), strings),
         )
@@ -86,6 +93,8 @@ class SyncFailureMessageFormatterTest {
         override fun noMeasurementsForSelectedUser(): String = "no measurements for user"
 
         override fun syncAlreadyInProgress(): String = "sync already in progress"
+
+        override fun clockSyncFailed(): String = "clock sync failed"
 
         override fun syncFailed(): String = "sync failed"
 

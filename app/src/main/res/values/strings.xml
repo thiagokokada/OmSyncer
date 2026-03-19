@@ -27,7 +27,7 @@
     <string name="settings_deleted_measurements_body">Review deleted measurements and restore any entries you want back.\n\nTo remove a measurement, swipe it left or right on the Results screen.</string>
     <string name="settings_diagnostics_title">Diagnostics</string>
     <string name="settings_log_body">Open the latest BLE session log and export it to inspect a failed sync.</string>
-    <string name="open_bluetooth_settings">Bluetooth settings</string>
+    <string name="open_bluetooth_settings">Bluetooth</string>
     <string name="open_health_connect">Open Health Connect</string>
     <string name="manage_health_connect">Manage Health Connect</string>
     <string name="grant_health_connect_access">Grant access to Health Connect</string>
@@ -65,6 +65,7 @@
     <string name="status_loading_devices">Loading paired devices…</string>
     <string name="status_syncing">Syncing measurements…</string>
     <string name="status_sync_already_in_progress">Another sync is already in progress.</string>
+    <string name="status_clock_sync_failed">The monitor time could not be updated.</string>
     <string name="status_sync_failed_generic">The sync could not be completed.</string>
     <string name="status_export_choose_location">Choose where to save the CSV file.</string>
     <string name="status_exporting">Exporting measurements…</string>
@@ -173,7 +174,7 @@
     <string name="results_delete_hint">Swipe left or right on a measurement to hide it from OmSyncer.</string>
     <string name="empty_measurements">No synced measurements yet. Pair your monitor in Settings, then tap Sync now.</string>
     <string name="empty_measurements_filtered">No synced measurements for the current filters.</string>
-    <string name="latest_measurement_summary">Latest: %1$s, %2$d/%3$d, pulse %4$d</string>
+    <string name="latest_measurement_summary">Last measurement: %1$s</string>
     <string name="no_measurement_summary">No synced measurements yet.</string>
     <string name="no_measurement_summary_filtered">No synced measurements for the current filters.</string>
     <string name="permission_denied">Bluetooth permission was denied.</string>
