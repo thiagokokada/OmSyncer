@@ -207,7 +207,8 @@ class MainActivityTest {
             onView(withId(R.id.export_log_button)).check(matches(isDisplayed()))
             pressBack()
 
-            onView(withText(R.string.settings_title)).check(matches(isDisplayed()))
+            onView(allOf(withId(R.id.screen_title), withText(R.string.settings_title)))
+                .check(matches(isDisplayed()))
             onView(withId(R.id.status_value)).check(matches(isDisplayed()))
             onView(withId(R.id.bottom_navigation)).check(matches(isDisplayed()))
         }
