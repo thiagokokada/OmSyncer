@@ -480,6 +480,12 @@ class MainActivity : AppCompatActivity(),
 
     private fun showSyncLog() {
         supportFragmentManager.beginTransaction()
+            .setCustomAnimations(
+                R.animator.detail_enter_from_end,
+                R.animator.detail_exit_to_start,
+                R.animator.detail_pop_enter_from_start,
+                R.animator.detail_pop_exit_to_end,
+            )
             .replace(R.id.fragment_container, SyncLogFragment())
             .addToBackStack(BACKSTACK_SYNC_LOG)
             .commit()
@@ -780,6 +786,12 @@ class MainActivity : AppCompatActivity(),
 
     private fun showDeletedMeasurements() {
         supportFragmentManager.beginTransaction()
+            .setCustomAnimations(
+                R.animator.detail_enter_from_end,
+                R.animator.detail_exit_to_start,
+                R.animator.detail_pop_enter_from_start,
+                R.animator.detail_pop_exit_to_end,
+            )
             .replace(R.id.fragment_container, DeletedMeasurementsFragment())
             .addToBackStack(BACKSTACK_DELETED_MEASUREMENTS)
             .commit()

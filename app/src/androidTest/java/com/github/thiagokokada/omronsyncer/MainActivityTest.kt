@@ -199,6 +199,21 @@ class MainActivityTest {
     }
 
     @Test
+    fun backFromSyncLog_returnsToSettingsScreen() {
+        ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+            openSettingsScreen(scenario)
+            onView(withId(R.id.sync_log_button)).perform(scrollTo(), click())
+
+            onView(withId(R.id.export_log_button)).check(matches(isDisplayed()))
+            pressBack()
+
+            onView(withText(R.string.settings_title)).check(matches(isDisplayed()))
+            onView(withId(R.id.status_value)).check(matches(isDisplayed()))
+            onView(withId(R.id.bottom_navigation)).check(matches(isDisplayed()))
+        }
+    }
+
+    @Test
     fun nearbySyncSwitch_persistsAcrossActivityRestart() {
         setSelectedDeviceAddress("00:11:22:33:44:55")
 
