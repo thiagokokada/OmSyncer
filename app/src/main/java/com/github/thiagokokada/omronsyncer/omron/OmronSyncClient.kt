@@ -61,6 +61,7 @@ class OmronSyncClient(
             session.connect(device)
             session.performSyncSessionHandshakeIfRequired()
             session.startTransmission()
+            session.syncMonitorClockIfRequired()
 
             val measurements = buildList {
                 model.userLayouts.forEach { layout ->
@@ -222,10 +223,6 @@ class OmronSyncClient(
                 address = OmronOhqProtocol.PAIRING_SETTINGS_READ_ADDRESS,
                 recordSize = OmronOhqProtocol.PAIRING_SETTINGS_READ_SIZE,
             )
-            val clockSeedBlock = readRecord(
-                address = OmronOhqProtocol.PAIRING_CLOCK_SEED_READ_ADDRESS,
-                recordSize = OmronOhqProtocol.PAIRING_CLOCK_SEED_READ_SIZE,
-            )
 
             log("Writing first-time pairing configuration block.")
             writeMemoryBlock(
@@ -233,14 +230,7 @@ class OmronSyncClient(
                 data = setupWriteData,
             )
 
-            log("Writing monitor clock during pairing.")
-            writeMemoryBlock(
-                address = OmronOhqProtocol.PAIRING_CLOCK_WRITE_ADDRESS,
-                data = OmronOhqProtocol.buildClockWriteData(
-                    seedBlock = clockSeedBlock,
-                    timestamp = LocalDateTime.now(),
-                ),
-            )
+            writeMonitorClock(logLabel = "during pairing")
 
             endTransmission()
         }
@@ -299,6 +289,18 @@ class OmronSyncClient(
             )
         }
 
+        suspend fun syncMonitorClockIfRequired() {
+            if (!model.normalSyncClockWriteEnabled) {
+                return
+            }
+
+            try {
+                writeMonitorClock(logLabel = "during sync")
+            } catch (error: Exception) {
+                throw ClockSyncException(error)
+            }
+        }
+
         suspend fun endTransmission() {
             val response = sendCommand(
                 command = END_TRANSMISSION_COMMAND,
@@ -354,6 +356,23 @@ class OmronSyncClient(
             notificationChannel.close()
             pairingChannel.close()
             manager.closeConnection()
+        }
+
+        private suspend fun writeMonitorClock(logLabel: String) {
+            log("Reading monitor clock seed block.")
+            val clockSeedBlock = readRecord(
+                address = OmronOhqProtocol.PAIRING_CLOCK_SEED_READ_ADDRESS,
+                recordSize = OmronOhqProtocol.PAIRING_CLOCK_SEED_READ_SIZE,
+            )
+
+            log("Writing monitor clock $logLabel.")
+            writeMemoryBlock(
+                address = OmronOhqProtocol.PAIRING_CLOCK_WRITE_ADDRESS,
+                data = OmronOhqProtocol.buildClockWriteData(
+                    seedBlock = clockSeedBlock,
+                    timestamp = LocalDateTime.now(),
+                ),
+            )
         }
 
         private suspend fun writeMemoryBlock(address: Int, data: ByteArray) {
@@ -821,6 +840,9 @@ class OmronSyncClient(
         val capture: SyncCapture,
         cause: Throwable? = null,
     ) : IllegalStateException(cause)
+
+    class ClockSyncException(cause: Throwable) :
+        IllegalStateException("Monitor clock sync failed.", cause)
 
     class CommandTimeoutException(cause: Throwable) :
         IllegalStateException("Timed out waiting for response.", cause)

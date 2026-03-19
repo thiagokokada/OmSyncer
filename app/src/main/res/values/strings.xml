@@ -65,6 +65,7 @@
     <string name="status_loading_devices">Loading paired devices…</string>
     <string name="status_syncing">Syncing measurements…</string>
     <string name="status_sync_already_in_progress">Another sync is already in progress.</string>
+    <string name="status_clock_sync_failed">The monitor time could not be updated.</string>
     <string name="status_sync_failed_generic">The sync could not be completed.</string>
     <string name="status_export_choose_location">Choose where to save the CSV file.</string>
     <string name="status_exporting">Exporting measurements…</string>

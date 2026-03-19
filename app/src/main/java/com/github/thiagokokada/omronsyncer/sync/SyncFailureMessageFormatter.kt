@@ -43,6 +43,7 @@ object SyncFailureMessageFormatter {
             is MonitorNotBondedException -> strings.monitorNotBonded()
             is NoMeasurementsForSelectedUserException -> strings.noMeasurementsForSelectedUser()
             is SyncAlreadyInProgressException -> strings.syncAlreadyInProgress()
+            is OmronSyncClient.ClockSyncException -> strings.clockSyncFailed()
             else -> knownMessage(error.cause, strings)
         }
     }
@@ -56,6 +57,7 @@ object SyncFailureMessageFormatter {
         fun monitorNotBonded(): String
         fun noMeasurementsForSelectedUser(): String
         fun syncAlreadyInProgress(): String
+        fun clockSyncFailed(): String
         fun syncFailed(): String
         fun pairingFailed(): String
     }
@@ -93,6 +95,10 @@ object SyncFailureMessageFormatter {
 
         override fun syncAlreadyInProgress(): String {
             return context.getString(R.string.status_sync_already_in_progress)
+        }
+
+        override fun clockSyncFailed(): String {
+            return context.getString(R.string.status_clock_sync_failed)
         }
 
         override fun syncFailed(): String {
