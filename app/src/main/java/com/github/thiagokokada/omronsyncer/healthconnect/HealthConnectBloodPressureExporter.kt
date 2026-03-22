@@ -14,7 +14,6 @@ import androidx.health.connect.client.records.metadata.Metadata
 import androidx.health.connect.client.units.Pressure
 import com.github.thiagokokada.omronsyncer.model.Measurement
 import java.time.ZoneId
-import java.time.format.DateTimeFormatter
 
 class HealthConnectBloodPressureExporter(private val context: Context) : HealthConnectExporter {
 
@@ -47,38 +46,32 @@ class HealthConnectBloodPressureExporter(private val context: Context) : HealthC
             client().permissionController.getGrantedPermissions().containsAll(requiredPermissions)
     }
 
-    suspend fun export(measurements: List<Measurement>): ExportSummary {
-        return sync(
-            activeMeasurements = measurements,
-            deletedMeasurements = emptyList(),
-        )
-    }
-
-    override suspend fun sync(
-        activeMeasurements: List<Measurement>,
-        deletedMeasurements: List<Measurement>,
-    ): ExportSummary {
-        if (activeMeasurements.isNotEmpty()) {
-            client().insertRecords(activeMeasurements.flatMap(::toHealthConnectRecords))
+    override suspend fun sync(plan: HealthConnectSyncPlan): ExportSummary {
+        if (plan.activeItems.isNotEmpty()) {
+            client().insertRecords(plan.activeItems.flatMap(::toHealthConnectRecords))
         }
-        deletedMeasurements.forEach { measurement ->
-            delete(measurement)
+        plan.deletedRecordIds.forEach { recordIds ->
+            delete(recordIds)
         }
         return ExportSummary(
-            bloodPressureExported = activeMeasurements.size,
-            heartRateExported = activeMeasurements.size,
-            deletedMeasurements = deletedMeasurements.size,
+            bloodPressureExported = plan.activeItems.size,
+            heartRateExported = plan.activeItems.size,
+            deletedMeasurements = plan.deletedRecordIds.size,
         )
     }
 
     suspend fun delete(measurement: Measurement) {
+        delete(HealthConnectSyncPlanner.rawRecordIdsFor(measurement))
+    }
+
+    suspend fun delete(recordIds: HealthConnectRecordIds) {
         client().deleteRecords<BloodPressureRecord>(
             recordIdsList = emptyList(),
-            clientRecordIdsList = listOf(clientRecordId(measurement)),
+            clientRecordIdsList = listOf(recordIds.bloodPressureClientRecordId),
         )
         client().deleteRecords<HeartRateRecord>(
             recordIdsList = emptyList(),
-            clientRecordIdsList = listOf(heartRateClientRecordId(measurement)),
+            clientRecordIdsList = listOf(recordIds.heartRateClientRecordId),
         )
     }
 
@@ -86,7 +79,8 @@ class HealthConnectBloodPressureExporter(private val context: Context) : HealthC
         return HealthConnectClient.getOrCreate(context)
     }
 
-    private fun toBloodPressureRecord(measurement: Measurement): BloodPressureRecord {
+    private fun toBloodPressureRecord(item: HealthConnectExportItem): BloodPressureRecord {
+        val measurement = item.measurement
         val zonedTime = measurement.recordedAt.atZone(ZoneId.systemDefault())
         return BloodPressureRecord(
             time = zonedTime.toInstant(),
@@ -97,7 +91,7 @@ class HealthConnectBloodPressureExporter(private val context: Context) : HealthC
                     manufacturer = DEVICE_MANUFACTURER,
                     model = DEVICE_MODEL,
                 ),
-                clientRecordId = clientRecordId(measurement),
+                clientRecordId = item.recordIds.bloodPressureClientRecordId,
                 clientRecordVersion = 0,
             ),
             systolic = Pressure.millimetersOfMercury(measurement.systolic.toDouble()),
@@ -107,7 +101,8 @@ class HealthConnectBloodPressureExporter(private val context: Context) : HealthC
         )
     }
 
-    private fun toHeartRateRecord(measurement: Measurement): HeartRateRecord {
+    private fun toHeartRateRecord(item: HealthConnectExportItem): HeartRateRecord {
+        val measurement = item.measurement
         val zonedTime = measurement.recordedAt.atZone(ZoneId.systemDefault())
         return HeartRateRecord(
             startTime = zonedTime.toInstant(),
@@ -126,63 +121,29 @@ class HealthConnectBloodPressureExporter(private val context: Context) : HealthC
                     manufacturer = DEVICE_MANUFACTURER,
                     model = DEVICE_MODEL,
                 ),
-                clientRecordId = heartRateClientRecordId(measurement),
+                clientRecordId = item.recordIds.heartRateClientRecordId,
                 clientRecordVersion = 0,
             ),
         )
     }
 
-    private fun toHealthConnectRecords(measurement: Measurement): List<Record> {
+    private fun toHealthConnectRecords(item: HealthConnectExportItem): List<Record> {
         return listOf(
-            toBloodPressureRecord(measurement),
-            toHeartRateRecord(measurement),
+            toBloodPressureRecord(item),
+            toHeartRateRecord(item),
         )
-    }
-
-    private fun clientRecordId(measurement: Measurement): String {
-        return buildString {
-            append("omron-bp:")
-            append(baseMeasurementKey(measurement))
-        }
-    }
-
-    private fun heartRateClientRecordId(measurement: Measurement): String {
-        return buildString {
-            append("omron-hr:")
-            append(baseMeasurementKey(measurement))
-        }
-    }
-
-    private fun baseMeasurementKey(measurement: Measurement): String {
-        return buildString {
-            append(measurement.user)
-            append(':')
-            append(CLIENT_TIME_FORMATTER.format(measurement.recordedAt))
-            append(':')
-            append(measurement.systolic)
-            append(':')
-            append(measurement.diastolic)
-            append(':')
-            append(measurement.pulse)
-            append(':')
-            append(if (measurement.irregularHeartbeat) 1 else 0)
-            append(':')
-            append(if (measurement.movement) 1 else 0)
-        }
     }
 
     data class ExportSummary(
         val bloodPressureExported: Int,
         val heartRateExported: Int,
         val deletedMeasurements: Int,
+        val diagnostics: String = "",
     )
 
     private companion object {
         const val DEVICE_MANUFACTURER = "Omron"
         const val DEVICE_MODEL = "Blood Pressure Monitor"
         const val HEALTH_CONNECT_PACKAGE = "com.google.android.apps.healthdata"
-
-        val CLIENT_TIME_FORMATTER: DateTimeFormatter =
-            DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss")
     }
 }

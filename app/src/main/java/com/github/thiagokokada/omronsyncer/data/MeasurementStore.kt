@@ -76,6 +76,11 @@ class MeasurementStore(context: Context) {
             put(COLUMN_PULSE, pulse)
             put(COLUMN_IRREGULAR_HEARTBEAT, if (irregularHeartbeat) 1 else 0)
             put(COLUMN_MOVEMENT, if (movement) 1 else 0)
+            if (truReadStage == null) {
+                putNull(COLUMN_TRU_READ_STAGE)
+            } else {
+                put(COLUMN_TRU_READ_STAGE, truReadStage)
+            }
             put(COLUMN_DELETED, 0)
             putNull(COLUMN_DELETED_AT)
         }
@@ -168,6 +173,11 @@ class MeasurementStore(context: Context) {
             pulse = getInt(getColumnIndexOrThrow(COLUMN_PULSE)),
             irregularHeartbeat = getInt(getColumnIndexOrThrow(COLUMN_IRREGULAR_HEARTBEAT)) == 1,
             movement = getInt(getColumnIndexOrThrow(COLUMN_MOVEMENT)) == 1,
+            truReadStage = getColumnIndex(COLUMN_TRU_READ_STAGE)
+                .takeIf { it >= 0 }
+                ?.let { columnIndex ->
+                    if (isNull(columnIndex)) null else getInt(columnIndex)
+                },
         )
     }
 
@@ -193,6 +203,7 @@ class MeasurementStore(context: Context) {
                     $COLUMN_PULSE INTEGER NOT NULL,
                     $COLUMN_IRREGULAR_HEARTBEAT INTEGER NOT NULL,
                     $COLUMN_MOVEMENT INTEGER NOT NULL,
+                    $COLUMN_TRU_READ_STAGE INTEGER,
                     $COLUMN_DELETED INTEGER NOT NULL DEFAULT 0,
                     $COLUMN_DELETED_AT TEXT,
                     UNIQUE (
@@ -222,6 +233,11 @@ class MeasurementStore(context: Context) {
             if (oldVersion < 3) {
                 createIndexes(db)
             }
+            if (oldVersion < 4) {
+                db.execSQL(
+                    "ALTER TABLE $TABLE_MEASUREMENTS ADD COLUMN $COLUMN_TRU_READ_STAGE INTEGER",
+                )
+            }
         }
 
         private fun createIndexes(db: SQLiteDatabase) {
@@ -236,7 +252,7 @@ class MeasurementStore(context: Context) {
 
     private companion object {
         const val DATABASE_NAME = "measurements.db"
-        const val DATABASE_VERSION = 3
+        const val DATABASE_VERSION = 4
 
         const val TABLE_MEASUREMENTS = "measurements"
         const val INDEX_MEASUREMENTS_RECORDED_AT = "idx_measurements_recorded_at"
@@ -248,6 +264,7 @@ class MeasurementStore(context: Context) {
         const val COLUMN_PULSE = "pulse"
         const val COLUMN_IRREGULAR_HEARTBEAT = "irregular_heartbeat"
         const val COLUMN_MOVEMENT = "movement"
+        const val COLUMN_TRU_READ_STAGE = "tru_read_stage"
         const val COLUMN_DELETED = "deleted"
         const val COLUMN_DELETED_AT = "deleted_at"
 
@@ -259,6 +276,7 @@ class MeasurementStore(context: Context) {
             COLUMN_PULSE,
             COLUMN_IRREGULAR_HEARTBEAT,
             COLUMN_MOVEMENT,
+            COLUMN_TRU_READ_STAGE,
         )
 
         val STORED_TIME_FORMATTER: DateTimeFormatter =

@@ -4,9 +4,11 @@ import android.content.Context
 import androidx.health.connect.client.HealthConnectClient
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.github.thiagokokada.omronsyncer.TruReadDisplayMode
 import com.github.thiagokokada.omronsyncer.data.MeasurementStore
 import com.github.thiagokokada.omronsyncer.healthconnect.HealthConnectBloodPressureExporter
 import com.github.thiagokokada.omronsyncer.healthconnect.HealthConnectExporter
+import com.github.thiagokokada.omronsyncer.healthconnect.HealthConnectSyncPlan
 import com.github.thiagokokada.omronsyncer.model.Measurement
 import com.github.thiagokokada.omronsyncer.omron.OmronDeviceRegistry
 import kotlinx.coroutines.runBlocking
@@ -66,8 +68,8 @@ class SyncOrchestratorTest {
 
         val summary = orchestrator.exportStoredMeasurementsToHealthConnect()
 
-        assertEquals(listOf(activeUserOne), exporter.activeMeasurements)
-        assertEquals(listOf(deletedUserOne), exporter.deletedMeasurements)
+        assertEquals(listOf(activeUserOne), exporter.plan.activeItems.map { it.measurement })
+        assertEquals(listOf("omron-bp:1:2026-03-07T09:30:00:121:81:65:0:0"), exporter.plan.deletedRecordIds.map { it.bloodPressureClientRecordId })
         assertEquals(1, summary.bloodPressureExported)
         assertEquals(1, summary.deletedMeasurements)
     }
@@ -87,10 +89,99 @@ class SyncOrchestratorTest {
 
         val summary = orchestrator.exportStoredMeasurementsToHealthConnect()
 
-        assertEquals(emptyList<Measurement>(), exporter.activeMeasurements)
-        assertEquals(listOf(deletedUserOne), exporter.deletedMeasurements)
+        assertEquals(emptyList<Measurement>(), exporter.plan.activeItems.map { it.measurement })
+        assertEquals(listOf("omron-bp:1:2026-03-08T09:30:00:121:81:65:0:0"), exporter.plan.deletedRecordIds.map { it.bloodPressureClientRecordId })
         assertEquals(0, summary.bloodPressureExported)
         assertEquals(1, summary.deletedMeasurements)
+    }
+
+    @Test
+    fun exportStoredMeasurementsToHealthConnect_mergeModeExportsSingleTruReadSessionAndDeletesRawIds() = runBlocking {
+        syncPreferences.setSelectedModelId("hem_7380t1")
+        syncPreferences.setTruReadDisplayMode(TruReadDisplayMode.MERGE)
+        val session = truReadSession()
+        measurementStore.saveAll(session)
+        val exporter = FakeHealthConnectExporter()
+        val orchestrator = SyncOrchestrator(
+            context = context,
+            measurementStore = measurementStore,
+            healthConnectExporter = exporter,
+            syncPreferences = syncPreferences,
+        )
+
+        val summary = orchestrator.exportStoredMeasurementsToHealthConnect()
+
+        assertEquals(1, exporter.plan.activeItems.size)
+        assertEquals(
+            "omron-bp:merged:1:2026-03-08T09:30:00:2026-03-08T09:32:00:2026-03-08T09:34:00",
+            exporter.plan.activeItems.single().recordIds.bloodPressureClientRecordId,
+        )
+        assertEquals(
+            listOf(
+                "omron-bp:1:2026-03-08T09:30:00:126:79:63:0:0",
+                "omron-bp:1:2026-03-08T09:32:00:124:78:64:0:1",
+                "omron-bp:1:2026-03-08T09:34:00:125:80:65:1:0",
+            ),
+            exporter.plan.deletedRecordIds.map { it.bloodPressureClientRecordId }.sorted(),
+        )
+        assertEquals(1, summary.bloodPressureExported)
+        assertEquals(3, summary.deletedMeasurements)
+    }
+
+    @Test
+    fun exportStoredMeasurementsToHealthConnect_separateModeDeletesMergedTruReadId() = runBlocking {
+        syncPreferences.setSelectedModelId("hem_7380t1")
+        syncPreferences.setTruReadDisplayMode(TruReadDisplayMode.SEPARATE)
+        val session = truReadSession()
+        measurementStore.saveAll(session)
+        val exporter = FakeHealthConnectExporter()
+        val orchestrator = SyncOrchestrator(
+            context = context,
+            measurementStore = measurementStore,
+            healthConnectExporter = exporter,
+            syncPreferences = syncPreferences,
+        )
+
+        val summary = orchestrator.exportStoredMeasurementsToHealthConnect()
+
+        assertEquals(3, exporter.plan.activeItems.size)
+        assertEquals(
+            listOf("omron-bp:merged:1:2026-03-08T09:30:00:2026-03-08T09:32:00:2026-03-08T09:34:00"),
+            exporter.plan.deletedRecordIds.map { it.bloodPressureClientRecordId },
+        )
+        assertEquals(3, summary.bloodPressureExported)
+        assertEquals(1, summary.deletedMeasurements)
+    }
+
+    @Test
+    fun exportStoredMeasurementsToHealthConnect_deletedMergedSessionDeletesBothRepresentations() = runBlocking {
+        syncPreferences.setSelectedModelId("hem_7380t1")
+        syncPreferences.setTruReadDisplayMode(TruReadDisplayMode.MERGE)
+        val session = truReadSession()
+        measurementStore.saveAll(session)
+        session.forEach(measurementStore::softDelete)
+        val exporter = FakeHealthConnectExporter()
+        val orchestrator = SyncOrchestrator(
+            context = context,
+            measurementStore = measurementStore,
+            healthConnectExporter = exporter,
+            syncPreferences = syncPreferences,
+        )
+
+        val summary = orchestrator.exportStoredMeasurementsToHealthConnect()
+
+        assertEquals(emptyList<Measurement>(), exporter.plan.activeItems.map { it.measurement })
+        assertEquals(
+            listOf(
+                "omron-bp:1:2026-03-08T09:30:00:126:79:63:0:0",
+                "omron-bp:1:2026-03-08T09:32:00:124:78:64:0:1",
+                "omron-bp:1:2026-03-08T09:34:00:125:80:65:1:0",
+                "omron-bp:merged:1:2026-03-08T09:30:00:2026-03-08T09:32:00:2026-03-08T09:34:00",
+            ),
+            exporter.plan.deletedRecordIds.map { it.bloodPressureClientRecordId }.sorted(),
+        )
+        assertEquals(0, summary.bloodPressureExported)
+        assertEquals(4, summary.deletedMeasurements)
     }
 
     @Test
@@ -121,26 +212,56 @@ class SyncOrchestratorTest {
         )
     }
 
+    private fun truReadSession(): List<Measurement> {
+        return listOf(
+            Measurement(
+                user = 1,
+                recordedAt = LocalDateTime.of(2026, 3, 8, 9, 30),
+                systolic = 126,
+                diastolic = 79,
+                pulse = 63,
+                irregularHeartbeat = false,
+                movement = false,
+                truReadStage = 1,
+            ),
+            Measurement(
+                user = 1,
+                recordedAt = LocalDateTime.of(2026, 3, 8, 9, 32),
+                systolic = 124,
+                diastolic = 78,
+                pulse = 64,
+                irregularHeartbeat = false,
+                movement = true,
+                truReadStage = 2,
+            ),
+            Measurement(
+                user = 1,
+                recordedAt = LocalDateTime.of(2026, 3, 8, 9, 34),
+                systolic = 125,
+                diastolic = 80,
+                pulse = 65,
+                irregularHeartbeat = true,
+                movement = false,
+                truReadStage = 3,
+            ),
+        )
+    }
+
     private class FakeHealthConnectExporter : HealthConnectExporter {
-        var activeMeasurements: List<Measurement> = emptyList()
-            private set
-        var deletedMeasurements: List<Measurement> = emptyList()
+        lateinit var plan: HealthConnectSyncPlan
             private set
 
         override fun sdkStatus(): Int = HealthConnectClient.SDK_AVAILABLE
 
         override suspend fun hasAllPermissions(): Boolean = true
 
-        override suspend fun sync(
-            activeMeasurements: List<Measurement>,
-            deletedMeasurements: List<Measurement>,
-        ): HealthConnectBloodPressureExporter.ExportSummary {
-            this.activeMeasurements = activeMeasurements
-            this.deletedMeasurements = deletedMeasurements
+        override suspend fun sync(plan: HealthConnectSyncPlan): HealthConnectBloodPressureExporter.ExportSummary {
+            this.plan = plan
             return HealthConnectBloodPressureExporter.ExportSummary(
-                bloodPressureExported = activeMeasurements.size,
-                heartRateExported = activeMeasurements.size,
-                deletedMeasurements = deletedMeasurements.size,
+                bloodPressureExported = plan.activeItems.size,
+                heartRateExported = plan.activeItems.size,
+                deletedMeasurements = plan.deletedRecordIds.size,
+                diagnostics = "",
             )
         }
     }

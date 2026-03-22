@@ -4,8 +4,9 @@ import com.github.thiagokokada.omronsyncer.model.Measurement
 
 data class MainUiState(
     val measurements: List<Measurement>,
-    val resultsMeasurements: List<Measurement>,
-    val deletedMeasurements: List<Measurement>,
+    val trendMeasurements: List<Measurement>,
+    val resultsMeasurements: List<MeasurementListItem>,
+    val deletedMeasurements: List<MeasurementListItem>,
     val measurementUserOptions: List<Int?>,
     val measurementUserLabels: List<String>,
     val selectedMeasurementUser: Int?,
@@ -38,4 +39,8 @@ data class MainUiState(
     val canSeedSampleMeasurements: Boolean,
     val selectedTrendRange: TrendRange,
     val showsMeasurementUserColumn: Boolean,
+    val showsTruReadDisplayMode: Boolean,
+    val truReadDisplayModeLabels: List<String>,
+    val selectedTruReadDisplayModeIndex: Int,
+    val resultsDeleteEnabled: Boolean,
 )

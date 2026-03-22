@@ -79,8 +79,9 @@ class MainActivity : AppCompatActivity(),
     }
 
     private var measurements: List<Measurement> = emptyList()
-    private var resultsMeasurements: List<Measurement> = emptyList()
-    private var deletedMeasurements: List<Measurement> = emptyList()
+    private var trendMeasurements: List<Measurement> = emptyList()
+    private var resultsMeasurements: List<MeasurementListItem> = emptyList()
+    private var deletedMeasurements: List<MeasurementListItem> = emptyList()
     private var statusMessage: String = ""
     private var lastSyncLog: String = ""
     private var lastSyncCapture: String = ""
@@ -257,6 +258,11 @@ class MainActivity : AppCompatActivity(),
         val selectedModel = selectedModel()
         val measurementUserOptions = buildMeasurementUserOptions(selectedModel)
         val selectedMeasurementUser = selectedMeasurementUser(selectedModel)
+        val truReadDisplayMode = syncPreferences.truReadDisplayMode()
+        val truReadDisplayModeLabels = listOf(
+            getString(R.string.tru_read_display_mode_separate),
+            getString(R.string.tru_read_display_mode_merge),
+        )
         val measurementUserLabels = measurementUserOptions.map { user ->
             user?.let { getString(R.string.measurement_user_single, it) }
                 ?: getString(R.string.measurement_user_all)
@@ -294,6 +300,7 @@ class MainActivity : AppCompatActivity(),
         }
         return MainUiState(
             measurements = measurements,
+            trendMeasurements = trendMeasurements,
             resultsMeasurements = resultsMeasurements,
             deletedMeasurements = deletedMeasurements,
             measurementUserOptions = measurementUserOptions,
@@ -333,6 +340,10 @@ class MainActivity : AppCompatActivity(),
             canSeedSampleMeasurements = BuildConfig.DEBUG && !isWorking && measurements.isEmpty(),
             selectedTrendRange = syncPreferences.selectedTrendRange(),
             showsMeasurementUserColumn = selectedModel.userCount > 1,
+            showsTruReadDisplayMode = selectedModel.supportsTruReadMerge,
+            truReadDisplayModeLabels = truReadDisplayModeLabels,
+            selectedTruReadDisplayModeIndex = TruReadDisplayMode.entries.indexOf(truReadDisplayMode),
+            resultsDeleteEnabled = true,
         )
     }
 
@@ -357,7 +368,14 @@ class MainActivity : AppCompatActivity(),
         loadPersistedMeasurements()
     }
 
-    override fun onMeasurementDeleteRequested(measurement: Measurement) {
+    override fun onTruReadDisplayModeSelected(position: Int) {
+        TruReadDisplayMode.entries.getOrNull(position)?.let { mode ->
+            syncPreferences.setTruReadDisplayMode(mode)
+            loadPersistedMeasurements()
+        }
+    }
+
+    override fun onMeasurementDeleteRequested(measurement: MeasurementListItem) {
         confirmDeleteMeasurement(measurement)
     }
 
@@ -441,7 +459,7 @@ class MainActivity : AppCompatActivity(),
         showSyncLog()
     }
 
-    override fun onDeletedMeasurementRestoreRequested(measurement: Measurement) {
+    override fun onDeletedMeasurementRestoreRequested(measurement: MeasurementListItem) {
         restoreMeasurement(measurement)
     }
 
@@ -724,7 +742,7 @@ class MainActivity : AppCompatActivity(),
         }
     }
 
-    private fun confirmDeleteMeasurement(measurement: Measurement) {
+    private fun confirmDeleteMeasurement(measurement: MeasurementListItem) {
         val message = buildString {
             append(getString(R.string.delete_measurement_message))
             if (!canDeleteFromHealthConnect()) {
@@ -742,7 +760,7 @@ class MainActivity : AppCompatActivity(),
             .show()
     }
 
-    private fun deleteMeasurement(measurement: Measurement) {
+    private fun deleteMeasurement(measurement: MeasurementListItem) {
         setWorking(true)
         updateStatus(getString(R.string.status_delete_measurement))
 
@@ -750,11 +768,15 @@ class MainActivity : AppCompatActivity(),
             var healthConnectWarning = false
             runCatching {
                 withContext(Dispatchers.IO) {
-                    measurementStore.softDelete(measurement)
+                    measurement.sourceMeasurements.forEach(measurementStore::softDelete)
                 }
                 if (canDeleteFromHealthConnect()) {
                     runCatching {
-                        healthConnectExporter.delete(measurement)
+                        syncOrchestrator.exportStoredMeasurementsToHealthConnect().also { summary ->
+                            if (summary.diagnostics.isNotBlank()) {
+                                logSyncDiagnostics(source = "health-connect-delete", syncLog = summary.diagnostics)
+                            }
+                        }
                     }.onFailure {
                         healthConnectWarning = true
                     }
@@ -802,18 +824,22 @@ class MainActivity : AppCompatActivity(),
         }
     }
 
-    private fun restoreMeasurement(measurement: Measurement) {
+    private fun restoreMeasurement(measurement: MeasurementListItem) {
         setWorking(true)
 
         launchUi {
             var healthConnectWarning = false
             runCatching {
                 withContext(Dispatchers.IO) {
-                    measurementStore.undelete(measurement)
+                    measurement.sourceMeasurements.forEach(measurementStore::undelete)
                 }
                 if (isHealthConnectAvailable && isHealthConnectConnected) {
                     runCatching {
-                        healthConnectExporter.export(listOf(measurement))
+                        syncOrchestrator.exportStoredMeasurementsToHealthConnect().also { summary ->
+                            if (summary.diagnostics.isNotBlank()) {
+                                logSyncDiagnostics(source = "health-connect-restore", syncLog = summary.diagnostics)
+                            }
+                        }
                     }.onFailure {
                         healthConnectWarning = true
                     }
@@ -941,6 +967,10 @@ class MainActivity : AppCompatActivity(),
             runCatching {
                 syncOrchestrator.exportStoredMeasurementsToHealthConnect()
             }.onSuccess { summary ->
+                if (summary.diagnostics.isNotBlank()) {
+                    logSyncDiagnostics(source = "health-connect-export", syncLog = summary.diagnostics)
+                    renderSyncLog(summary.diagnostics)
+                }
                 updateStatus(healthConnectExportMessage(summary))
                 showToast(getString(R.string.toast_health_connect_exported))
             }.onFailure { error ->
@@ -990,15 +1020,16 @@ class MainActivity : AppCompatActivity(),
 
         launchUi {
             runCatching {
-                val storedMeasurements = withContext(Dispatchers.IO) {
-                    measurementStore.loadAll(selectedMeasurementUser())
+                val measurementState = withContext(Dispatchers.IO) {
+                    loadStoredMeasurementState(selectedMeasurementUser())
                 }
-                if (storedMeasurements.isEmpty()) {
+                val exportMeasurements = measurementState.resultsMeasurements.map(MeasurementListItem::displayMeasurement)
+                if (exportMeasurements.isEmpty()) {
                     throw IllegalStateException(NO_MEASUREMENTS_TO_EXPORT)
                 }
                 withContext(Dispatchers.IO) {
                     contentResolver.openOutputStream(uri)?.use { outputStream ->
-                        csvExporter.export(outputStream, storedMeasurements)
+                        csvExporter.export(outputStream, exportMeasurements)
                     } ?: throw IllegalStateException(EXPORT_DESTINATION_UNAVAILABLE)
                 }
             }.onSuccess {
@@ -1306,6 +1337,7 @@ class MainActivity : AppCompatActivity(),
 
     private fun applyStoredMeasurementState(state: StoredMeasurementState) {
         measurements = state.measurements
+        trendMeasurements = state.trendMeasurements
         resultsMeasurements = state.resultsMeasurements
         deletedMeasurements = state.deletedMeasurements
     }
@@ -1315,13 +1347,30 @@ class MainActivity : AppCompatActivity(),
     ): StoredMeasurementState {
         val resultsRecordedAtFrom = syncPreferences.selectedTrendRange()
             .recordedAtFrom(LocalDateTime.now())
+        val selectedModel = selectedModel()
+        val truReadDisplayMode = syncPreferences.truReadDisplayMode()
+        val storedMeasurements = measurementStore.loadAll(selectedUser)
+        val storedTrendMeasurements = measurementStore.loadAll(selectedUser)
         return StoredMeasurementState(
-            measurements = measurementStore.loadAll(selectedUser),
-            resultsMeasurements = measurementStore.loadAll(
-                user = selectedUser,
-                recordedAtFrom = resultsRecordedAtFrom,
+            measurements = storedMeasurements,
+            trendMeasurements = TruReadMeasurementGrouper.displayMeasurements(
+                model = selectedModel,
+                measurements = storedTrendMeasurements,
+                displayMode = truReadDisplayMode,
             ),
-            deletedMeasurements = measurementStore.loadDeleted(selectedUser),
+            resultsMeasurements = TruReadMeasurementGrouper.displayItems(
+                model = selectedModel,
+                measurements = measurementStore.loadAll(
+                    user = selectedUser,
+                    recordedAtFrom = resultsRecordedAtFrom,
+                ),
+                displayMode = truReadDisplayMode,
+            ),
+            deletedMeasurements = TruReadMeasurementGrouper.displayItems(
+                model = selectedModel,
+                measurements = measurementStore.loadDeleted(selectedUser),
+                displayMode = truReadDisplayMode,
+            ),
         )
     }
 
@@ -1474,8 +1523,9 @@ class MainActivity : AppCompatActivity(),
 
     private data class StoredMeasurementState(
         val measurements: List<Measurement>,
-        val resultsMeasurements: List<Measurement>,
-        val deletedMeasurements: List<Measurement>,
+        val trendMeasurements: List<Measurement>,
+        val resultsMeasurements: List<MeasurementListItem>,
+        val deletedMeasurements: List<MeasurementListItem>,
     )
 
     private data class NearbySyncCooldownOption(

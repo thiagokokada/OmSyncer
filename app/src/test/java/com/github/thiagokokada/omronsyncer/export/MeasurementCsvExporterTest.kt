@@ -34,15 +34,16 @@ class MeasurementCsvExporterTest {
                     pulse = 66,
                     irregularHeartbeat = false,
                     movement = true,
+                    isTruReadMerged = true,
                 ),
             ),
         )
 
         assertEquals(
             """
-            recorded_at,user,systolic,diastolic,pulse,irregular_heartbeat,movement
-            2026-03-07 11:42:03,1,118,77,61,true,false
-            2026-03-06 22:15:00,2,124,81,66,false,true
+            recorded_at,user,systolic,diastolic,pulse,irregular_heartbeat,movement,tru_read_merged
+            2026-03-07 11:42:03,1,118,77,61,true,false,false
+            2026-03-06 22:15:00,2,124,81,66,false,true,true
             
             """.trimIndent(),
             output.toString(Charsets.UTF_8),
@@ -56,7 +57,7 @@ class MeasurementCsvExporterTest {
         exporter.export(output, emptyList())
 
         assertEquals(
-            "recorded_at,user,systolic,diastolic,pulse,irregular_heartbeat,movement\n",
+            "recorded_at,user,systolic,diastolic,pulse,irregular_heartbeat,movement,tru_read_merged\n",
             output.toString(Charsets.UTF_8),
         )
     }

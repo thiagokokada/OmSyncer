@@ -81,7 +81,21 @@ class MeasurementStoreTest {
         assertEquals(emptyList<Measurement>(), measurementStore.loadDeleted(user = 1))
     }
 
-    private fun measurement(user: Int, day: Int, hour: Int = 9): Measurement {
+    @Test
+    fun loadAll_persistsTruReadStage() {
+        val measurement = measurement(user = 1, day = 8, hour = 9, truReadStage = 2)
+
+        measurementStore.saveAll(listOf(measurement))
+
+        assertEquals(listOf(measurement), measurementStore.loadAll(user = 1))
+    }
+
+    private fun measurement(
+        user: Int,
+        day: Int,
+        hour: Int = 9,
+        truReadStage: Int? = null,
+    ): Measurement {
         return Measurement(
             user = user,
             recordedAt = LocalDateTime.of(2026, 3, day, hour, 30),
@@ -90,6 +104,7 @@ class MeasurementStoreTest {
             pulse = 64 + user,
             irregularHeartbeat = false,
             movement = false,
+            truReadStage = truReadStage,
         )
     }
 }

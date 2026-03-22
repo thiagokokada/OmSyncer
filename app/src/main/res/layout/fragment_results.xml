@@ -136,13 +136,33 @@
             android:text="@string/column_pulse"
             android:textAppearance="?attr/textAppearanceLabelMedium" />
 
-        <TextView
+        <LinearLayout
+            android:id="@+id/flags_header_button"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1.2"
+            android:clickable="true"
+            android:focusable="true"
+            android:foreground="?attr/selectableItemBackgroundBorderless"
             android:gravity="center"
-            android:text="@string/column_flags"
-            android:textAppearance="?attr/textAppearanceLabelMedium" />
+            android:orientation="horizontal"
+            android:paddingVertical="2dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/column_flags"
+                android:textAppearance="?attr/textAppearanceLabelMedium"
+                android:textColor="?attr/colorPrimary" />
+
+            <ImageView
+                android:layout_width="14dp"
+                android:layout_height="14dp"
+                android:layout_marginStart="4dp"
+                android:contentDescription="@string/flags_legend_title"
+                android:tint="?attr/colorPrimary"
+                app:srcCompat="@android:drawable/ic_menu_info_details" />
+        </LinearLayout>
 
         <TextView
             android:id="@+id/user_column_label"

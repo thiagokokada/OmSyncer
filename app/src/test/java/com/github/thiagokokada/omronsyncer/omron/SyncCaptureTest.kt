@@ -2,6 +2,7 @@ package com.github.thiagokokada.omronsyncer.omron
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Test
 
 class SyncCaptureTest {
@@ -48,10 +49,13 @@ class SyncCaptureTest {
                 recordBytes = record.recordBytes(),
             )
 
-            assertEquals(
-                record.measurement?.toMeasurement(record.user),
-                replayed,
-            )
+            val capturedMeasurement = record.measurement?.toMeasurement(record.user)
+            if (capturedMeasurement == null) {
+                assertNull(replayed)
+            } else {
+                assertNotNull(replayed)
+                assertEquals(capturedMeasurement.copy(truReadStage = replayed?.truReadStage), replayed)
+            }
         }
 
         return capture

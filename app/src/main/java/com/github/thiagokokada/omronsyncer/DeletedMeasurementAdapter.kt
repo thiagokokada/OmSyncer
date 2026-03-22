@@ -6,12 +6,11 @@ import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
 import com.github.thiagokokada.omronsyncer.databinding.ItemDeletedMeasurementBinding
-import com.github.thiagokokada.omronsyncer.model.Measurement
 import java.time.format.DateTimeFormatter
 
 class DeletedMeasurementAdapter(
-    private val onRestoreClick: (Measurement) -> Unit,
-) : ListAdapter<Measurement, DeletedMeasurementAdapter.DeletedMeasurementViewHolder>(DiffCallback) {
+    private val onRestoreClick: (MeasurementListItem) -> Unit,
+) : ListAdapter<MeasurementListItem, DeletedMeasurementAdapter.DeletedMeasurementViewHolder>(DiffCallback) {
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): DeletedMeasurementViewHolder {
         val inflater = LayoutInflater.from(parent.context)
         val binding = ItemDeletedMeasurementBinding.inflate(inflater, parent, false)
@@ -24,10 +23,11 @@ class DeletedMeasurementAdapter(
 
     class DeletedMeasurementViewHolder(
         private val binding: ItemDeletedMeasurementBinding,
-        private val onRestoreClick: (Measurement) -> Unit,
+        private val onRestoreClick: (MeasurementListItem) -> Unit,
     ) : RecyclerView.ViewHolder(binding.root) {
 
-        fun bind(measurement: Measurement) {
+        fun bind(item: MeasurementListItem) {
+            val measurement = item.displayMeasurement
             binding.measurementSummary.text = buildString {
                 append(TIMESTAMP_FORMATTER.format(measurement.recordedAt))
                 append(" · ")
@@ -40,7 +40,7 @@ class DeletedMeasurementAdapter(
                 append(measurement.flagsLabel())
             }
             binding.restoreMeasurementButton.setOnClickListener {
-                onRestoreClick(measurement)
+                onRestoreClick(item)
             }
         }
     }
@@ -48,16 +48,18 @@ class DeletedMeasurementAdapter(
     private companion object {
         val TIMESTAMP_FORMATTER: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")
 
-        val DiffCallback = object : DiffUtil.ItemCallback<Measurement>() {
-            override fun areItemsTheSame(oldItem: Measurement, newItem: Measurement): Boolean {
-                return oldItem.recordedAt == newItem.recordedAt &&
-                    oldItem.user == newItem.user &&
-                    oldItem.systolic == newItem.systolic &&
-                    oldItem.diastolic == newItem.diastolic &&
-                    oldItem.pulse == newItem.pulse
+        val DiffCallback = object : DiffUtil.ItemCallback<MeasurementListItem>() {
+            override fun areItemsTheSame(oldItem: MeasurementListItem, newItem: MeasurementListItem): Boolean {
+                val oldMeasurement = oldItem.displayMeasurement
+                val newMeasurement = newItem.displayMeasurement
+                return oldMeasurement.recordedAt == newMeasurement.recordedAt &&
+                    oldMeasurement.user == newMeasurement.user &&
+                    oldMeasurement.systolic == newMeasurement.systolic &&
+                    oldMeasurement.diastolic == newMeasurement.diastolic &&
+                    oldMeasurement.pulse == newMeasurement.pulse
             }
 
-            override fun areContentsTheSame(oldItem: Measurement, newItem: Measurement): Boolean {
+            override fun areContentsTheSame(oldItem: MeasurementListItem, newItem: MeasurementListItem): Boolean {
                 return oldItem == newItem
             }
         }

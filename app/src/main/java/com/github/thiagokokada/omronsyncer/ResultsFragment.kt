@@ -17,10 +17,10 @@ import androidx.recyclerview.widget.ItemTouchHelper
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.github.thiagokokada.omronsyncer.databinding.FragmentResultsBinding
-import com.github.thiagokokada.omronsyncer.model.Measurement
 import androidx.core.graphics.toColorInt
 import androidx.core.graphics.drawable.toDrawable
 import com.github.thiagokokada.omronsyncer.sync.SyncPreferences
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.snackbar.Snackbar
 import java.time.ZoneId
 
@@ -29,7 +29,7 @@ class ResultsFragment : Fragment() {
     interface Host {
         fun currentUiState(): MainUiState
         fun onResultsRangeSelected(range: TrendRange)
-        fun onMeasurementDeleteRequested(measurement: Measurement)
+        fun onMeasurementDeleteRequested(measurement: MeasurementListItem)
         fun onSyncRequested()
     }
 
@@ -77,6 +77,9 @@ class ResultsFragment : Fragment() {
         binding.resultsRangeAll.setOnClickListener {
             host.onResultsRangeSelected(TrendRange.ALL)
         }
+        binding.flagsHeaderButton.setOnClickListener {
+            showColumnLegend(R.string.flags_legend_title, R.string.flags_legend_message)
+        }
     }
 
     override fun onResume() {
@@ -112,7 +115,7 @@ class ResultsFragment : Fragment() {
             state.resultsMeasurements.size,
         )
 
-        val latestMeasurement = state.resultsMeasurements.firstOrNull()
+        val latestMeasurement = state.resultsMeasurements.firstOrNull()?.displayMeasurement
         val hasActiveFilter =
             state.selectedTrendRange != TrendRange.ALL ||
                 (state.selectedMeasurementUser != null && state.measurementUserOptions.size > 1)
@@ -136,7 +139,7 @@ class ResultsFragment : Fragment() {
         }
         binding.userColumnLabel.visibility =
             if (state.showsMeasurementUserColumn) View.VISIBLE else View.GONE
-        maybeShowDeleteHint(state.resultsMeasurements.isNotEmpty())
+        maybeShowDeleteHint(state.resultsMeasurements.isNotEmpty() && state.resultsDeleteEnabled)
     }
 
     override fun onDestroyView() {
@@ -153,7 +156,15 @@ class ResultsFragment : Fragment() {
         Snackbar.make(binding.root, R.string.results_delete_hint, Snackbar.LENGTH_LONG).show()
     }
 
-    private fun formatRelativeMeasurementTime(measurement: Measurement): CharSequence {
+    private fun showColumnLegend(titleResId: Int, messageResId: Int) {
+        MaterialAlertDialogBuilder(requireContext())
+            .setTitle(titleResId)
+            .setMessage(getString(messageResId))
+            .setPositiveButton(R.string.close_label, null)
+            .show()
+    }
+
+    private fun formatRelativeMeasurementTime(measurement: com.github.thiagokokada.omronsyncer.model.Measurement): CharSequence {
         val measurementTimeMillis = measurement.recordedAt
             .atZone(ZoneId.systemDefault())
             .toInstant()
@@ -178,7 +189,12 @@ class ResultsFragment : Fragment() {
             recyclerView: RecyclerView,
             viewHolder: RecyclerView.ViewHolder,
         ): Int {
-            return if (host.currentUiState().isWorking) 0 else super.getSwipeDirs(recyclerView, viewHolder)
+            val state = host.currentUiState()
+            return if (state.isWorking || !state.resultsDeleteEnabled) {
+                0
+            } else {
+                super.getSwipeDirs(recyclerView, viewHolder)
+            }
         }
 
         override fun onMove(

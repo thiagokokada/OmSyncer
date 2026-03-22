@@ -10,9 +10,12 @@ data class Measurement(
     val pulse: Int,
     val irregularHeartbeat: Boolean,
     val movement: Boolean,
+    val truReadStage: Int? = null,
+    val isTruReadMerged: Boolean = false,
 ) {
     fun flagsLabel(): String {
         val flags = buildList {
+            if (isTruReadMerged) add("AVG")
             if (irregularHeartbeat) add("IHB")
             if (movement) add("MOV")
         }

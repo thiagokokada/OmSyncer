@@ -15,6 +15,7 @@ class SettingsFragment : Fragment() {
         fun currentUiState(): MainUiState
         fun onModelSelected(position: Int)
         fun onMeasurementUserSelected(user: Int?)
+        fun onTruReadDisplayModeSelected(position: Int)
         fun onBluetoothSettingsRequested()
         fun onRefreshDevicesRequested()
         fun onPairSelectedDeviceRequested()
@@ -35,10 +36,12 @@ class SettingsFragment : Fragment() {
     private lateinit var host: Host
     private lateinit var modelAdapter: ArrayAdapter<String>
     private lateinit var measurementUserAdapter: ArrayAdapter<String>
+    private lateinit var truReadDisplayModeAdapter: ArrayAdapter<String>
     private lateinit var deviceAdapter: ArrayAdapter<String>
     private lateinit var nearbySyncCooldownAdapter: ArrayAdapter<String>
     private var suppressModelSelectionCallback = false
     private var suppressMeasurementUserCallback = false
+    private var suppressTruReadDisplayModeCallback = false
     private var suppressSelectionCallback = false
     private var suppressAutoExportCallback = false
     private var suppressNearbySyncCallback = false
@@ -78,6 +81,14 @@ class SettingsFragment : Fragment() {
             it.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
             binding.measurementUserSpinner.adapter = it
         }
+        truReadDisplayModeAdapter = ArrayAdapter(
+            requireContext(),
+            android.R.layout.simple_spinner_item,
+            mutableListOf<String>(),
+        ).also {
+            it.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+            binding.truReadDisplayModeSpinner.adapter = it
+        }
         deviceAdapter = ArrayAdapter(
             requireContext(),
             android.R.layout.simple_spinner_item,
@@ -104,6 +115,11 @@ class SettingsFragment : Fragment() {
                 host.onMeasurementUserSelected(
                     host.currentUiState().measurementUserOptions.getOrNull(position),
                 )
+            }
+        }
+        binding.truReadDisplayModeSpinner.onItemSelectedListener = SimpleItemSelectedListener { position ->
+            if (!suppressTruReadDisplayModeCallback) {
+                host.onTruReadDisplayModeSelected(position)
             }
         }
         binding.deviceSpinner.onItemSelectedListener = SimpleItemSelectedListener { position ->
@@ -194,6 +210,24 @@ class SettingsFragment : Fragment() {
             binding.measurementUserSpinner.setSelection(state.selectedMeasurementUserIndex)
         }
         suppressMeasurementUserCallback = false
+
+        suppressTruReadDisplayModeCallback = true
+        truReadDisplayModeAdapter.clear()
+        truReadDisplayModeAdapter.addAll(state.truReadDisplayModeLabels)
+        truReadDisplayModeAdapter.notifyDataSetChanged()
+        binding.truReadDisplayModeLabel.visibility =
+            if (state.showsTruReadDisplayMode) View.VISIBLE else View.GONE
+        binding.truReadDisplayModeSpinner.visibility =
+            if (state.showsTruReadDisplayMode) View.VISIBLE else View.GONE
+        binding.truReadDisplayModeSpinner.isEnabled =
+            state.showsTruReadDisplayMode && !state.isWorking
+        if (
+            state.selectedTruReadDisplayModeIndex >= 0 &&
+            state.selectedTruReadDisplayModeIndex < state.truReadDisplayModeLabels.size
+        ) {
+            binding.truReadDisplayModeSpinner.setSelection(state.selectedTruReadDisplayModeIndex)
+        }
+        suppressTruReadDisplayModeCallback = false
 
         suppressSelectionCallback = true
         deviceAdapter.clear()

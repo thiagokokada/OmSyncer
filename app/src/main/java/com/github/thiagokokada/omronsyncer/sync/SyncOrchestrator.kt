@@ -5,13 +5,17 @@ import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothManager
 import android.content.Context
+import com.github.thiagokokada.omronsyncer.TruReadDisplayMode
 import com.github.thiagokokada.omronsyncer.data.MeasurementStore
 import com.github.thiagokokada.omronsyncer.healthconnect.HealthConnectExporter
 import com.github.thiagokokada.omronsyncer.healthconnect.HealthConnectBloodPressureExporter
+import com.github.thiagokokada.omronsyncer.healthconnect.HealthConnectSyncPlan
+import com.github.thiagokokada.omronsyncer.healthconnect.HealthConnectSyncPlanner
 import com.github.thiagokokada.omronsyncer.model.Measurement
 import com.github.thiagokokada.omronsyncer.omron.OmronDeviceDefinition
 import com.github.thiagokokada.omronsyncer.omron.SyncCapture
 import com.github.thiagokokada.omronsyncer.omron.OmronSyncClient
+import java.time.format.DateTimeFormatter
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -87,9 +91,61 @@ class SyncOrchestrator(
         if (measurementState.first.isEmpty() && measurementState.second.isEmpty()) {
             throw NoMeasurementsForSelectedUserException()
         }
-        return healthConnectExporter.sync(
+        val plan = healthConnectPlan(
+            model = model,
             activeMeasurements = measurementState.first,
             deletedMeasurements = measurementState.second,
+        )
+        val summary = healthConnectExporter.sync(plan)
+        return summary.copy(
+            diagnostics = healthConnectDiagnostics(
+                trigger = "manual",
+                model = model,
+                plan = plan,
+                activeMeasurements = measurementState.first,
+                deletedMeasurements = measurementState.second,
+            ),
+        )
+    }
+
+    private fun healthConnectPlan(
+        model: OmronDeviceDefinition,
+        activeMeasurements: List<Measurement>,
+        deletedMeasurements: List<Measurement>,
+    ) = HealthConnectSyncPlanner.plan(
+        model = model,
+        activeMeasurements = activeMeasurements,
+        deletedMeasurements = deletedMeasurements,
+        displayMode = healthConnectDisplayMode(model),
+    )
+
+    private fun healthConnectDisplayMode(model: OmronDeviceDefinition): TruReadDisplayMode {
+        return if (model.supportsTruReadMerge) {
+            syncPreferences.truReadDisplayMode()
+        } else {
+            TruReadDisplayMode.SEPARATE
+        }
+    }
+
+    private suspend fun exportToHealthConnect(
+        model: OmronDeviceDefinition,
+        activeMeasurements: List<Measurement>,
+        deletedMeasurements: List<Measurement>,
+    ): HealthConnectBloodPressureExporter.ExportSummary {
+        val plan = healthConnectPlan(
+            model = model,
+            activeMeasurements = activeMeasurements,
+            deletedMeasurements = deletedMeasurements,
+        )
+        val summary = healthConnectExporter.sync(plan)
+        return summary.copy(
+            diagnostics = healthConnectDiagnostics(
+                trigger = "auto",
+                model = model,
+                plan = plan,
+                activeMeasurements = activeMeasurements,
+                deletedMeasurements = deletedMeasurements,
+            ),
         )
     }
 
@@ -112,16 +168,19 @@ class SyncOrchestrator(
         }
 
         val selectedUser = resolveSelectedMeasurementUser(model)
-        val filteredMeasurements = filterMeasurementsForHealthConnect(measurements, model)
+        val activeMeasurements = withContext(Dispatchers.IO) {
+            measurementStore.loadAll(selectedUser)
+        }
         val deletedMeasurements = withContext(Dispatchers.IO) {
             measurementStore.loadDeleted(selectedUser)
         }
-        if (filteredMeasurements.isEmpty() && deletedMeasurements.isEmpty()) {
+        if (activeMeasurements.isEmpty() && deletedMeasurements.isEmpty()) {
             return null
         }
 
-        return healthConnectExporter.sync(
-            activeMeasurements = filteredMeasurements,
+        return exportToHealthConnect(
+            model = model,
+            activeMeasurements = activeMeasurements,
             deletedMeasurements = deletedMeasurements,
         )
     }
@@ -215,6 +274,60 @@ class SyncOrchestrator(
                 "u$user=${items.maxOf { it.recordedAt }}"
             }
     }
+
+    private fun healthConnectDiagnostics(
+        trigger: String,
+        model: OmronDeviceDefinition,
+        plan: HealthConnectSyncPlan,
+        activeMeasurements: List<Measurement>,
+        deletedMeasurements: List<Measurement>,
+    ): String {
+        return buildString {
+            appendLine("Health Connect trigger: $trigger")
+            appendLine("Health Connect model: ${model.id} (${model.modelCode})")
+            appendLine("Health Connect TruRead mode: ${healthConnectDisplayMode(model)}")
+            appendLine(measurementSnapshot("Health Connect active raw measurements", activeMeasurements))
+            appendLine(measurementSnapshot("Health Connect deleted raw measurements", deletedMeasurements))
+            appendLine("Health Connect export items: ${plan.activeItems.size}")
+            plan.activeItems.forEachIndexed { index, item ->
+                appendLine(
+                    "  active[$index] bpId=${item.recordIds.bloodPressureClientRecordId} " +
+                        "hrId=${item.recordIds.heartRateClientRecordId} " +
+                        "measurement=${formatMeasurement(item.measurement)}",
+                )
+            }
+            appendLine("Health Connect delete IDs: ${plan.deletedRecordIds.size}")
+            plan.deletedRecordIds.forEachIndexed { index, ids ->
+                appendLine(
+                    "  delete[$index] bpId=${ids.bloodPressureClientRecordId} " +
+                        "hrId=${ids.heartRateClientRecordId}",
+                )
+            }
+        }.trimEnd()
+    }
+
+    private fun formatMeasurement(measurement: Measurement): String {
+        return buildString {
+            append("u")
+            append(measurement.user)
+            append(' ')
+            append(MEASUREMENT_TIME_FORMATTER.format(measurement.recordedAt))
+            append(' ')
+            append(measurement.systolic)
+            append('/')
+            append(measurement.diastolic)
+            append(" pulse=")
+            append(measurement.pulse)
+            append(" ihb=")
+            append(if (measurement.irregularHeartbeat) 1 else 0)
+            append(" mov=")
+            append(if (measurement.movement) 1 else 0)
+            append(" stage=")
+            append(measurement.truReadStage ?: "-")
+            append(" merged=")
+            append(measurement.isTruReadMerged)
+        }
+    }
 }
 
 data class SyncExecutionResult(
@@ -231,3 +344,6 @@ internal fun shouldSkipBackgroundHealthConnectExport(
 ): Boolean {
     return syncSource == "nearby" && insertedMeasurementCount <= 0
 }
+
+private val MEASUREMENT_TIME_FORMATTER: DateTimeFormatter =
+    DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss")

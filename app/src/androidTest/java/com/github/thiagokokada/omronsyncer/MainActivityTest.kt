@@ -46,6 +46,7 @@ import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.junit.Assert.assertEquals
 import java.time.LocalDateTime
 
 @RunWith(AndroidJUnit4::class)
@@ -362,6 +363,92 @@ class MainActivityTest {
         }
     }
 
+    @Test
+    fun deleteAndRestoreTruReadMeasurement_inMergeModeTreatsSessionAsSingleItem() {
+        seedMeasurements(truReadTriplet())
+
+        ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+            openSettingsScreen(scenario)
+            selectTruReadDisplayMode(mergeTruReadLabel())
+
+            openResultsScreen(scenario)
+            onView(withId(R.id.measurement_count)).check(matches(withText("1 measurement")))
+            onView(withId(R.id.measurements_list)).perform(swipeRecyclerItemLeftAtPosition(0))
+            onView(withText(R.string.delete_measurement_confirm)).perform(click())
+            onView(withId(R.id.measurement_count)).check(matches(withText("0 measurements")))
+
+            openSettingsScreen(scenario)
+            onView(withId(R.id.restore_measurements_button)).perform(scrollTo(), click())
+            assertRecyclerItemCount(R.id.deleted_measurements_list, 1)
+            onView(withId(R.id.restore_measurement_button)).perform(click())
+            pressBack()
+
+            openResultsScreen(scenario)
+            onView(withId(R.id.measurement_count)).check(matches(withText("1 measurement")))
+        }
+    }
+
+    @Test
+    fun switchingToSeparateModeAfterMergedDeleteShowsIndividualDeletedMeasurements() {
+        seedMeasurements(truReadTriplet())
+
+        ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+            openSettingsScreen(scenario)
+            selectTruReadDisplayMode(mergeTruReadLabel())
+
+            openResultsScreen(scenario)
+            onView(withId(R.id.measurements_list)).perform(swipeRecyclerItemLeftAtPosition(0))
+            onView(withText(R.string.delete_measurement_confirm)).perform(click())
+
+            openSettingsScreen(scenario)
+            selectTruReadDisplayMode(separateTruReadLabel())
+            onView(withId(R.id.restore_measurements_button)).perform(scrollTo(), click())
+
+            assertRecyclerItemCount(R.id.deleted_measurements_list, 3)
+            onView(withId(R.id.deleted_measurements_list))
+                .perform(clickRecyclerChildAtPosition(0, R.id.restore_measurement_button))
+            pressBack()
+
+            openResultsScreen(scenario)
+            onView(withId(R.id.measurement_count)).check(matches(withText("1 measurement")))
+
+            openSettingsScreen(scenario)
+            selectTruReadDisplayMode(mergeTruReadLabel())
+            openResultsScreen(scenario)
+            onView(withId(R.id.measurement_count)).check(matches(withText("1 measurement")))
+        }
+    }
+
+    @Test
+    fun switchingToMergeModeAfterSeparateDeleteDoesNotMergeIncompleteTruReadSession() {
+        seedMeasurements(truReadTriplet())
+
+        ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+            openSettingsScreen(scenario)
+            selectTruReadDisplayMode(separateTruReadLabel())
+
+            openResultsScreen(scenario)
+            onView(withId(R.id.measurement_count)).check(matches(withText("3 measurements")))
+            onView(withId(R.id.measurements_list)).perform(swipeRecyclerItemLeftAtPosition(0))
+            onView(withText(R.string.delete_measurement_confirm)).perform(click())
+            onView(withId(R.id.measurement_count)).check(matches(withText("2 measurements")))
+
+            openSettingsScreen(scenario)
+            selectTruReadDisplayMode(mergeTruReadLabel())
+            openResultsScreen(scenario)
+            onView(withId(R.id.measurement_count)).check(matches(withText("2 measurements")))
+
+            openSettingsScreen(scenario)
+            onView(withId(R.id.restore_measurements_button)).perform(scrollTo(), click())
+            assertRecyclerItemCount(R.id.deleted_measurements_list, 1)
+            onView(withId(R.id.restore_measurement_button)).perform(click())
+            pressBack()
+
+            openResultsScreen(scenario)
+            onView(withId(R.id.measurement_count)).check(matches(withText("1 measurement")))
+        }
+    }
+
     private fun openResultsScreen(scenario: ActivityScenario<MainActivity>) {
         selectBottomNavItem(scenario, R.id.navigation_results)
         onView(isRoot()).perform(waitForMatchingView(withId(R.id.measurement_count), 5_000))
@@ -415,6 +502,14 @@ class MainActivityTest {
         MeasurementStore(context).saveAll(measurements)
     }
 
+    private fun assertRecyclerItemCount(recyclerViewId: Int, expectedCount: Int) {
+        onView(withId(recyclerViewId)).check { view, noViewFoundException ->
+            if (noViewFoundException != null) throw noViewFoundException
+            val recyclerView = view as RecyclerView
+            assertEquals(expectedCount, recyclerView.adapter?.itemCount)
+        }
+    }
+
     private fun waitForMeasurementCount(text: String) {
         onView(isRoot()).perform(waitForMatchingView(withText(text), 5_000))
         onView(withId(R.id.measurement_count)).check(matches(withText(text)))
@@ -445,15 +540,28 @@ class MainActivityTest {
         SyncPreferences(context).setSelectedDeviceAddress(address)
     }
 
-    private fun measurement(user: Int, day: Int): Measurement {
+    private fun selectTruReadDisplayMode(label: String) {
+        onView(withId(R.id.tru_read_display_mode_spinner)).perform(scrollTo(), click())
+        onData(`is`(label)).perform(click())
+        onView(withId(R.id.tru_read_display_mode_spinner)).check(matches(withSpinnerText(label)))
+    }
+
+    private fun measurement(
+        user: Int,
+        day: Int,
+        hour: Int = 9,
+        minute: Int = 30,
+        truReadStage: Int? = null,
+    ): Measurement {
         return Measurement(
             user = user,
-            recordedAt = LocalDateTime.of(2026, 3, day, 9, 30),
+            recordedAt = LocalDateTime.of(2026, 3, day, hour, minute),
             systolic = 120 + user,
             diastolic = 80 + user,
             pulse = 64 + user,
             irregularHeartbeat = false,
             movement = false,
+            truReadStage = truReadStage,
         )
     }
 
@@ -469,8 +577,24 @@ class MainActivityTest {
         )
     }
 
+    private fun truReadTriplet(): List<Measurement> {
+        return listOf(
+            measurement(user = 1, day = 10, hour = 12, minute = 37, truReadStage = 1),
+            measurement(user = 1, day = 10, hour = 12, minute = 38, truReadStage = 2),
+            measurement(user = 1, day = 10, hour = 12, minute = 39, truReadStage = 3),
+        )
+    }
+
     private fun allUsersLabel(): String {
         return context.getString(R.string.measurement_user_all)
+    }
+
+    private fun separateTruReadLabel(): String {
+        return context.getString(R.string.tru_read_display_mode_separate)
+    }
+
+    private fun mergeTruReadLabel(): String {
+        return context.getString(R.string.tru_read_display_mode_merge)
     }
 
     private fun swipeRecyclerItemLeftAtPosition(position: Int): ViewAction {
@@ -503,6 +627,25 @@ class MainActivityTest {
                 val viewHolder = recyclerView.findViewHolderForAdapterPosition(position)
                     ?: error("No ViewHolder at position $position")
                 swipeRight().perform(uiController, viewHolder.itemView)
+            }
+        }
+    }
+
+    private fun clickRecyclerChildAtPosition(position: Int, childViewId: Int): ViewAction {
+        return object : ViewAction {
+            override fun getConstraints(): Matcher<View> = allOf(isDisplayed(), withId(R.id.deleted_measurements_list))
+
+            override fun getDescription(): String {
+                return "click child view $childViewId at recycler position $position"
+            }
+
+            override fun perform(uiController: UiController, view: View) {
+                val recyclerView = view as RecyclerView
+                val viewHolder = recyclerView.findViewHolderForAdapterPosition(position)
+                    ?: error("No ViewHolder at position $position")
+                val child = viewHolder.itemView.findViewById<View>(childViewId)
+                    ?: error("No child view found with id $childViewId")
+                click().perform(uiController, child)
             }
         }
     }

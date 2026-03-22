@@ -55,6 +55,7 @@ class OmronDeviceRegistryTest {
         assertEquals(61, measurement?.pulse)
         assertEquals(true, measurement?.irregularHeartbeat)
         assertEquals(false, measurement?.movement)
+        assertEquals(null, measurement?.truReadStage)
     }
 
     @Test
@@ -90,6 +91,35 @@ class OmronDeviceRegistryTest {
         assertEquals(66, measurement?.pulse)
         assertEquals(false, measurement?.irregularHeartbeat)
         assertEquals(true, measurement?.movement)
+        assertEquals(null, measurement?.truReadStage)
+    }
+
+    @Test
+    fun parseMeasurement_extractsTruReadStageForHem7380T1() {
+        val measurement = OmronRecordParser.parseMeasurement(
+            device = OmronDeviceRegistry.findById("hem_7380t1"),
+            user = 1,
+            recordBytes = byteArrayOf(
+                0x67,
+                0x53,
+                0x49,
+                0x1A,
+                0x52,
+                0x0D,
+                0xCC.toByte(),
+                0x96.toByte(),
+                0x00,
+                0x00,
+                0x14,
+                0x00,
+                0x00,
+                0x01,
+                0x02,
+                0x00,
+            ),
+        )
+
+        assertEquals(2, measurement?.truReadStage)
     }
 
     @Test
@@ -163,6 +193,7 @@ class OmronDeviceRegistryTest {
         assertEquals(true, model.syncSessionHandshakeEnabled)
         assertEquals(true, model.normalSyncClockWriteEnabled)
         assertTrue(model.supportsAppPairingStep)
+        assertTrue(model.supportsTruReadMerge)
     }
 
     @Test
@@ -175,6 +206,7 @@ class OmronDeviceRegistryTest {
 
         assertTrue(models.all { !it.supportsAppPairingStep })
         assertTrue(models.all { !it.normalSyncClockWriteEnabled })
+        assertTrue(models.all { !it.supportsTruReadMerge })
     }
 
     @Test
