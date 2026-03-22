@@ -5,6 +5,7 @@ import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothManager
 import android.content.Context
+import com.github.thiagokokada.omronsyncer.TruReadMeasurementGrouper
 import com.github.thiagokokada.omronsyncer.TruReadDisplayMode
 import com.github.thiagokokada.omronsyncer.data.MeasurementStore
 import com.github.thiagokokada.omronsyncer.healthconnect.HealthConnectExporter
@@ -48,6 +49,11 @@ class SyncOrchestrator(
             val saveSummary = withContext(Dispatchers.IO) {
                 measurementStore.saveAll(syncResult.measurements)
             }
+            val insertedDisplayCount = TruReadMeasurementGrouper.displayCount(
+                model = model,
+                measurements = saveSummary.insertedMeasurements,
+                displayMode = healthConnectDisplayMode(model),
+            )
             syncRunCoordinator.markSuccessfulCompletion()
             val persistedAllMeasurements = withContext(Dispatchers.IO) {
                 measurementStore.loadAll()
@@ -72,6 +78,7 @@ class SyncOrchestrator(
             SyncExecutionResult(
                 persistedMeasurements = persistedMeasurements,
                 inserted = saveSummary.inserted,
+                insertedDisplayCount = insertedDisplayCount,
                 syncLog = (syncResult.diagnostics.entries + orchestrationDiagnostics)
                     .joinToString(separator = "\n"),
                 syncCapture = syncResult.capture,
@@ -333,6 +340,7 @@ class SyncOrchestrator(
 data class SyncExecutionResult(
     val persistedMeasurements: List<Measurement>,
     val inserted: Int,
+    val insertedDisplayCount: Int,
     val syncLog: String,
     val syncCapture: SyncCapture,
     val healthConnectExportSummary: HealthConnectBloodPressureExporter.ExportSummary?,

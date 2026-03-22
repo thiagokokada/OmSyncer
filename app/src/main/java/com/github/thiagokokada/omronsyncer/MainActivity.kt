@@ -1130,7 +1130,7 @@ class MainActivity : AppCompatActivity(),
                 context = this,
                 notificationId = MANUAL_SYNC_SUCCESS_NOTIFICATION_ID,
                 titleResId = R.string.manual_sync_success_notification_title,
-                inserted = result.inserted,
+                inserted = result.insertedDisplayCount,
                 exportedToHealthConnect = result.healthConnectExportSummary != null,
             )
         }
@@ -1416,7 +1416,7 @@ class MainActivity : AppCompatActivity(),
     }
 
     private fun syncCompletionToast(result: SyncExecutionResult): String {
-        val inserted = result.inserted
+        val inserted = result.insertedDisplayCount
         val exportedToHealthConnect = result.healthConnectExportSummary != null
         return when {
             inserted <= 0 && exportedToHealthConnect ->

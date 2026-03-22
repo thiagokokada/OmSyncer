@@ -66,7 +66,7 @@ class NearbySyncWorker(
             logSyncDiagnostics(source = "nearby", syncLog = result.syncLog)
             val summary = SyncUserMessageFormatter.nearbySummary(
                 context = applicationContext,
-                inserted = result.inserted,
+                inserted = result.insertedDisplayCount,
                 exportedToHealthConnect = result.healthConnectExportSummary != null,
             )
             preferences.persistLastNearbySyncStatus(
@@ -76,7 +76,7 @@ class NearbySyncWorker(
             SyncWorkerNotifications.showSuccessfulSync(
                 context = applicationContext,
                 notificationId = SUCCESS_NOTIFICATION_ID,
-                inserted = result.inserted,
+                inserted = result.insertedDisplayCount,
                 exportedToHealthConnect = result.healthConnectExportSummary != null,
             )
             Log.d(TAG, "Nearby sync completed: $summary")
