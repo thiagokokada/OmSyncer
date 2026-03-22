@@ -9,7 +9,7 @@ class MeasurementCsvExporter {
 
     fun export(outputStream: OutputStream, measurements: List<Measurement>) {
         outputStream.bufferedWriter().use { writer ->
-            writer.appendLine("recorded_at,user,systolic,diastolic,pulse,irregular_heartbeat,movement")
+            writer.appendLine("recorded_at,user,systolic,diastolic,pulse,irregular_heartbeat,movement,tru_read_merged")
             measurements.forEach { measurement ->
                 writer.appendLine(
                     listOf(
@@ -20,6 +20,7 @@ class MeasurementCsvExporter {
                         measurement.pulse.toString(),
                         measurement.irregularHeartbeat.toString(),
                         measurement.movement.toString(),
+                        measurement.isTruReadMerged.toString(),
                     ).joinToString(","),
                 )
             }

@@ -1010,15 +1010,16 @@ class MainActivity : AppCompatActivity(),
 
         launchUi {
             runCatching {
-                val storedMeasurements = withContext(Dispatchers.IO) {
-                    measurementStore.loadAll(selectedMeasurementUser())
+                val measurementState = withContext(Dispatchers.IO) {
+                    loadStoredMeasurementState(selectedMeasurementUser())
                 }
-                if (storedMeasurements.isEmpty()) {
+                val exportMeasurements = measurementState.resultsMeasurements.map(MeasurementListItem::displayMeasurement)
+                if (exportMeasurements.isEmpty()) {
                     throw IllegalStateException(NO_MEASUREMENTS_TO_EXPORT)
                 }
                 withContext(Dispatchers.IO) {
                     contentResolver.openOutputStream(uri)?.use { outputStream ->
-                        csvExporter.export(outputStream, storedMeasurements)
+                        csvExporter.export(outputStream, exportMeasurements)
                     } ?: throw IllegalStateException(EXPORT_DESTINATION_UNAVAILABLE)
                 }
             }.onSuccess {
