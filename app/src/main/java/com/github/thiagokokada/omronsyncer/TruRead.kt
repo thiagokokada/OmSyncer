@@ -28,6 +28,14 @@ object TruReadMeasurementGrouper {
         return displayItems(model, measurements, displayMode).map(MeasurementListItem::displayMeasurement)
     }
 
+    fun displayCount(
+        model: OmronDeviceDefinition,
+        measurements: List<Measurement>,
+        displayMode: TruReadDisplayMode,
+    ): Int {
+        return displayItems(model, measurements, displayMode).size
+    }
+
     fun displayItems(
         model: OmronDeviceDefinition,
         measurements: List<Measurement>,

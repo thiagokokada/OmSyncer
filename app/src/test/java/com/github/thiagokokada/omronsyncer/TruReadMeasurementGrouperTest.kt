@@ -105,6 +105,60 @@ class TruReadMeasurementGrouperTest {
     }
 
     @Test
+    fun displayCount_countsMergedTruReadTripletAsOneMeasurement() {
+        val measurements = listOf(
+            measurement(recordedAt = LocalDateTime.of(2026, 3, 10, 12, 37, 31), truReadStage = 1),
+            measurement(recordedAt = LocalDateTime.of(2026, 3, 10, 12, 38, 27), truReadStage = 2),
+            measurement(recordedAt = LocalDateTime.of(2026, 3, 10, 12, 39, 18), truReadStage = 3),
+        ).sortedByDescending { it.recordedAt }
+
+        val count = TruReadMeasurementGrouper.displayCount(
+            model = truReadModel,
+            measurements = measurements,
+            displayMode = TruReadDisplayMode.MERGE,
+        )
+
+        assertEquals(1, count)
+    }
+
+    @Test
+    fun displayCount_keepsRawCountWhenMergeDisabled() {
+        val measurements = listOf(
+            measurement(recordedAt = LocalDateTime.of(2026, 3, 10, 12, 37, 31), truReadStage = 1),
+            measurement(recordedAt = LocalDateTime.of(2026, 3, 10, 12, 38, 27), truReadStage = 2),
+            measurement(recordedAt = LocalDateTime.of(2026, 3, 10, 12, 39, 18), truReadStage = 3),
+        ).sortedByDescending { it.recordedAt }
+
+        val count = TruReadMeasurementGrouper.displayCount(
+            model = truReadModel,
+            measurements = measurements,
+            displayMode = TruReadDisplayMode.SEPARATE,
+        )
+
+        assertEquals(3, count)
+    }
+
+    @Test
+    fun displayCount_countsMixedTruReadAndStandaloneMeasurementsCorrectly() {
+        val measurements = listOf(
+            measurement(recordedAt = LocalDateTime.of(2026, 3, 10, 12, 37, 31), truReadStage = 1),
+            measurement(recordedAt = LocalDateTime.of(2026, 3, 10, 12, 38, 27), truReadStage = 2),
+            measurement(recordedAt = LocalDateTime.of(2026, 3, 10, 12, 39, 18), truReadStage = 3),
+            measurement(recordedAt = LocalDateTime.of(2026, 3, 10, 13, 10, 0)),
+            measurement(recordedAt = LocalDateTime.of(2026, 3, 10, 13, 20, 0)),
+            measurement(recordedAt = LocalDateTime.of(2026, 3, 10, 13, 30, 0)),
+        ).sortedByDescending { it.recordedAt }
+
+        val count = TruReadMeasurementGrouper.displayCount(
+            model = truReadModel,
+            measurements = measurements,
+            displayMode = TruReadDisplayMode.MERGE,
+        )
+
+        assertEquals(4, count)
+    }
+
+    @Test
     fun displayMeasurements_keepsSeparateReadingsForUnsupportedModel() {
         val measurements = listOf(
             measurement(recordedAt = LocalDateTime.of(2026, 3, 10, 12, 37, 31), truReadStage = 1),
