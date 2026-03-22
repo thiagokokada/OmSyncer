@@ -1350,7 +1350,7 @@ class MainActivity : AppCompatActivity(),
         val selectedModel = selectedModel()
         val truReadDisplayMode = syncPreferences.truReadDisplayMode()
         val storedMeasurements = measurementStore.loadAll(selectedUser)
-        val storedTrendMeasurements = measurementStore.loadAll()
+        val storedTrendMeasurements = measurementStore.loadAll(selectedUser)
         return StoredMeasurementState(
             measurements = storedMeasurements,
             trendMeasurements = TruReadMeasurementGrouper.displayMeasurements(

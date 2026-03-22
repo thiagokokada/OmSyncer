@@ -405,7 +405,8 @@ class MainActivityTest {
             onView(withId(R.id.restore_measurements_button)).perform(scrollTo(), click())
 
             assertRecyclerItemCount(R.id.deleted_measurements_list, 3)
-            onView(withId(R.id.restore_measurement_button)).perform(click())
+            onView(withId(R.id.deleted_measurements_list))
+                .perform(clickRecyclerChildAtPosition(0, R.id.restore_measurement_button))
             pressBack()
 
             openResultsScreen(scenario)
@@ -626,6 +627,25 @@ class MainActivityTest {
                 val viewHolder = recyclerView.findViewHolderForAdapterPosition(position)
                     ?: error("No ViewHolder at position $position")
                 swipeRight().perform(uiController, viewHolder.itemView)
+            }
+        }
+    }
+
+    private fun clickRecyclerChildAtPosition(position: Int, childViewId: Int): ViewAction {
+        return object : ViewAction {
+            override fun getConstraints(): Matcher<View> = allOf(isDisplayed(), withId(R.id.deleted_measurements_list))
+
+            override fun getDescription(): String {
+                return "click child view $childViewId at recycler position $position"
+            }
+
+            override fun perform(uiController: UiController, view: View) {
+                val recyclerView = view as RecyclerView
+                val viewHolder = recyclerView.findViewHolderForAdapterPosition(position)
+                    ?: error("No ViewHolder at position $position")
+                val child = viewHolder.itemView.findViewById<View>(childViewId)
+                    ?: error("No child view found with id $childViewId")
+                click().perform(uiController, child)
             }
         }
     }

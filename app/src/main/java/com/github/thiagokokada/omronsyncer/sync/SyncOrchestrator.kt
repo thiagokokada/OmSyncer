@@ -168,17 +168,19 @@ class SyncOrchestrator(
         }
 
         val selectedUser = resolveSelectedMeasurementUser(model)
-        val filteredMeasurements = filterMeasurementsForHealthConnect(measurements, model)
+        val activeMeasurements = withContext(Dispatchers.IO) {
+            measurementStore.loadAll(selectedUser)
+        }
         val deletedMeasurements = withContext(Dispatchers.IO) {
             measurementStore.loadDeleted(selectedUser)
         }
-        if (filteredMeasurements.isEmpty() && deletedMeasurements.isEmpty()) {
+        if (activeMeasurements.isEmpty() && deletedMeasurements.isEmpty()) {
             return null
         }
 
         return exportToHealthConnect(
             model = model,
-            activeMeasurements = filteredMeasurements,
+            activeMeasurements = activeMeasurements,
             deletedMeasurements = deletedMeasurements,
         )
     }
