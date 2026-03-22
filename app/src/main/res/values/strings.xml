@@ -163,6 +163,8 @@
     <string name="column_pulse">Pulse</string>
     <string name="column_flags">Flags</string>
     <string name="column_user">User</string>
+    <string name="flags_legend_title">Flags</string>
+    <string name="flags_legend_message">AVG = merged TruRead average\nIHB = irregular heartbeat detected\nMOV = movement detected</string>
     <string name="sync_log_title">Last sync log</string>
     <string name="sync_log_empty">No sync log yet.</string>
     <string name="delete_measurement">Delete measurement</string>

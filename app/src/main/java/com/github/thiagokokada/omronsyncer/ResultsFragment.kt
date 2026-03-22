@@ -21,6 +21,7 @@ import com.github.thiagokokada.omronsyncer.model.Measurement
 import androidx.core.graphics.toColorInt
 import androidx.core.graphics.drawable.toDrawable
 import com.github.thiagokokada.omronsyncer.sync.SyncPreferences
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.snackbar.Snackbar
 import java.time.ZoneId
 
@@ -76,6 +77,9 @@ class ResultsFragment : Fragment() {
         }
         binding.resultsRangeAll.setOnClickListener {
             host.onResultsRangeSelected(TrendRange.ALL)
+        }
+        binding.flagsHeaderButton.setOnClickListener {
+            showColumnLegend(R.string.flags_legend_title, R.string.flags_legend_message)
         }
     }
 
@@ -151,6 +155,14 @@ class ResultsFragment : Fragment() {
 
         syncPreferences.setResultsDeleteHintShown(true)
         Snackbar.make(binding.root, R.string.results_delete_hint, Snackbar.LENGTH_LONG).show()
+    }
+
+    private fun showColumnLegend(titleResId: Int, messageResId: Int) {
+        MaterialAlertDialogBuilder(requireContext())
+            .setTitle(titleResId)
+            .setMessage(getString(messageResId))
+            .setPositiveButton(R.string.close_label, null)
+            .show()
     }
 
     private fun formatRelativeMeasurementTime(measurement: Measurement): CharSequence {
