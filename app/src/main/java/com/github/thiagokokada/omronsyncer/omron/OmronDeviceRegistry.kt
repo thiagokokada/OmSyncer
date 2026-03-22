@@ -23,6 +23,7 @@ data class OmronDeviceDefinition(
     val recordSizeBytes: Int,
     val recordParser: OmronRecordParserDefinition,
     val clearGattCacheOnDisconnect: Boolean = false,
+    val supportsTruReadMerge: Boolean = false,
 ) {
     val userCount: Int get() = userLayouts.size
     val supportsAppPairingStep: Boolean get() = pairingWorkflow != OmronPairingWorkflow.NONE
@@ -132,6 +133,7 @@ object OmronDeviceRegistry {
         recordSizeBytes = 0x10,
         recordParser = FE4A_LITTLE_ENDIAN_PARSER,
         clearGattCacheOnDisconnect = true,
+        supportsTruReadMerge = true,
     )
 
     private fun hem7155TV2() = OmronDeviceDefinition(
@@ -227,7 +229,22 @@ object OmronRecordParser {
             pulse = extractField(normalizedBytes, parser.pulse),
             irregularHeartbeat = extractField(normalizedBytes, parser.irregularHeartbeat) == 1,
             movement = extractField(normalizedBytes, parser.movement) == 1,
+            truReadStage = extractTruReadStage(device, normalizedBytes),
         )
+    }
+
+    private fun extractTruReadStage(
+        device: OmronDeviceDefinition,
+        normalizedBytes: ByteArray,
+    ): Int? {
+        if (!device.supportsTruReadMerge) {
+            return null
+        }
+
+        val markerByte = normalizedBytes.getOrNull(TRU_READ_MARKER_BYTE_INDEX)?.toInt()?.and(0xFF)
+            ?: return null
+        val stage = markerByte ushr TRU_READ_STAGE_SHIFT_BITS
+        return stage.takeIf { it in 1..3 }
     }
 
     private fun normalize(
@@ -263,4 +280,6 @@ object OmronRecordParser {
 
     private const val MAX_VALID_RAW_SYSTOLIC = 0xE1
     private const val EMPTY_BYTE: Byte = 0xFF.toByte()
+    private const val TRU_READ_MARKER_BYTE_INDEX = 7
+    private const val TRU_READ_STAGE_SHIFT_BITS = 6
 }

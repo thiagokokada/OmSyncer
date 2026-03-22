@@ -33,6 +33,9 @@
     <string name="grant_health_connect_access">Grant access to Health Connect</string>
     <string name="health_connect_auto_export_label">Auto-export after sync</string>
     <string name="measurement_user_label">User</string>
+    <string name="tru_read_display_mode_label">TruRead measurements</string>
+    <string name="tru_read_display_mode_separate">Keep them separated</string>
+    <string name="tru_read_display_mode_merge">Merge</string>
     <string name="nearby_sync_section_title">When monitor is nearby</string>
     <string name="nearby_sync_label">Sync when monitor is nearby</string>
     <string name="nearby_sync_cooldown_label">Cooldown between automatic sync attempts</string>

@@ -79,6 +79,7 @@ class MainActivity : AppCompatActivity(),
     }
 
     private var measurements: List<Measurement> = emptyList()
+    private var trendMeasurements: List<Measurement> = emptyList()
     private var resultsMeasurements: List<Measurement> = emptyList()
     private var deletedMeasurements: List<Measurement> = emptyList()
     private var statusMessage: String = ""
@@ -257,6 +258,11 @@ class MainActivity : AppCompatActivity(),
         val selectedModel = selectedModel()
         val measurementUserOptions = buildMeasurementUserOptions(selectedModel)
         val selectedMeasurementUser = selectedMeasurementUser(selectedModel)
+        val truReadDisplayMode = syncPreferences.truReadDisplayMode()
+        val truReadDisplayModeLabels = listOf(
+            getString(R.string.tru_read_display_mode_separate),
+            getString(R.string.tru_read_display_mode_merge),
+        )
         val measurementUserLabels = measurementUserOptions.map { user ->
             user?.let { getString(R.string.measurement_user_single, it) }
                 ?: getString(R.string.measurement_user_all)
@@ -294,6 +300,7 @@ class MainActivity : AppCompatActivity(),
         }
         return MainUiState(
             measurements = measurements,
+            trendMeasurements = trendMeasurements,
             resultsMeasurements = resultsMeasurements,
             deletedMeasurements = deletedMeasurements,
             measurementUserOptions = measurementUserOptions,
@@ -333,6 +340,11 @@ class MainActivity : AppCompatActivity(),
             canSeedSampleMeasurements = BuildConfig.DEBUG && !isWorking && measurements.isEmpty(),
             selectedTrendRange = syncPreferences.selectedTrendRange(),
             showsMeasurementUserColumn = selectedModel.userCount > 1,
+            showsTruReadDisplayMode = selectedModel.supportsTruReadMerge,
+            truReadDisplayModeLabels = truReadDisplayModeLabels,
+            selectedTruReadDisplayModeIndex = TruReadDisplayMode.entries.indexOf(truReadDisplayMode),
+            resultsDeleteEnabled =
+                !selectedModel.supportsTruReadMerge || truReadDisplayMode != TruReadDisplayMode.MERGE,
         )
     }
 
@@ -355,6 +367,13 @@ class MainActivity : AppCompatActivity(),
     override fun onMeasurementUserSelected(user: Int?) {
         syncPreferences.setSelectedMeasurementUser(user)
         loadPersistedMeasurements()
+    }
+
+    override fun onTruReadDisplayModeSelected(position: Int) {
+        TruReadDisplayMode.entries.getOrNull(position)?.let { mode ->
+            syncPreferences.setTruReadDisplayMode(mode)
+            loadPersistedMeasurements()
+        }
     }
 
     override fun onMeasurementDeleteRequested(measurement: Measurement) {
@@ -1306,6 +1325,7 @@ class MainActivity : AppCompatActivity(),
 
     private fun applyStoredMeasurementState(state: StoredMeasurementState) {
         measurements = state.measurements
+        trendMeasurements = state.trendMeasurements
         resultsMeasurements = state.resultsMeasurements
         deletedMeasurements = state.deletedMeasurements
     }
@@ -1315,11 +1335,24 @@ class MainActivity : AppCompatActivity(),
     ): StoredMeasurementState {
         val resultsRecordedAtFrom = syncPreferences.selectedTrendRange()
             .recordedAtFrom(LocalDateTime.now())
+        val selectedModel = selectedModel()
+        val truReadDisplayMode = syncPreferences.truReadDisplayMode()
+        val storedMeasurements = measurementStore.loadAll(selectedUser)
+        val storedTrendMeasurements = measurementStore.loadAll()
         return StoredMeasurementState(
-            measurements = measurementStore.loadAll(selectedUser),
-            resultsMeasurements = measurementStore.loadAll(
-                user = selectedUser,
-                recordedAtFrom = resultsRecordedAtFrom,
+            measurements = storedMeasurements,
+            trendMeasurements = TruReadMeasurementGrouper.displayMeasurements(
+                model = selectedModel,
+                measurements = storedTrendMeasurements,
+                displayMode = truReadDisplayMode,
+            ),
+            resultsMeasurements = TruReadMeasurementGrouper.displayMeasurements(
+                model = selectedModel,
+                measurements = measurementStore.loadAll(
+                    user = selectedUser,
+                    recordedAtFrom = resultsRecordedAtFrom,
+                ),
+                displayMode = truReadDisplayMode,
             ),
             deletedMeasurements = measurementStore.loadDeleted(selectedUser),
         )
@@ -1474,6 +1507,7 @@ class MainActivity : AppCompatActivity(),
 
     private data class StoredMeasurementState(
         val measurements: List<Measurement>,
+        val trendMeasurements: List<Measurement>,
         val resultsMeasurements: List<Measurement>,
         val deletedMeasurements: List<Measurement>,
     )

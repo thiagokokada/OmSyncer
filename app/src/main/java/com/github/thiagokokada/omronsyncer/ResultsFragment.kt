@@ -136,7 +136,7 @@ class ResultsFragment : Fragment() {
         }
         binding.userColumnLabel.visibility =
             if (state.showsMeasurementUserColumn) View.VISIBLE else View.GONE
-        maybeShowDeleteHint(state.resultsMeasurements.isNotEmpty())
+        maybeShowDeleteHint(state.resultsMeasurements.isNotEmpty() && state.resultsDeleteEnabled)
     }
 
     override fun onDestroyView() {
@@ -178,7 +178,12 @@ class ResultsFragment : Fragment() {
             recyclerView: RecyclerView,
             viewHolder: RecyclerView.ViewHolder,
         ): Int {
-            return if (host.currentUiState().isWorking) 0 else super.getSwipeDirs(recyclerView, viewHolder)
+            val state = host.currentUiState()
+            return if (state.isWorking || !state.resultsDeleteEnabled) {
+                0
+            } else {
+                super.getSwipeDirs(recyclerView, viewHolder)
+            }
         }
 
         override fun onMove(

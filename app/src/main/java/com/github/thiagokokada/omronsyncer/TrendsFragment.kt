@@ -73,7 +73,7 @@ class TrendsFragment : Fragment() {
         )
 
         val filteredMeasurements = TrendChartData.filterMeasurements(
-            measurements = state.measurements,
+            measurements = state.trendMeasurements,
             selectedUser = null,
             selectedRange = state.selectedTrendRange,
         )
