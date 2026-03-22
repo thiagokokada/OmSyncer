@@ -772,7 +772,11 @@ class MainActivity : AppCompatActivity(),
                 }
                 if (canDeleteFromHealthConnect()) {
                     runCatching {
-                        syncOrchestrator.exportStoredMeasurementsToHealthConnect()
+                        syncOrchestrator.exportStoredMeasurementsToHealthConnect().also { summary ->
+                            if (summary.diagnostics.isNotBlank()) {
+                                logSyncDiagnostics(source = "health-connect-delete", syncLog = summary.diagnostics)
+                            }
+                        }
                     }.onFailure {
                         healthConnectWarning = true
                     }
@@ -831,7 +835,11 @@ class MainActivity : AppCompatActivity(),
                 }
                 if (isHealthConnectAvailable && isHealthConnectConnected) {
                     runCatching {
-                        syncOrchestrator.exportStoredMeasurementsToHealthConnect()
+                        syncOrchestrator.exportStoredMeasurementsToHealthConnect().also { summary ->
+                            if (summary.diagnostics.isNotBlank()) {
+                                logSyncDiagnostics(source = "health-connect-restore", syncLog = summary.diagnostics)
+                            }
+                        }
                     }.onFailure {
                         healthConnectWarning = true
                     }
@@ -959,6 +967,10 @@ class MainActivity : AppCompatActivity(),
             runCatching {
                 syncOrchestrator.exportStoredMeasurementsToHealthConnect()
             }.onSuccess { summary ->
+                if (summary.diagnostics.isNotBlank()) {
+                    logSyncDiagnostics(source = "health-connect-export", syncLog = summary.diagnostics)
+                    renderSyncLog(summary.diagnostics)
+                }
                 updateStatus(healthConnectExportMessage(summary))
                 showToast(getString(R.string.toast_health_connect_exported))
             }.onFailure { error ->

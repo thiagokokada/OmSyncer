@@ -138,6 +138,7 @@ class HealthConnectBloodPressureExporter(private val context: Context) : HealthC
         val bloodPressureExported: Int,
         val heartRateExported: Int,
         val deletedMeasurements: Int,
+        val diagnostics: String = "",
     )
 
     private companion object {

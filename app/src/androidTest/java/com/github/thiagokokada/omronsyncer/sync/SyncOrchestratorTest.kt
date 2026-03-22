@@ -261,6 +261,7 @@ class SyncOrchestratorTest {
                 bloodPressureExported = plan.activeItems.size,
                 heartRateExported = plan.activeItems.size,
                 deletedMeasurements = plan.deletedRecordIds.size,
+                diagnostics = "",
             )
         }
     }
