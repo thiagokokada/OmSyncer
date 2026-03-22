@@ -5,8 +5,8 @@ import com.github.thiagokokada.omronsyncer.model.Measurement
 data class MainUiState(
     val measurements: List<Measurement>,
     val trendMeasurements: List<Measurement>,
-    val resultsMeasurements: List<Measurement>,
-    val deletedMeasurements: List<Measurement>,
+    val resultsMeasurements: List<MeasurementListItem>,
+    val deletedMeasurements: List<MeasurementListItem>,
     val measurementUserOptions: List<Int?>,
     val measurementUserLabels: List<String>,
     val selectedMeasurementUser: Int?,

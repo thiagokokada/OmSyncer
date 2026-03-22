@@ -9,6 +9,11 @@ enum class TruReadDisplayMode {
     MERGE,
 }
 
+data class MeasurementListItem(
+    val displayMeasurement: Measurement,
+    val sourceMeasurements: List<Measurement>,
+)
+
 object TruReadMeasurementGrouper {
     private const val TRU_READ_SESSION_STAGE_1 = 1
     private const val TRU_READ_SESSION_STAGE_2 = 2
@@ -20,12 +25,25 @@ object TruReadMeasurementGrouper {
         measurements: List<Measurement>,
         displayMode: TruReadDisplayMode,
     ): List<Measurement> {
+        return displayItems(model, measurements, displayMode).map(MeasurementListItem::displayMeasurement)
+    }
+
+    fun displayItems(
+        model: OmronDeviceDefinition,
+        measurements: List<Measurement>,
+        displayMode: TruReadDisplayMode,
+    ): List<MeasurementListItem> {
         if (!model.supportsTruReadMerge || displayMode != TruReadDisplayMode.MERGE) {
-            return measurements
+            return measurements.map { measurement ->
+                MeasurementListItem(
+                    displayMeasurement = measurement,
+                    sourceMeasurements = listOf(measurement),
+                )
+            }
         }
 
         val ascendingMeasurements = measurements.sortedBy { it.recordedAt }
-        val groupedMeasurements = mutableListOf<Measurement>()
+        val groupedMeasurements = mutableListOf<MeasurementListItem>()
         var index = 0
         while (index < ascendingMeasurements.size) {
             val candidateGroup = ascendingMeasurements.subList(
@@ -33,16 +51,22 @@ object TruReadMeasurementGrouper {
                 minOf(index + 3, ascendingMeasurements.size),
             )
             if (candidateGroup.size == 3 && isMergeableTruReadGroup(candidateGroup)) {
-                groupedMeasurements += mergeTruReadGroup(candidateGroup)
+                groupedMeasurements += MeasurementListItem(
+                    displayMeasurement = mergeTruReadGroup(candidateGroup),
+                    sourceMeasurements = candidateGroup,
+                )
                 index += 3
                 continue
             }
 
-            groupedMeasurements += ascendingMeasurements[index]
+            groupedMeasurements += MeasurementListItem(
+                displayMeasurement = ascendingMeasurements[index],
+                sourceMeasurements = listOf(ascendingMeasurements[index]),
+            )
             index += 1
         }
 
-        return groupedMeasurements.sortedByDescending { it.recordedAt }
+        return groupedMeasurements.sortedByDescending { it.displayMeasurement.recordedAt }
     }
 
     internal fun isMergeableTruReadGroup(measurements: List<Measurement>): Boolean {

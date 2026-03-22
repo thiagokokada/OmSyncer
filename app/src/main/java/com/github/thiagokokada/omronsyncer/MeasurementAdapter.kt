@@ -7,10 +7,10 @@ import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
 import com.github.thiagokokada.omronsyncer.databinding.ItemMeasurementBinding
-import com.github.thiagokokada.omronsyncer.model.Measurement
 import java.time.format.DateTimeFormatter
 
-class MeasurementAdapter : ListAdapter<Measurement, MeasurementAdapter.MeasurementViewHolder>(DiffCallback) {
+class MeasurementAdapter :
+    ListAdapter<MeasurementListItem, MeasurementAdapter.MeasurementViewHolder>(DiffCallback) {
 
     private var showUserColumn: Boolean = true
 
@@ -43,7 +43,7 @@ class MeasurementAdapter : ListAdapter<Measurement, MeasurementAdapter.Measureme
         payloads: MutableList<Any>,
     ) {
         if (payloads.contains(PAYLOAD_USER_COLUMN_VISIBILITY)) {
-            holder.updateUserColumn(getItem(position).user, showUserColumn)
+            holder.updateUserColumn(getItem(position).displayMeasurement.user, showUserColumn)
             return
         }
         super.onBindViewHolder(holder, position, payloads)
@@ -53,7 +53,8 @@ class MeasurementAdapter : ListAdapter<Measurement, MeasurementAdapter.Measureme
         private val binding: ItemMeasurementBinding,
     ) : RecyclerView.ViewHolder(binding.root) {
 
-        fun bind(measurement: Measurement, showUserColumn: Boolean) {
+        fun bind(item: MeasurementListItem, showUserColumn: Boolean) {
+            val measurement = item.displayMeasurement
             binding.timeValue.text = TIMESTAMP_FORMATTER.format(measurement.recordedAt)
             binding.sysValue.text = measurement.systolic.toString()
             binding.diaValue.text = measurement.diastolic.toString()
@@ -72,16 +73,18 @@ class MeasurementAdapter : ListAdapter<Measurement, MeasurementAdapter.Measureme
         const val PAYLOAD_USER_COLUMN_VISIBILITY = "user_column_visibility"
         val TIMESTAMP_FORMATTER: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")
 
-        val DiffCallback = object : DiffUtil.ItemCallback<Measurement>() {
-            override fun areItemsTheSame(oldItem: Measurement, newItem: Measurement): Boolean {
-                return oldItem.recordedAt == newItem.recordedAt &&
-                    oldItem.user == newItem.user &&
-                    oldItem.systolic == newItem.systolic &&
-                    oldItem.diastolic == newItem.diastolic &&
-                    oldItem.pulse == newItem.pulse
+        val DiffCallback = object : DiffUtil.ItemCallback<MeasurementListItem>() {
+            override fun areItemsTheSame(oldItem: MeasurementListItem, newItem: MeasurementListItem): Boolean {
+                val oldMeasurement = oldItem.displayMeasurement
+                val newMeasurement = newItem.displayMeasurement
+                return oldMeasurement.recordedAt == newMeasurement.recordedAt &&
+                    oldMeasurement.user == newMeasurement.user &&
+                    oldMeasurement.systolic == newMeasurement.systolic &&
+                    oldMeasurement.diastolic == newMeasurement.diastolic &&
+                    oldMeasurement.pulse == newMeasurement.pulse
             }
 
-            override fun areContentsTheSame(oldItem: Measurement, newItem: Measurement): Boolean {
+            override fun areContentsTheSame(oldItem: MeasurementListItem, newItem: MeasurementListItem): Boolean {
                 return oldItem == newItem
             }
         }

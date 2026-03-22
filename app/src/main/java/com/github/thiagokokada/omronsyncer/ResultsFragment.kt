@@ -17,7 +17,6 @@ import androidx.recyclerview.widget.ItemTouchHelper
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.github.thiagokokada.omronsyncer.databinding.FragmentResultsBinding
-import com.github.thiagokokada.omronsyncer.model.Measurement
 import androidx.core.graphics.toColorInt
 import androidx.core.graphics.drawable.toDrawable
 import com.github.thiagokokada.omronsyncer.sync.SyncPreferences
@@ -30,7 +29,7 @@ class ResultsFragment : Fragment() {
     interface Host {
         fun currentUiState(): MainUiState
         fun onResultsRangeSelected(range: TrendRange)
-        fun onMeasurementDeleteRequested(measurement: Measurement)
+        fun onMeasurementDeleteRequested(measurement: MeasurementListItem)
         fun onSyncRequested()
     }
 
@@ -116,7 +115,7 @@ class ResultsFragment : Fragment() {
             state.resultsMeasurements.size,
         )
 
-        val latestMeasurement = state.resultsMeasurements.firstOrNull()
+        val latestMeasurement = state.resultsMeasurements.firstOrNull()?.displayMeasurement
         val hasActiveFilter =
             state.selectedTrendRange != TrendRange.ALL ||
                 (state.selectedMeasurementUser != null && state.measurementUserOptions.size > 1)
@@ -165,7 +164,7 @@ class ResultsFragment : Fragment() {
             .show()
     }
 
-    private fun formatRelativeMeasurementTime(measurement: Measurement): CharSequence {
+    private fun formatRelativeMeasurementTime(measurement: com.github.thiagokokada.omronsyncer.model.Measurement): CharSequence {
         val measurementTimeMillis = measurement.recordedAt
             .atZone(ZoneId.systemDefault())
             .toInstant()

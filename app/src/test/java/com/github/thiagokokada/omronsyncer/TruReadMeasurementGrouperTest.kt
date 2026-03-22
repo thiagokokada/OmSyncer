@@ -44,6 +44,50 @@ class TruReadMeasurementGrouperTest {
     }
 
     @Test
+    fun displayItems_keepsBackingMeasurementsForMergedTruReadTriplet() {
+        val baseTime = LocalDateTime.of(2026, 3, 10, 12, 37, 31)
+        val sourceMeasurements = listOf(
+            measurement(recordedAt = baseTime, truReadStage = 1),
+            measurement(recordedAt = baseTime.plusSeconds(56), truReadStage = 2),
+            measurement(recordedAt = baseTime.plusSeconds(107), truReadStage = 3),
+        ).sortedByDescending { it.recordedAt }
+
+        val grouped = TruReadMeasurementGrouper.displayItems(
+            model = truReadModel,
+            measurements = sourceMeasurements,
+            displayMode = TruReadDisplayMode.MERGE,
+        )
+
+        assertEquals(1, grouped.size)
+        assertEquals(sourceMeasurements.sortedBy { it.recordedAt }, grouped.single().sourceMeasurements)
+        assertEquals(true, grouped.single().displayMeasurement.isTruReadMerged)
+    }
+
+    @Test
+    fun displayItems_keepsSingleSourceMeasurementInSeparateMode() {
+        val measurements = listOf(
+            measurement(recordedAt = LocalDateTime.of(2026, 3, 10, 12, 37, 31), truReadStage = 1),
+            measurement(recordedAt = LocalDateTime.of(2026, 3, 10, 12, 38, 27), truReadStage = 2),
+        ).sortedByDescending { it.recordedAt }
+
+        val grouped = TruReadMeasurementGrouper.displayItems(
+            model = truReadModel,
+            measurements = measurements,
+            displayMode = TruReadDisplayMode.SEPARATE,
+        )
+
+        assertEquals(
+            measurements.map { measurement ->
+                MeasurementListItem(
+                    displayMeasurement = measurement,
+                    sourceMeasurements = listOf(measurement),
+                )
+            },
+            grouped,
+        )
+    }
+
+    @Test
     fun displayMeasurements_keepsSeparateReadingsWhenModeDisabled() {
         val measurements = listOf(
             measurement(recordedAt = LocalDateTime.of(2026, 3, 10, 12, 37, 31), truReadStage = 1),

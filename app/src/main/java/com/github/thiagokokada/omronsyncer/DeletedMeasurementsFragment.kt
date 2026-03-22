@@ -8,13 +8,12 @@ import android.view.ViewGroup
 import androidx.fragment.app.Fragment
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.github.thiagokokada.omronsyncer.databinding.FragmentDeletedMeasurementsBinding
-import com.github.thiagokokada.omronsyncer.model.Measurement
 
 class DeletedMeasurementsFragment : Fragment() {
 
     interface Host {
         fun currentUiState(): MainUiState
-        fun onDeletedMeasurementRestoreRequested(measurement: Measurement)
+        fun onDeletedMeasurementRestoreRequested(measurement: MeasurementListItem)
     }
 
     private var _binding: FragmentDeletedMeasurementsBinding? = null
