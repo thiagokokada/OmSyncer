@@ -772,9 +772,7 @@ class MainActivity : AppCompatActivity(),
                 }
                 if (canDeleteFromHealthConnect()) {
                     runCatching {
-                        measurement.sourceMeasurements.forEach { sourceMeasurement ->
-                            healthConnectExporter.delete(sourceMeasurement)
-                        }
+                        syncOrchestrator.exportStoredMeasurementsToHealthConnect()
                     }.onFailure {
                         healthConnectWarning = true
                     }
@@ -833,7 +831,7 @@ class MainActivity : AppCompatActivity(),
                 }
                 if (isHealthConnectAvailable && isHealthConnectConnected) {
                     runCatching {
-                        healthConnectExporter.export(measurement.sourceMeasurements)
+                        syncOrchestrator.exportStoredMeasurementsToHealthConnect()
                     }.onFailure {
                         healthConnectWarning = true
                     }

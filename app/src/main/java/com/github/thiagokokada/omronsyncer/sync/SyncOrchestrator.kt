@@ -5,9 +5,11 @@ import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothManager
 import android.content.Context
+import com.github.thiagokokada.omronsyncer.TruReadDisplayMode
 import com.github.thiagokokada.omronsyncer.data.MeasurementStore
 import com.github.thiagokokada.omronsyncer.healthconnect.HealthConnectExporter
 import com.github.thiagokokada.omronsyncer.healthconnect.HealthConnectBloodPressureExporter
+import com.github.thiagokokada.omronsyncer.healthconnect.HealthConnectSyncPlanner
 import com.github.thiagokokada.omronsyncer.model.Measurement
 import com.github.thiagokokada.omronsyncer.omron.OmronDeviceDefinition
 import com.github.thiagokokada.omronsyncer.omron.SyncCapture
@@ -88,8 +90,44 @@ class SyncOrchestrator(
             throw NoMeasurementsForSelectedUserException()
         }
         return healthConnectExporter.sync(
-            activeMeasurements = measurementState.first,
-            deletedMeasurements = measurementState.second,
+            healthConnectPlan(
+                model = model,
+                activeMeasurements = measurementState.first,
+                deletedMeasurements = measurementState.second,
+            ),
+        )
+    }
+
+    private fun healthConnectPlan(
+        model: OmronDeviceDefinition,
+        activeMeasurements: List<Measurement>,
+        deletedMeasurements: List<Measurement>,
+    ) = HealthConnectSyncPlanner.plan(
+        model = model,
+        activeMeasurements = activeMeasurements,
+        deletedMeasurements = deletedMeasurements,
+        displayMode = healthConnectDisplayMode(model),
+    )
+
+    private fun healthConnectDisplayMode(model: OmronDeviceDefinition): TruReadDisplayMode {
+        return if (model.supportsTruReadMerge) {
+            syncPreferences.truReadDisplayMode()
+        } else {
+            TruReadDisplayMode.SEPARATE
+        }
+    }
+
+    private suspend fun exportToHealthConnect(
+        model: OmronDeviceDefinition,
+        activeMeasurements: List<Measurement>,
+        deletedMeasurements: List<Measurement>,
+    ): HealthConnectBloodPressureExporter.ExportSummary {
+        return healthConnectExporter.sync(
+            healthConnectPlan(
+                model = model,
+                activeMeasurements = activeMeasurements,
+                deletedMeasurements = deletedMeasurements,
+            ),
         )
     }
 
@@ -120,7 +158,8 @@ class SyncOrchestrator(
             return null
         }
 
-        return healthConnectExporter.sync(
+        return exportToHealthConnect(
+            model = model,
             activeMeasurements = filteredMeasurements,
             deletedMeasurements = deletedMeasurements,
         )
