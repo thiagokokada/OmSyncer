@@ -5,6 +5,7 @@
     <string name="settings_title">Settings</string>
     <string name="trends_chart_title">Blood pressure trends</string>
     <string name="trends_chart_body">Track systolic and diastolic readings over time.</string>
+    <string name="trends_chart_zoom_hint">Pinch to zoom horizontally. Drag to pan.</string>
     <string name="trends_range_7d">7D</string>
     <string name="trends_range_30d">30D</string>
     <string name="trends_range_all">All</string>
