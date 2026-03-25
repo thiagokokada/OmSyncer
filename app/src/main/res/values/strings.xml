@@ -177,6 +177,7 @@
     <string name="pdf_report_title">PDF report</string>
     <string name="pdf_report_preview_title">Report preview</string>
     <string name="pdf_report_preview_body">Review the current selection before saving a PDF report.</string>
+    <string name="pdf_report_preview_rendering">Rendering inline PDF preview…</string>
     <string name="pdf_report_selection_summary">%1$s - %2$s</string>
     <string name="pdf_report_selection_summary_all_users">%1$s - All users</string>
     <string name="pdf_report_latest_measurement">Latest: %1$s</string>
@@ -189,6 +190,10 @@
     <string name="pdf_report_preview_measurements_title">Included measurements</string>
     <string name="pdf_report_preview_more_measurements">...and %1$d more</string>
     <string name="pdf_report_empty">No measurements match the current filters.</string>
+    <plurals name="pdf_report_preview_pages">
+        <item quantity="one">%d preview page</item>
+        <item quantity="other">%d preview pages</item>
+    </plurals>
     <string name="sync_log_empty">No sync log yet.</string>
     <string name="delete_measurement">Delete measurement</string>
     <string name="delete_measurement_title">Delete measurement?</string>

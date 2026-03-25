@@ -1,15 +1,27 @@
 package com.github.thiagokokada.omronsyncer
 
 import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.pdf.PdfRenderer
 import android.os.Bundle
+import android.os.ParcelFileDescriptor
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import androidx.fragment.app.Fragment
 import androidx.core.view.isVisible
+import androidx.fragment.app.Fragment
+import androidx.lifecycle.lifecycleScope
+import androidx.recyclerview.widget.LinearLayoutManager
 import com.github.thiagokokada.omronsyncer.databinding.FragmentPdfReportPreviewBinding
+import com.github.thiagokokada.omronsyncer.export.MeasurementPdfExporter
 import com.github.thiagokokada.omronsyncer.export.MeasurementPdfReportBuilder
-import java.time.format.DateTimeFormatter
+import com.github.thiagokokada.omronsyncer.model.Measurement
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.io.File
+import java.io.FileOutputStream
 
 class PdfReportPreviewFragment : Fragment() {
 
@@ -23,7 +35,10 @@ class PdfReportPreviewFragment : Fragment() {
     private val binding get() = _binding!!
     private lateinit var host: Host
     private val reportBuilder = MeasurementPdfReportBuilder()
-    private var selectedBucket: TrendBucket? = null
+    private val pdfExporter = MeasurementPdfExporter()
+    private lateinit var previewAdapter: PdfPreviewPageAdapter
+    private var previewJob: Job? = null
+    private var lastPreviewRequest: PreviewRequest? = null
 
     override fun onAttach(context: Context) {
         super.onAttach(context)
@@ -42,6 +57,9 @@ class PdfReportPreviewFragment : Fragment() {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
+        previewAdapter = PdfPreviewPageAdapter()
+        binding.pdfPreviewList.layoutManager = LinearLayoutManager(requireContext())
+        binding.pdfPreviewList.adapter = previewAdapter
         binding.pdfRangeSevenDays.setOnClickListener {
             host.onPdfReportRangeSelected(TrendRange.SEVEN_DAYS)
         }
@@ -54,10 +72,6 @@ class PdfReportPreviewFragment : Fragment() {
         binding.exportPdfButton.setOnClickListener {
             host.onPdfReportExportRequested()
         }
-        binding.pdfChartView.onSelectionChanged = { bucket ->
-            selectedBucket = bucket
-            renderSelectedBucket()
-        }
     }
 
     override fun onResume() {
@@ -69,21 +83,6 @@ class PdfReportPreviewFragment : Fragment() {
         if (_binding == null) {
             return
         }
-        val report = reportBuilder.build(
-            measurements = state.resultsMeasurements.map(MeasurementListItem::displayMeasurement),
-            range = state.selectedTrendRange,
-            selectedUser = state.selectedMeasurementUser,
-        )
-        val filteredMeasurements = TrendChartData.filterMeasurements(
-            measurements = state.trendMeasurements,
-            selectedUser = null,
-            selectedRange = state.selectedTrendRange,
-        )
-        val buckets = TrendChartData.chartBuckets(filteredMeasurements)
-        if (selectedBucket !in buckets) {
-            selectedBucket = null
-        }
-
         binding.pdfRangeToggle.check(
             when (state.selectedTrendRange) {
                 TrendRange.SEVEN_DAYS -> R.id.pdf_range_seven_days
@@ -91,62 +90,81 @@ class PdfReportPreviewFragment : Fragment() {
                 TrendRange.ALL -> R.id.pdf_range_all
             },
         )
-        binding.pdfMeasurementCount.text = resources.getQuantityString(
-            R.plurals.measurement_count,
-            report.summary.measurementCount,
-            report.summary.measurementCount,
-        )
         binding.pdfSelectionSummary.text = selectionSummary(state)
-        binding.pdfLatestMeasurement.text = report.summary.lastRecordedAt?.let {
-            getString(R.string.pdf_report_latest_measurement, TIMESTAMP_FORMATTER.format(it))
-        } ?: getString(R.string.no_measurement_summary_filtered)
-        binding.pdfAveragePressure.text =
-            "${report.summary.averageSystolic}/${report.summary.averageDiastolic}"
-        binding.pdfAveragePulse.text = "${report.summary.averagePulse} bpm"
-        binding.pdfDateSpan.text = report.summary.firstRecordedAt?.let { first ->
-            report.summary.lastRecordedAt?.let { last ->
-                getString(
-                    R.string.pdf_report_date_span_value,
-                    TIMESTAMP_FORMATTER.format(first),
-                    TIMESTAMP_FORMATTER.format(last),
-                )
-            }
-        } ?: "-"
-        binding.pdfFlaggedReadings.text = getString(
-            R.string.pdf_report_flagged_value,
-            report.summary.irregularHeartbeatCount,
-            report.summary.movementCount,
-        )
-        binding.pdfChartCard.isVisible = buckets.isNotEmpty()
-        binding.pdfChartView.setBuckets(buckets, selectedBucket)
-        renderSelectedBucket()
-
-        val previewLines = report.measurements.take(PREVIEW_ROW_LIMIT).joinToString("\n") { measurement ->
-            buildString {
-                append(TIMESTAMP_FORMATTER.format(measurement.recordedAt))
-                append(" - ")
-                append("${measurement.systolic}/${measurement.diastolic}")
-                append(" - pulse ${measurement.pulse}")
-                append(" - flags ${measurement.flagsLabel()}")
-                if (state.showsMeasurementUserColumn) {
-                    append(" - user ${measurement.user}")
-                }
-            }
-        }
-        val previewText = if (report.measurements.size > PREVIEW_ROW_LIMIT) {
-            "$previewLines\n${getString(R.string.pdf_report_preview_more_measurements, report.measurements.size - PREVIEW_ROW_LIMIT)}"
-        } else {
-            previewLines
-        }
-        binding.pdfPreviewValues.text = previewText
-        binding.pdfPreviewValues.visibility = if (report.measurements.isEmpty()) View.GONE else View.VISIBLE
-        binding.pdfEmptyState.visibility = if (report.measurements.isEmpty()) View.VISIBLE else View.GONE
         binding.exportPdfButton.isEnabled = state.canExport && !state.isWorking
+
+        val measurements = state.resultsMeasurements.map(MeasurementListItem::displayMeasurement)
+        binding.pdfEmptyState.isVisible = measurements.isEmpty()
+        binding.pdfPreviewList.isVisible = measurements.isNotEmpty()
+
+        val request = PreviewRequest(
+            measurements = measurements,
+            range = state.selectedTrendRange,
+            selectedUser = state.selectedMeasurementUser,
+        )
+        if (measurements.isEmpty()) {
+            lastPreviewRequest = null
+            previewJob?.cancel()
+            previewAdapter.submitPages(emptyList())
+            binding.pdfPreviewStatus.text = getString(R.string.pdf_report_empty)
+            return
+        }
+        if (request == lastPreviewRequest) {
+            return
+        }
+        lastPreviewRequest = request
+        binding.pdfPreviewStatus.text = getString(R.string.pdf_report_preview_rendering)
+        renderPdfPreview(request)
     }
 
     override fun onDestroyView() {
+        previewJob?.cancel()
         super.onDestroyView()
         _binding = null
+    }
+
+    private fun renderPdfPreview(request: PreviewRequest) {
+        previewJob?.cancel()
+        previewJob = viewLifecycleOwner.lifecycleScope.launch {
+            val pages = withContext(Dispatchers.IO) {
+                val report = reportBuilder.build(
+                    measurements = request.measurements,
+                    range = request.range,
+                    selectedUser = request.selectedUser,
+                )
+                val previewFile = File(requireContext().cacheDir, "pdf-preview.pdf")
+                FileOutputStream(previewFile).use { outputStream ->
+                    pdfExporter.export(outputStream, report)
+                }
+                renderPdfPages(previewFile)
+            }
+            if (_binding == null || request != lastPreviewRequest) {
+                return@launch
+            }
+            previewAdapter.submitPages(pages)
+            binding.pdfPreviewStatus.text = resources.getQuantityString(
+                R.plurals.pdf_report_preview_pages,
+                pages.size,
+                pages.size,
+            )
+        }
+    }
+
+    private fun renderPdfPages(file: File): List<Bitmap> {
+        val parcelFileDescriptor = ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY)
+        return parcelFileDescriptor.use { descriptor ->
+            PdfRenderer(descriptor).use { renderer ->
+                List(renderer.pageCount) { index ->
+                    renderer.openPage(index).use { page ->
+                        val width = page.width * PREVIEW_SCALE
+                        val height = page.height * PREVIEW_SCALE
+                        Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888).also { bitmap ->
+                            page.render(bitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
+                        }
+                    }
+                }
+            }
+        }
     }
 
     private fun selectionSummary(state: MainUiState): String {
@@ -165,38 +183,13 @@ class PdfReportPreviewFragment : Fragment() {
         }
     }
 
-    private fun renderSelectedBucket() {
-        val bucket = selectedBucket
-        binding.pdfSelectedReadingCard.isVisible = bucket != null
-        if (bucket == null) {
-            return
-        }
-        binding.pdfSelectedReadingTime.text = SELECTED_READING_DATE_FORMATTER.format(bucket.date)
-        binding.pdfSelectedReadingSummary.text = getString(
-            R.string.trends_selected_reading_summary,
-            bucket.meanSystolic,
-            bucket.meanDiastolic,
-            bucket.meanPulse,
-            bucket.measurements.size,
-        )
-        binding.pdfSelectedReadingValues.text = bucket.measurements.joinToString(separator = "\n") { measurement ->
-            getString(
-                R.string.trends_selected_reading_value,
-                SELECTED_READING_VALUE_TIME_FORMATTER.format(measurement.recordedAt),
-                measurement.systolic,
-                measurement.diastolic,
-                measurement.pulse,
-                measurement.flagsLabel(),
-            )
-        }
-    }
+    private data class PreviewRequest(
+        val measurements: List<Measurement>,
+        val range: TrendRange,
+        val selectedUser: Int?,
+    )
 
     private companion object {
-        const val PREVIEW_ROW_LIMIT = 12
-        val TIMESTAMP_FORMATTER: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")
-        val SELECTED_READING_DATE_FORMATTER: DateTimeFormatter =
-            DateTimeFormatter.ofPattern("yyyy-MM-dd")
-        val SELECTED_READING_VALUE_TIME_FORMATTER: DateTimeFormatter =
-            DateTimeFormatter.ofPattern("HH:mm")
+        const val PREVIEW_SCALE = 2
     }
 }

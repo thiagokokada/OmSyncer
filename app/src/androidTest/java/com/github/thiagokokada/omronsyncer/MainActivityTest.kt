@@ -208,7 +208,7 @@ class MainActivityTest {
             onView(withId(R.id.pdf_report_button)).perform(scrollTo(), click())
 
             onView(withId(R.id.export_pdf_button)).check(matches(isDisplayed()))
-            onView(withId(R.id.pdf_chart_card)).check(matches(isDisplayed()))
+            onView(withId(R.id.pdf_preview_list)).check(matches(isDisplayed()))
             onView(withText(R.string.pdf_report_title)).check(matches(isDisplayed()))
         }
     }
@@ -228,10 +228,9 @@ class MainActivityTest {
             openSettingsScreen(scenario)
             onView(withId(R.id.pdf_report_button)).perform(scrollTo(), click())
 
-            onView(withId(R.id.pdf_measurement_count)).check(matches(withText("3 measurements")))
+            onView(withId(R.id.pdf_preview_list)).check(matches(isDisplayed()))
             onView(withId(R.id.pdf_range_seven_days)).perform(click())
             onView(withId(R.id.pdf_range_seven_days)).check(matches(isChecked()))
-            onView(withId(R.id.pdf_measurement_count)).check(matches(withText("1 measurement")))
 
             pressBack()
 
