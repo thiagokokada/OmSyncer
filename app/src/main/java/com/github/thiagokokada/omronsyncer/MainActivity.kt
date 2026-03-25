@@ -69,7 +69,7 @@ class MainActivity : AppCompatActivity(),
     private val measurementStore by lazy { MeasurementStore(this) }
     private val syncClient by lazy { OmronSyncClient(this) }
     private val csvExporter by lazy { MeasurementCsvExporter() }
-    private val pdfExporter by lazy { MeasurementPdfExporter() }
+    private val pdfExporter by lazy { MeasurementPdfExporter(this) }
     private val pdfReportBuilder by lazy { MeasurementPdfReportBuilder() }
     private val healthConnectExporter by lazy { HealthConnectBloodPressureExporter(this) }
     private val nearbySyncRegistrar by lazy { NearbySyncRegistrar(this) }

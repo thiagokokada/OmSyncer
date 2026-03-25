@@ -35,7 +35,7 @@ class PdfReportPreviewFragment : Fragment() {
     private val binding get() = _binding!!
     private lateinit var host: Host
     private val reportBuilder = MeasurementPdfReportBuilder()
-    private val pdfExporter = MeasurementPdfExporter()
+    private val pdfExporter by lazy { MeasurementPdfExporter(requireContext()) }
     private lateinit var previewAdapter: PdfPreviewPageAdapter
     private var previewJob: Job? = null
     private var lastPreviewRequest: PreviewRequest? = null
