@@ -154,7 +154,7 @@ class BloodPressureChartView @JvmOverloads constructor(
                     },
                     value = guide.value,
                     label = BloodPressureClassifier.shortLabel(context, guide.category),
-                    color = BloodPressureClassifier.style(guide.category).textColor,
+                    color = BloodPressureClassifier.chartGuideColor(context, guide.category),
                 )
             }
         }

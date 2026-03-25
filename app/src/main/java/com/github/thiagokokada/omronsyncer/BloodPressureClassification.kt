@@ -1,6 +1,7 @@
 package com.github.thiagokokada.omronsyncer
 
 import android.content.Context
+import android.content.res.Configuration
 import android.graphics.Color
 import androidx.annotation.StringRes
 import com.github.thiagokokada.omronsyncer.model.Measurement
@@ -168,6 +169,24 @@ object BloodPressureClassifier {
                 backgroundColor = Color.rgb(235, 226, 239),
                 textColor = Color.rgb(86, 44, 92),
             )
+        }
+    }
+
+    fun chartGuideColor(
+        context: Context,
+        category: BloodPressureCategoryDefinition,
+    ): Int {
+        if ((context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) !=
+            Configuration.UI_MODE_NIGHT_YES
+        ) {
+            return style(category).textColor
+        }
+        return when (category.severity) {
+            0 -> Color.rgb(137, 214, 165)
+            1 -> Color.rgb(145, 188, 255)
+            2 -> Color.rgb(255, 197, 120)
+            3 -> Color.rgb(255, 156, 160)
+            else -> Color.rgb(218, 170, 237)
         }
     }
 
