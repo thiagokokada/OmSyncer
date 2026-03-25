@@ -450,7 +450,7 @@ class MeasurementPdfExporter(
                 append(' ')
                 append(BloodPressureClassifier.shortLabel(context, guide.category))
             }
-            canvas.drawText(guide.value.toString(), left - 28f, y - 3f, guideLabelPaint)
+            canvas.drawText(guide.value.toString(), left - 18f, y - 3f, guideLabelPaint)
             val textWidth = guideLabelPaint.measureText(label)
             canvas.drawText(label, right - textWidth - 4f, y - 3f, guideLabelPaint)
             lastLabelY = y
