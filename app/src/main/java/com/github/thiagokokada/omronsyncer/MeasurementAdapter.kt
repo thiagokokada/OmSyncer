@@ -120,7 +120,10 @@ class MeasurementAdapter :
             }
             val classification = BloodPressureClassifier.classify(measurement, classificationScheme)
             val style = BloodPressureClassifier.style(classification.category)
-            binding.classificationValue.text = classification.category.shortLabel
+            binding.classificationValue.text = BloodPressureClassifier.shortLabel(
+                binding.root.context,
+                classification.category,
+            )
             (binding.classificationValue.background.mutate() as? GradientDrawable)?.setColor(style.backgroundColor)
             binding.classificationValue.setTextColor(style.textColor)
         }

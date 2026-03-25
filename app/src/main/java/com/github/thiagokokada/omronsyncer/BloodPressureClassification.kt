@@ -1,6 +1,8 @@
 package com.github.thiagokokada.omronsyncer
 
+import android.content.Context
 import android.graphics.Color
+import androidx.annotation.StringRes
 import com.github.thiagokokada.omronsyncer.model.Measurement
 
 enum class BloodPressureClassificationScheme {
@@ -11,7 +13,7 @@ enum class BloodPressureClassificationScheme {
 
 data class BloodPressureCategoryDefinition(
     val key: String,
-    val shortLabel: String,
+    @param:StringRes val shortLabelResId: Int,
     val severity: Int,
 )
 
@@ -105,6 +107,13 @@ object BloodPressureClassifier {
         }
     }
 
+    fun shortLabel(
+        context: Context,
+        category: BloodPressureCategoryDefinition,
+    ): String {
+        return context.getString(category.shortLabelResId)
+    }
+
     private fun classifyJnc7(measurement: Measurement): BloodPressureCategoryDefinition {
         return when {
             measurement.systolic >= 160 || measurement.diastolic >= 100 -> JNC7_STAGE_TWO
@@ -127,52 +136,52 @@ object BloodPressureClassifier {
 
     private val JNC7_NORMAL = BloodPressureCategoryDefinition(
         key = "jnc7_normal",
-        shortLabel = "Normal",
+        shortLabelResId = R.string.blood_pressure_category_normal,
         severity = 0,
     )
     private val JNC7_PREHYPERTENSION = BloodPressureCategoryDefinition(
         key = "jnc7_prehypertension",
-        shortLabel = "Prehypertension",
+        shortLabelResId = R.string.blood_pressure_category_prehypertension,
         severity = 1,
     )
     private val JNC7_STAGE_ONE = BloodPressureCategoryDefinition(
         key = "jnc7_stage_one",
-        shortLabel = "Stage 1",
+        shortLabelResId = R.string.blood_pressure_category_stage_1,
         severity = 2,
     )
     private val JNC7_STAGE_TWO = BloodPressureCategoryDefinition(
         key = "jnc7_stage_two",
-        shortLabel = "Stage 2",
+        shortLabelResId = R.string.blood_pressure_category_stage_2,
         severity = 3,
     )
     private val ESC_ESH_OPTIMAL = BloodPressureCategoryDefinition(
         key = "esc_esh_optimal",
-        shortLabel = "Optimal",
+        shortLabelResId = R.string.blood_pressure_category_optimal,
         severity = 0,
     )
     private val ESC_ESH_NORMAL = BloodPressureCategoryDefinition(
         key = "esc_esh_normal",
-        shortLabel = "Normal",
+        shortLabelResId = R.string.blood_pressure_category_normal,
         severity = 1,
     )
     private val ESC_ESH_HIGH_NORMAL = BloodPressureCategoryDefinition(
         key = "esc_esh_high_normal",
-        shortLabel = "High normal",
+        shortLabelResId = R.string.blood_pressure_category_high_normal,
         severity = 2,
     )
     private val ESC_ESH_GRADE_ONE = BloodPressureCategoryDefinition(
         key = "esc_esh_grade_one",
-        shortLabel = "Grade 1",
+        shortLabelResId = R.string.blood_pressure_category_grade_1,
         severity = 3,
     )
     private val ESC_ESH_GRADE_TWO = BloodPressureCategoryDefinition(
         key = "esc_esh_grade_two",
-        shortLabel = "Grade 2",
+        shortLabelResId = R.string.blood_pressure_category_grade_2,
         severity = 4,
     )
     private val ESC_ESH_GRADE_THREE = BloodPressureCategoryDefinition(
         key = "esc_esh_grade_three",
-        shortLabel = "Grade 3",
+        shortLabelResId = R.string.blood_pressure_category_grade_3,
         severity = 5,
     )
 }

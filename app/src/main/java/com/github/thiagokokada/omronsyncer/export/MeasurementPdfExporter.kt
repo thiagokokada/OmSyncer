@@ -8,6 +8,7 @@ import android.graphics.Path
 import android.graphics.RectF
 import android.graphics.Typeface
 import android.graphics.pdf.PdfDocument
+import com.github.thiagokokada.omronsyncer.BloodPressureClassifier
 import com.github.thiagokokada.omronsyncer.BloodPressureClassificationScheme
 import com.github.thiagokokada.omronsyncer.R
 import com.github.thiagokokada.omronsyncer.TrendRange
@@ -431,7 +432,12 @@ class MeasurementPdfExporter(
         val maxCount = max(1, entries.maxOf { it.count })
         entries.forEachIndexed { index, entry ->
             val y = top + index * 22f
-            canvas.drawText(entry.category.shortLabel, 58f, y, bodyPaint)
+            canvas.drawText(
+                BloodPressureClassifier.shortLabel(context, entry.category),
+                58f,
+                y,
+                bodyPaint,
+            )
             val barLeft = 138f
             val barWidth = 300f * entry.count / maxCount.toFloat()
             canvas.drawRoundRect(RectF(barLeft, y - 11f, barLeft + barWidth, y + 2f), 6f, 6f, barPaint(index))

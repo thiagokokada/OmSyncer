@@ -10,11 +10,11 @@ class BloodPressureClassifierTest {
     @Test
     fun classify_usesJnc7Thresholds() {
         assertEquals(
-            "Prehypertension",
+            "jnc7_prehypertension",
             classify(128, 84, BloodPressureClassificationScheme.JNC7),
         )
         assertEquals(
-            "Stage 2",
+            "jnc7_stage_two",
             classify(165, 92, BloodPressureClassificationScheme.JNC7),
         )
     }
@@ -22,15 +22,15 @@ class BloodPressureClassifierTest {
     @Test
     fun classify_usesEscEsh2018Thresholds() {
         assertEquals(
-            "Normal",
+            "esc_esh_normal",
             classify(128, 84, BloodPressureClassificationScheme.ESC_ESH_2018),
         )
         assertEquals(
-            "High normal",
+            "esc_esh_high_normal",
             classify(135, 88, BloodPressureClassificationScheme.ESC_ESH_2018),
         )
         assertEquals(
-            "Grade 3",
+            "esc_esh_grade_three",
             classify(182, 96, BloodPressureClassificationScheme.ESC_ESH_2018),
         )
     }
@@ -51,6 +51,6 @@ class BloodPressureClassifierTest {
                 movement = false,
             ),
             scheme = scheme,
-        ).category.shortLabel
+        ).category.key
     }
 }

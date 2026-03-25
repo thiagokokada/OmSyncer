@@ -44,9 +44,9 @@ class MeasurementPdfReportBuilderTest {
         assertEquals(2, report.dailyAverages.first().measurementCount)
         assertEquals(BloodPressureClassificationScheme.JNC7, report.classificationScheme)
         assertEquals(4, report.pressureDistribution!!.categories.size)
-        assertEquals("Normal", report.pressureDistribution.categories[0].category.shortLabel)
+        assertEquals("jnc7_normal", report.pressureDistribution.categories[0].category.key)
         assertEquals(1, report.pressureDistribution.categories[0].count)
-        assertEquals("Prehypertension", report.pressureDistribution.categories[1].category.shortLabel)
+        assertEquals("jnc7_prehypertension", report.pressureDistribution.categories[1].category.key)
         assertEquals(2, report.pressureDistribution.categories[1].count)
     }
 

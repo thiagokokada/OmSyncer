@@ -171,9 +171,9 @@ class PdfReportPreviewFragment : Fragment() {
 
     private fun selectionSummary(state: MainUiState): String {
         val rangeLabel = when (state.selectedTrendRange) {
-            TrendRange.SEVEN_DAYS -> "Last 7 days"
-            TrendRange.THIRTY_DAYS -> "Last 30 days"
-            TrendRange.ALL -> "All data"
+            TrendRange.SEVEN_DAYS -> getString(R.string.trends_range_7d_long)
+            TrendRange.THIRTY_DAYS -> getString(R.string.trends_range_30d_long)
+            TrendRange.ALL -> getString(R.string.trends_range_all_long)
         }
         val selectedUserLabel = state.selectedMeasurementUser?.let {
             getString(R.string.measurement_user_single, it)
