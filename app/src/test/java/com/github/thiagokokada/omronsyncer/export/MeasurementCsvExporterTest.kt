@@ -1,5 +1,6 @@
 package com.github.thiagokokada.omronsyncer.export
 
+import com.github.thiagokokada.omronsyncer.BloodPressureClassificationScheme
 import com.github.thiagokokada.omronsyncer.model.Measurement
 import org.junit.Assert.assertEquals
 import org.junit.Test
@@ -16,7 +17,7 @@ class MeasurementCsvExporterTest {
 
         exporter.export(
             output,
-            listOf(
+            measurements = listOf(
                 Measurement(
                     user = 1,
                     recordedAt = LocalDateTime.of(2026, 3, 7, 11, 42, 3),
@@ -37,13 +38,14 @@ class MeasurementCsvExporterTest {
                     isTruReadMerged = true,
                 ),
             ),
+            classificationScheme = BloodPressureClassificationScheme.JNC7,
         )
 
         assertEquals(
             """
-            recorded_at,user,systolic,diastolic,pulse,irregular_heartbeat,movement,tru_read_merged
-            2026-03-07 11:42:03,1,118,77,61,true,false,false
-            2026-03-06 22:15:00,2,124,81,66,false,true,true
+            recorded_at,user,systolic,diastolic,pulse,irregular_heartbeat,movement,tru_read_merged,blood_pressure_category
+            2026-03-07 11:42:03,1,118,77,61,true,false,false,jnc7_normal
+            2026-03-06 22:15:00,2,124,81,66,false,true,true,jnc7_prehypertension
             
             """.trimIndent(),
             output.toString(Charsets.UTF_8),
@@ -54,10 +56,44 @@ class MeasurementCsvExporterTest {
     fun export_writesHeaderForEmptyMeasurementList() {
         val output = ByteArrayOutputStream()
 
-        exporter.export(output, emptyList())
+        exporter.export(
+            outputStream = output,
+            measurements = emptyList(),
+            classificationScheme = BloodPressureClassificationScheme.DISABLED,
+        )
 
         assertEquals(
-            "recorded_at,user,systolic,diastolic,pulse,irregular_heartbeat,movement,tru_read_merged\n",
+            "recorded_at,user,systolic,diastolic,pulse,irregular_heartbeat,movement,tru_read_merged,blood_pressure_category\n",
+            output.toString(Charsets.UTF_8),
+        )
+    }
+
+    @Test
+    fun export_leavesCategoryEmptyWhenClassificationDisabled() {
+        val output = ByteArrayOutputStream()
+
+        exporter.export(
+            outputStream = output,
+            measurements = listOf(
+                Measurement(
+                    user = 1,
+                    recordedAt = LocalDateTime.of(2026, 3, 7, 11, 42, 3),
+                    systolic = 124,
+                    diastolic = 81,
+                    pulse = 61,
+                    irregularHeartbeat = false,
+                    movement = false,
+                ),
+            ),
+            classificationScheme = BloodPressureClassificationScheme.DISABLED,
+        )
+
+        assertEquals(
+            """
+            recorded_at,user,systolic,diastolic,pulse,irregular_heartbeat,movement,tru_read_merged,blood_pressure_category
+            2026-03-07 11:42:03,1,124,81,61,false,false,false,
+            
+            """.trimIndent(),
             output.toString(Charsets.UTF_8),
         )
     }

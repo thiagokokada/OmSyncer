@@ -68,7 +68,11 @@ class MainActivity : AppCompatActivity(),
     private val bondedDevices = mutableListOf<BluetoothDevice>()
     private val measurementStore by lazy { MeasurementStore(this) }
     private val syncClient by lazy { OmronSyncClient(this) }
-    private val csvExporter by lazy { MeasurementCsvExporter() }
+    private val csvExporter by lazy {
+        MeasurementCsvExporter { category ->
+            BloodPressureClassifier.shortLabel(this, category)
+        }
+    }
     private val pdfExporter by lazy { MeasurementPdfExporter(this) }
     private val pdfReportBuilder by lazy { MeasurementPdfReportBuilder() }
     private val healthConnectExporter by lazy { HealthConnectBloodPressureExporter(this) }
@@ -1098,7 +1102,11 @@ class MainActivity : AppCompatActivity(),
                 }
                 withContext(Dispatchers.IO) {
                     contentResolver.openOutputStream(uri)?.use { outputStream ->
-                        csvExporter.export(outputStream, exportMeasurements)
+                        csvExporter.export(
+                            outputStream = outputStream,
+                            measurements = exportMeasurements,
+                            classificationScheme = syncPreferences.bloodPressureClassificationScheme(),
+                        )
                     } ?: throw IllegalStateException(EXPORT_DESTINATION_UNAVAILABLE)
                 }
             }.onSuccess {
