@@ -169,9 +169,13 @@ class MeasurementPdfExporter {
         }
 
         val distributionTop = summaryTop + 190f
+        val distributionHeight = max(
+            160f,
+            72f + report.pressureDistribution.categories.size * 24f,
+        )
         drawPanel(
             canvas,
-            RectF(40f, distributionTop, 555f, distributionTop + 160f),
+            RectF(40f, distributionTop, 555f, distributionTop + distributionHeight),
             "Pressure categories (${classificationSchemeLabel(report.classificationScheme)})",
         )
         drawDistributionBars(canvas, report, distributionTop + 54f)
