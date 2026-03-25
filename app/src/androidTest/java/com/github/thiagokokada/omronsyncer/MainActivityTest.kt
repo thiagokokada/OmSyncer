@@ -406,6 +406,47 @@ class MainActivityTest {
     }
 
     @Test
+    fun bloodPressureClassificationScheme_disabledHidesResultsChipAndPersists() {
+        seedMeasurements(
+            listOf(
+                measurementAt(
+                    user = 1,
+                    recordedAt = LocalDateTime.now().withNano(0).minusDays(2),
+                    systolic = 128,
+                    diastolic = 84,
+                ),
+            ),
+        )
+
+        ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+            onView(withId(R.id.classification_value)).check(matches(isDisplayed()))
+
+            openSettingsScreen(scenario)
+            onView(withId(R.id.blood_pressure_classification_scheme_spinner)).perform(scrollTo(), click())
+            onData(`is`(context.getString(R.string.blood_pressure_classification_scheme_disabled)))
+                .perform(click())
+
+            openResultsScreen(scenario)
+            onView(withId(R.id.classification_value))
+                .check(matches(withEffectiveVisibility(Visibility.GONE)))
+        }
+
+        ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+            openSettingsScreen(scenario)
+            onView(withId(R.id.blood_pressure_classification_scheme_spinner))
+                .perform(scrollTo())
+            onView(withId(R.id.blood_pressure_classification_scheme_spinner))
+                .check(
+                    matches(
+                        withSpinnerText(
+                            context.getString(R.string.blood_pressure_classification_scheme_disabled),
+                        ),
+                    ),
+                )
+        }
+    }
+
+    @Test
     fun seedSampleMeasurements_populatesResultsInDebugBuild() {
         assumeTrue(BuildConfig.DEBUG)
 

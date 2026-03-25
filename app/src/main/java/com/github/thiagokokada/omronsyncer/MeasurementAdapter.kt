@@ -14,6 +14,7 @@ class MeasurementAdapter :
     ListAdapter<MeasurementListItem, MeasurementAdapter.MeasurementViewHolder>(DiffCallback) {
 
     private var showUserColumn: Boolean = true
+    private var showClassification: Boolean = true
     private var classificationScheme: BloodPressureClassificationScheme =
         BloodPressureClassificationScheme.JNC7
 
@@ -35,6 +36,15 @@ class MeasurementAdapter :
         }
     }
 
+    fun setShowClassification(show: Boolean) {
+        if (showClassification != show) {
+            showClassification = show
+            if (itemCount > 0) {
+                notifyItemRangeChanged(0, itemCount, PAYLOAD_CLASSIFICATION_VISIBILITY)
+            }
+        }
+    }
+
     fun formatTimestamp(recordedAt: java.time.LocalDateTime): String {
         return TIMESTAMP_FORMATTER.format(recordedAt)
     }
@@ -46,7 +56,7 @@ class MeasurementAdapter :
     }
 
     override fun onBindViewHolder(holder: MeasurementViewHolder, position: Int) {
-        holder.bind(getItem(position), showUserColumn, classificationScheme)
+        holder.bind(getItem(position), showUserColumn, showClassification, classificationScheme)
     }
 
     override fun onBindViewHolder(
@@ -58,8 +68,11 @@ class MeasurementAdapter :
         if (payloads.contains(PAYLOAD_USER_COLUMN_VISIBILITY)) {
             holder.updateUserColumn(measurement.user, showUserColumn)
         }
+        if (payloads.contains(PAYLOAD_CLASSIFICATION_VISIBILITY)) {
+            holder.updateClassificationVisibility(showClassification)
+        }
         if (payloads.contains(PAYLOAD_CLASSIFICATION_SCHEME)) {
-            holder.updateClassification(measurement, classificationScheme)
+            holder.updateClassification(measurement, showClassification, classificationScheme)
         }
         if (payloads.isNotEmpty()) {
             return
@@ -74,6 +87,7 @@ class MeasurementAdapter :
         fun bind(
             item: MeasurementListItem,
             showUserColumn: Boolean,
+            showClassification: Boolean,
             classificationScheme: BloodPressureClassificationScheme,
         ) {
             val measurement = item.displayMeasurement
@@ -83,7 +97,7 @@ class MeasurementAdapter :
             binding.pulseValue.text = measurement.pulse.toString()
             binding.flagsValue.text = measurement.flagsLabel()
             updateUserColumn(measurement.user, showUserColumn)
-            updateClassification(measurement, classificationScheme)
+            updateClassification(measurement, showClassification, classificationScheme)
         }
 
         fun updateUserColumn(user: Int, showUserColumn: Boolean) {
@@ -91,10 +105,19 @@ class MeasurementAdapter :
             binding.userValue.visibility = if (showUserColumn) View.VISIBLE else View.GONE
         }
 
+        fun updateClassificationVisibility(showClassification: Boolean) {
+            binding.classificationValue.visibility = if (showClassification) View.VISIBLE else View.GONE
+        }
+
         fun updateClassification(
             measurement: com.github.thiagokokada.omronsyncer.model.Measurement,
+            showClassification: Boolean,
             classificationScheme: BloodPressureClassificationScheme,
         ) {
+            updateClassificationVisibility(showClassification)
+            if (!showClassification) {
+                return
+            }
             val classification = BloodPressureClassifier.classify(measurement, classificationScheme)
             val style = BloodPressureClassifier.style(classification.category)
             binding.classificationValue.text = classification.category.shortLabel
@@ -105,6 +128,7 @@ class MeasurementAdapter :
 
     private companion object {
         const val PAYLOAD_USER_COLUMN_VISIBILITY = "user_column_visibility"
+        const val PAYLOAD_CLASSIFICATION_VISIBILITY = "classification_visibility"
         const val PAYLOAD_CLASSIFICATION_SCHEME = "classification_scheme"
         val TIMESTAMP_FORMATTER: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")
 

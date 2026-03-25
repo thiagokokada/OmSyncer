@@ -213,6 +213,7 @@
     <string name="latest_measurement_summary">Last measurement: %1$s</string>
     <string name="no_measurement_summary">No synced measurements yet.</string>
     <string name="no_measurement_summary_filtered">No synced measurements for the current filters.</string>
+    <string name="blood_pressure_classification_scheme_disabled">Disabled</string>
     <string name="permission_denied">Bluetooth permission was denied.</string>
     <string name="permission_try_again">Try again</string>
     <string name="permission_open_settings">Open settings</string>

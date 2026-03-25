@@ -168,17 +168,19 @@ class MeasurementPdfExporter {
             canvas.drawText("User ${latestMeasurement.user}", 318f, summaryTop + 158f, bodyPaint)
         }
 
-        val distributionTop = summaryTop + 190f
-        val distributionHeight = max(
-            112f,
-            74f + max(0, report.pressureDistribution.categories.size - 1) * 22f,
-        )
-        drawPanel(
-            canvas,
-            RectF(40f, distributionTop, 555f, distributionTop + distributionHeight),
-            "Pressure categories (${classificationSchemeLabel(report.classificationScheme)})",
-        )
-        drawDistributionBars(canvas, report, distributionTop + 54f)
+        report.pressureDistribution?.let { distribution ->
+            val distributionTop = summaryTop + 190f
+            val distributionHeight = max(
+                112f,
+                74f + max(0, distribution.categories.size - 1) * 22f,
+            )
+            drawPanel(
+                canvas,
+                RectF(40f, distributionTop, 555f, distributionTop + distributionHeight),
+                "Pressure categories (${classificationSchemeLabel(report.classificationScheme)})",
+            )
+            drawDistributionBars(canvas, distribution, distributionTop + 54f)
+        }
     }
 
     private fun drawTrendPage(
@@ -392,10 +394,10 @@ class MeasurementPdfExporter {
 
     private fun drawDistributionBars(
         canvas: Canvas,
-        report: MeasurementPdfReport,
+        distribution: MeasurementPdfPressureDistribution,
         top: Float,
     ) {
-        val entries = report.pressureDistribution.categories
+        val entries = distribution.categories
         val maxCount = max(1, entries.maxOf { it.count })
         entries.forEachIndexed { index, entry ->
             val y = top + index * 22f
@@ -441,6 +443,7 @@ class MeasurementPdfExporter {
 
     private fun classificationSchemeLabel(scheme: BloodPressureClassificationScheme): String {
         return when (scheme) {
+            BloodPressureClassificationScheme.DISABLED -> "Disabled"
             BloodPressureClassificationScheme.JNC7 -> "JNC 7"
             BloodPressureClassificationScheme.ESC_ESH_2018 -> "ESC/ESH 2018"
         }

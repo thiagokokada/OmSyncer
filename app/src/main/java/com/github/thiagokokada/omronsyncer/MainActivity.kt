@@ -275,6 +275,7 @@ class MainActivity : AppCompatActivity(),
         val selectedMeasurementUser = selectedMeasurementUser(selectedModel)
         val bloodPressureClassificationScheme = syncPreferences.bloodPressureClassificationScheme()
         val bloodPressureClassificationSchemeLabels = listOf(
+            getString(R.string.blood_pressure_classification_scheme_disabled),
             getString(R.string.blood_pressure_classification_scheme_jnc7),
             getString(R.string.blood_pressure_classification_scheme_esc_esh_2018),
         )

@@ -4,6 +4,7 @@ import android.graphics.Color
 import com.github.thiagokokada.omronsyncer.model.Measurement
 
 enum class BloodPressureClassificationScheme {
+    DISABLED,
     JNC7,
     ESC_ESH_2018,
 }
@@ -36,6 +37,7 @@ object BloodPressureClassifier {
         scheme: BloodPressureClassificationScheme,
     ): BloodPressureClassification {
         val category = when (scheme) {
+            BloodPressureClassificationScheme.DISABLED -> error("Blood pressure classification is disabled")
             BloodPressureClassificationScheme.JNC7 -> classifyJnc7(measurement)
             BloodPressureClassificationScheme.ESC_ESH_2018 -> classifyEscEsh2018(measurement)
         }
@@ -60,6 +62,7 @@ object BloodPressureClassifier {
 
     fun categories(scheme: BloodPressureClassificationScheme): List<BloodPressureCategoryDefinition> {
         return when (scheme) {
+            BloodPressureClassificationScheme.DISABLED -> emptyList()
             BloodPressureClassificationScheme.JNC7 -> listOf(
                 JNC7_NORMAL,
                 JNC7_PREHYPERTENSION,
