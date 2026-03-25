@@ -104,17 +104,45 @@ object BloodPressureClassifier {
         if (scheme == BloodPressureClassificationScheme.DISABLED) {
             return emptyList()
         }
+        val guides = chartGuides(scheme)
         val systolicLowerBound = minSystolic - buffer
         val systolicUpperBound = maxSystolic + buffer
         val diastolicLowerBound = minDiastolic - buffer
         val diastolicUpperBound = maxDiastolic + buffer
-        return chartGuides(scheme).filter { guide ->
-            when (guide.metric) {
-                BloodPressureGuideMetric.SYSTOLIC ->
-                    guide.value in systolicLowerBound..systolicUpperBound
-                BloodPressureGuideMetric.DIASTOLIC ->
-                    guide.value in diastolicLowerBound..diastolicUpperBound
-            }
+        val systolicGuides = relevantMetricGuides(
+            guides = guides.filter { it.metric == BloodPressureGuideMetric.SYSTOLIC },
+            lowerBound = systolicLowerBound,
+            upperBound = systolicUpperBound,
+            minValue = minSystolic,
+            maxValue = maxSystolic,
+        )
+        val diastolicGuides = relevantMetricGuides(
+            guides = guides.filter { it.metric == BloodPressureGuideMetric.DIASTOLIC },
+            lowerBound = diastolicLowerBound,
+            upperBound = diastolicUpperBound,
+            minValue = minDiastolic,
+            maxValue = maxDiastolic,
+        )
+        return systolicGuides + diastolicGuides
+    }
+
+    private fun relevantMetricGuides(
+        guides: List<BloodPressureCategoryGuide>,
+        lowerBound: Int,
+        upperBound: Int,
+        minValue: Int,
+        maxValue: Int,
+    ): List<BloodPressureCategoryGuide> {
+        val inRange = guides.filter { it.value in lowerBound..upperBound }
+        if (inRange.isNotEmpty()) {
+            return inRange
+        }
+        val lowestGuide = guides.minByOrNull { it.value }
+        val highestGuide = guides.maxByOrNull { it.value }
+        return when {
+            maxValue < (lowestGuide?.value ?: Int.MIN_VALUE) -> listOfNotNull(lowestGuide)
+            minValue > (highestGuide?.value ?: Int.MAX_VALUE) -> listOfNotNull(highestGuide)
+            else -> emptyList()
         }
     }
 
