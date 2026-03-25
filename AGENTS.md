@@ -54,6 +54,8 @@ Repository-specific guidance for coding agents working in this project.
 - Interactive chart content should stay inside its visual container.
   - If panning or zooming is added, clip plotted content to the chart bounds.
   - Reset transient view state like zoom when higher-level filters change, unless the user explicitly asked to preserve it.
+- New screens pushed into the fragment container should draw an explicit opaque background when they are intended to visually replace the previous screen.
+  - This app uses animated fragment transitions and a non-opaque activity background, so transparent fragment roots can reveal the previous screen during enter animations.
 - In unit tests, prefer asserting stable identifiers over localized display text when the display text comes from resources.
 
 ## Build and test notes
