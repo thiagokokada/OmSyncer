@@ -23,6 +23,13 @@ class MeasurementPdfReportBuilder {
             lastRecordedAt = sortedMeasurements.maxOfOrNull { it.recordedAt },
             irregularHeartbeatCount = sortedMeasurements.count { it.irregularHeartbeat },
             movementCount = sortedMeasurements.count { it.movement },
+            latestMeasurement = sortedMeasurements.firstOrNull(),
+            minimumSystolic = sortedMeasurements.minValueOrZero { it.systolic },
+            maximumSystolic = sortedMeasurements.maxValueOrZero { it.systolic },
+            minimumDiastolic = sortedMeasurements.minValueOrZero { it.diastolic },
+            maximumDiastolic = sortedMeasurements.maxValueOrZero { it.diastolic },
+            minimumPulse = sortedMeasurements.minValueOrZero { it.pulse },
+            maximumPulse = sortedMeasurements.maxValueOrZero { it.pulse },
         )
         val dailyAverages = sortedMeasurements
             .groupBy { it.recordedAt.toLocalDate() }
@@ -43,6 +50,13 @@ class MeasurementPdfReportBuilder {
             measurements = sortedMeasurements,
             summary = summary,
             dailyAverages = dailyAverages,
+            pressureDistribution = MeasurementPdfPressureDistribution(
+                normal = sortedMeasurements.count(::isNormal),
+                elevated = sortedMeasurements.count(::isElevated),
+                stageOne = sortedMeasurements.count(::isStageOne),
+                stageTwo = sortedMeasurements.count(::isStageTwo),
+                crisis = sortedMeasurements.count(::isCrisis),
+            ),
         )
     }
 
@@ -51,5 +65,36 @@ class MeasurementPdfReportBuilder {
             return 0
         }
         return map(selector).average().roundToInt()
+    }
+
+    private fun List<Measurement>.minValueOrZero(selector: (Measurement) -> Int): Int {
+        return minOfOrNull(selector) ?: 0
+    }
+
+    private fun List<Measurement>.maxValueOrZero(selector: (Measurement) -> Int): Int {
+        return maxOfOrNull(selector) ?: 0
+    }
+
+    private fun isNormal(measurement: Measurement): Boolean {
+        return measurement.systolic < 120 && measurement.diastolic < 80
+    }
+
+    private fun isElevated(measurement: Measurement): Boolean {
+        return measurement.systolic in 120..129 && measurement.diastolic < 80
+    }
+
+    private fun isStageOne(measurement: Measurement): Boolean {
+        return !isCrisis(measurement) &&
+            !isStageTwo(measurement) &&
+            (measurement.systolic in 130..139 || measurement.diastolic in 80..89)
+    }
+
+    private fun isStageTwo(measurement: Measurement): Boolean {
+        return !isCrisis(measurement) &&
+            (measurement.systolic >= 140 || measurement.diastolic >= 90)
+    }
+
+    private fun isCrisis(measurement: Measurement): Boolean {
+        return measurement.systolic >= 180 || measurement.diastolic >= 120
     }
 }

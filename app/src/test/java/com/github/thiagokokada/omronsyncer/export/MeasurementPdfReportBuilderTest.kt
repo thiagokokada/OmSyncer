@@ -34,10 +34,14 @@ class MeasurementPdfReportBuilderTest {
         assertEquals(1, report.summary.movementCount)
         assertEquals(LocalDateTime.of(2026, 3, 24, 8, 0), report.summary.firstRecordedAt)
         assertEquals(LocalDateTime.of(2026, 3, 25, 18, 0), report.summary.lastRecordedAt)
+        assertEquals(118, report.summary.minimumSystolic)
+        assertEquals(126, report.summary.maximumSystolic)
         assertEquals(2, report.dailyAverages.size)
         assertEquals(LocalDateTime.of(2026, 3, 25, 18, 0), report.measurements.first().recordedAt)
         assertEquals(123, report.dailyAverages.first().meanSystolic)
         assertEquals(2, report.dailyAverages.first().measurementCount)
+        assertEquals(1, report.pressureDistribution.normal)
+        assertEquals(2, report.pressureDistribution.stageOne)
     }
 
     @Test
@@ -53,6 +57,7 @@ class MeasurementPdfReportBuilderTest {
         assertEquals(0, report.summary.averageSystolic)
         assertNull(report.summary.firstRecordedAt)
         assertEquals(emptyList<MeasurementPdfDailyAverage>(), report.dailyAverages)
+        assertEquals(0, report.pressureDistribution.normal)
     }
 
     private fun measurement(

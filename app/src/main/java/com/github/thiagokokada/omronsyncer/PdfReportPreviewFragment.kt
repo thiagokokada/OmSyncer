@@ -6,6 +6,7 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import androidx.fragment.app.Fragment
+import androidx.core.view.isVisible
 import com.github.thiagokokada.omronsyncer.databinding.FragmentPdfReportPreviewBinding
 import com.github.thiagokokada.omronsyncer.export.MeasurementPdfReportBuilder
 import java.time.format.DateTimeFormatter
@@ -22,6 +23,7 @@ class PdfReportPreviewFragment : Fragment() {
     private val binding get() = _binding!!
     private lateinit var host: Host
     private val reportBuilder = MeasurementPdfReportBuilder()
+    private var selectedBucket: TrendBucket? = null
 
     override fun onAttach(context: Context) {
         super.onAttach(context)
@@ -52,6 +54,10 @@ class PdfReportPreviewFragment : Fragment() {
         binding.exportPdfButton.setOnClickListener {
             host.onPdfReportExportRequested()
         }
+        binding.pdfChartView.onSelectionChanged = { bucket ->
+            selectedBucket = bucket
+            renderSelectedBucket()
+        }
     }
 
     override fun onResume() {
@@ -68,6 +74,15 @@ class PdfReportPreviewFragment : Fragment() {
             range = state.selectedTrendRange,
             selectedUser = state.selectedMeasurementUser,
         )
+        val filteredMeasurements = TrendChartData.filterMeasurements(
+            measurements = state.trendMeasurements,
+            selectedUser = null,
+            selectedRange = state.selectedTrendRange,
+        )
+        val buckets = TrendChartData.chartBuckets(filteredMeasurements)
+        if (selectedBucket !in buckets) {
+            selectedBucket = null
+        }
 
         binding.pdfRangeToggle.check(
             when (state.selectedTrendRange) {
@@ -102,6 +117,9 @@ class PdfReportPreviewFragment : Fragment() {
             report.summary.irregularHeartbeatCount,
             report.summary.movementCount,
         )
+        binding.pdfChartCard.isVisible = buckets.isNotEmpty()
+        binding.pdfChartView.setBuckets(buckets, selectedBucket)
+        renderSelectedBucket()
 
         val previewLines = report.measurements.take(PREVIEW_ROW_LIMIT).joinToString("\n") { measurement ->
             buildString {
@@ -147,8 +165,38 @@ class PdfReportPreviewFragment : Fragment() {
         }
     }
 
+    private fun renderSelectedBucket() {
+        val bucket = selectedBucket
+        binding.pdfSelectedReadingCard.isVisible = bucket != null
+        if (bucket == null) {
+            return
+        }
+        binding.pdfSelectedReadingTime.text = SELECTED_READING_DATE_FORMATTER.format(bucket.date)
+        binding.pdfSelectedReadingSummary.text = getString(
+            R.string.trends_selected_reading_summary,
+            bucket.meanSystolic,
+            bucket.meanDiastolic,
+            bucket.meanPulse,
+            bucket.measurements.size,
+        )
+        binding.pdfSelectedReadingValues.text = bucket.measurements.joinToString(separator = "\n") { measurement ->
+            getString(
+                R.string.trends_selected_reading_value,
+                SELECTED_READING_VALUE_TIME_FORMATTER.format(measurement.recordedAt),
+                measurement.systolic,
+                measurement.diastolic,
+                measurement.pulse,
+                measurement.flagsLabel(),
+            )
+        }
+    }
+
     private companion object {
         const val PREVIEW_ROW_LIMIT = 12
         val TIMESTAMP_FORMATTER: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")
+        val SELECTED_READING_DATE_FORMATTER: DateTimeFormatter =
+            DateTimeFormatter.ofPattern("yyyy-MM-dd")
+        val SELECTED_READING_VALUE_TIME_FORMATTER: DateTimeFormatter =
+            DateTimeFormatter.ofPattern("HH:mm")
     }
 }

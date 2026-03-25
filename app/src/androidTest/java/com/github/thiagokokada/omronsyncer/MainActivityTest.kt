@@ -208,6 +208,7 @@ class MainActivityTest {
             onView(withId(R.id.pdf_report_button)).perform(scrollTo(), click())
 
             onView(withId(R.id.export_pdf_button)).check(matches(isDisplayed()))
+            onView(withId(R.id.pdf_chart_card)).check(matches(isDisplayed()))
             onView(withText(R.string.pdf_report_title)).check(matches(isDisplayed()))
         }
     }
