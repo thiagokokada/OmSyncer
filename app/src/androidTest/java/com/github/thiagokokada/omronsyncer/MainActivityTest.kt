@@ -398,7 +398,7 @@ class MainActivityTest {
                 .check(
                     matches(
                         withSpinnerText(
-                            context.getString(R.string.blood_pressure_classification_scheme_esc_esh_2018),
+                            context.getString(R.string.blood_pressure_classification_scheme_jnc7),
                         ),
                     ),
                 )
