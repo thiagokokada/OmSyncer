@@ -7,6 +7,7 @@ import android.graphics.Path
 import android.graphics.RectF
 import android.graphics.Typeface
 import android.graphics.pdf.PdfDocument
+import com.github.thiagokokada.omronsyncer.BloodPressureClassificationScheme
 import com.github.thiagokokada.omronsyncer.TrendRange
 import java.io.OutputStream
 import java.time.LocalDateTime
@@ -171,7 +172,7 @@ class MeasurementPdfExporter {
         drawPanel(
             canvas,
             RectF(40f, distributionTop, 555f, distributionTop + 160f),
-            "Pressure categories",
+            "Pressure categories (${classificationSchemeLabel(report.classificationScheme)})",
         )
         drawDistributionBars(canvas, report, distributionTop + 54f)
     }
@@ -390,22 +391,15 @@ class MeasurementPdfExporter {
         report: MeasurementPdfReport,
         top: Float,
     ) {
-        val distribution = report.pressureDistribution
-        val entries = listOf(
-            "Normal" to distribution.normal,
-            "Elevated" to distribution.elevated,
-            "Stage 1" to distribution.stageOne,
-            "Stage 2" to distribution.stageTwo,
-            "Crisis" to distribution.crisis,
-        )
-        val maxCount = max(1, entries.maxOf { it.second })
-        entries.forEachIndexed { index, (label, count) ->
+        val entries = report.pressureDistribution.categories
+        val maxCount = max(1, entries.maxOf { it.count })
+        entries.forEachIndexed { index, entry ->
             val y = top + index * 22f
-            canvas.drawText(label, 58f, y, bodyPaint)
+            canvas.drawText(entry.category.shortLabel, 58f, y, bodyPaint)
             val barLeft = 138f
-            val barWidth = 300f * count / maxCount.toFloat()
+            val barWidth = 300f * entry.count / maxCount.toFloat()
             canvas.drawRoundRect(RectF(barLeft, y - 11f, barLeft + barWidth, y + 2f), 6f, 6f, barPaint(index))
-            canvas.drawText(count.toString(), 454f, y, bodyPaint)
+            canvas.drawText(entry.count.toString(), 454f, y, bodyPaint)
         }
     }
 
@@ -439,6 +433,13 @@ class MeasurementPdfExporter {
 
     private fun userLabel(selectedUser: Int?): String {
         return selectedUser?.let { "User $it" } ?: "All users"
+    }
+
+    private fun classificationSchemeLabel(scheme: BloodPressureClassificationScheme): String {
+        return when (scheme) {
+            BloodPressureClassificationScheme.JNC7 -> "JNC 7"
+            BloodPressureClassificationScheme.ESC_ESH_2018 -> "ESC/ESH 2018"
+        }
     }
 
     private fun barPaint(index: Int): Paint {

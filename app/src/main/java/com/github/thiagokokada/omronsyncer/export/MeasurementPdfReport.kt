@@ -1,5 +1,7 @@
 package com.github.thiagokokada.omronsyncer.export
 
+import com.github.thiagokokada.omronsyncer.BloodPressureCategoryCount
+import com.github.thiagokokada.omronsyncer.BloodPressureClassificationScheme
 import com.github.thiagokokada.omronsyncer.TrendRange
 import com.github.thiagokokada.omronsyncer.model.Measurement
 import java.time.LocalDate
@@ -9,6 +11,7 @@ data class MeasurementPdfReport(
     val generatedAt: LocalDateTime,
     val range: TrendRange,
     val selectedUser: Int?,
+    val classificationScheme: BloodPressureClassificationScheme,
     val measurements: List<Measurement>,
     val summary: MeasurementPdfReportSummary,
     val dailyAverages: List<MeasurementPdfDailyAverage>,
@@ -42,9 +45,6 @@ data class MeasurementPdfDailyAverage(
 )
 
 data class MeasurementPdfPressureDistribution(
-    val normal: Int,
-    val elevated: Int,
-    val stageOne: Int,
-    val stageTwo: Int,
-    val crisis: Int,
+    val scheme: BloodPressureClassificationScheme,
+    val categories: List<BloodPressureCategoryCount>,
 )

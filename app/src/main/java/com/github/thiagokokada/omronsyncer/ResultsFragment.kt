@@ -100,6 +100,7 @@ class ResultsFragment : Fragment() {
             },
         )
         adapter.setShowUserColumn(state.showsMeasurementUserColumn)
+        adapter.setClassificationScheme(state.selectedBloodPressureClassificationScheme)
         adapter.submitList(state.resultsMeasurements)
 
         binding.syncButton.isEnabled = state.canSync && !state.isWorking

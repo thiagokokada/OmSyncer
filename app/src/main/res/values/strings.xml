@@ -34,6 +34,9 @@
     <string name="grant_health_connect_access">Grant access to Health Connect</string>
     <string name="health_connect_auto_export_label">Auto-export after sync</string>
     <string name="measurement_user_label">User</string>
+    <string name="blood_pressure_classification_scheme_label">Blood pressure categories</string>
+    <string name="blood_pressure_classification_scheme_jnc7">JNC 7</string>
+    <string name="blood_pressure_classification_scheme_esc_esh_2018">ESC/ESH 2018</string>
     <string name="tru_read_display_mode_label">TruRead measurements</string>
     <string name="tru_read_display_mode_separate">Keep them separated</string>
     <string name="tru_read_display_mode_merge">Merge</string>

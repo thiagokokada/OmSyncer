@@ -76,6 +76,20 @@
                     android:visibility="gone" />
 
                 <TextView
+                    android:id="@+id/blood_pressure_classification_scheme_label"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="16dp"
+                    android:text="@string/blood_pressure_classification_scheme_label"
+                    android:textAppearance="?attr/textAppearanceLabelLarge" />
+
+                <Spinner
+                    android:id="@+id/blood_pressure_classification_scheme_spinner"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp" />
+
+                <TextView
                     android:id="@+id/tru_read_display_mode_label"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"

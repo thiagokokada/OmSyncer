@@ -1,5 +1,7 @@
 package com.github.thiagokokada.omronsyncer.export
 
+import com.github.thiagokokada.omronsyncer.BloodPressureClassificationScheme
+import com.github.thiagokokada.omronsyncer.BloodPressureClassifier
 import com.github.thiagokokada.omronsyncer.TrendRange
 import com.github.thiagokokada.omronsyncer.model.Measurement
 import java.time.LocalDateTime
@@ -11,6 +13,7 @@ class MeasurementPdfReportBuilder {
         measurements: List<Measurement>,
         range: TrendRange,
         selectedUser: Int?,
+        classificationScheme: BloodPressureClassificationScheme,
         generatedAt: LocalDateTime = LocalDateTime.now(),
     ): MeasurementPdfReport {
         val sortedMeasurements = measurements.sortedByDescending { it.recordedAt }
@@ -47,15 +50,16 @@ class MeasurementPdfReportBuilder {
             generatedAt = generatedAt,
             range = range,
             selectedUser = selectedUser,
+            classificationScheme = classificationScheme,
             measurements = sortedMeasurements,
             summary = summary,
             dailyAverages = dailyAverages,
             pressureDistribution = MeasurementPdfPressureDistribution(
-                normal = sortedMeasurements.count(::isNormal),
-                elevated = sortedMeasurements.count(::isElevated),
-                stageOne = sortedMeasurements.count(::isStageOne),
-                stageTwo = sortedMeasurements.count(::isStageTwo),
-                crisis = sortedMeasurements.count(::isCrisis),
+                scheme = classificationScheme,
+                categories = BloodPressureClassifier.categoryCounts(
+                    measurements = sortedMeasurements,
+                    scheme = classificationScheme,
+                ),
             ),
         )
     }
@@ -73,28 +77,5 @@ class MeasurementPdfReportBuilder {
 
     private fun List<Measurement>.maxValueOrZero(selector: (Measurement) -> Int): Int {
         return maxOfOrNull(selector) ?: 0
-    }
-
-    private fun isNormal(measurement: Measurement): Boolean {
-        return measurement.systolic < 120 && measurement.diastolic < 80
-    }
-
-    private fun isElevated(measurement: Measurement): Boolean {
-        return measurement.systolic in 120..129 && measurement.diastolic < 80
-    }
-
-    private fun isStageOne(measurement: Measurement): Boolean {
-        return !isCrisis(measurement) &&
-            !isStageTwo(measurement) &&
-            (measurement.systolic in 130..139 || measurement.diastolic in 80..89)
-    }
-
-    private fun isStageTwo(measurement: Measurement): Boolean {
-        return !isCrisis(measurement) &&
-            (measurement.systolic >= 140 || measurement.diastolic >= 90)
-    }
-
-    private fun isCrisis(measurement: Measurement): Boolean {
-        return measurement.systolic >= 180 || measurement.diastolic >= 120
     }
 }

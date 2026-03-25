@@ -366,6 +366,46 @@ class MainActivityTest {
     }
 
     @Test
+    fun bloodPressureClassificationScheme_persistsAndUpdatesResultsLabel() {
+        seedMeasurements(
+            listOf(
+                measurementAt(
+                    user = 1,
+                    recordedAt = LocalDateTime.now().withNano(0).minusDays(2),
+                    systolic = 128,
+                    diastolic = 84,
+                ),
+            ),
+        )
+
+        ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+            onView(withId(R.id.classification_value)).check(matches(withText("Prehypertension")))
+
+            openSettingsScreen(scenario)
+            onView(withId(R.id.blood_pressure_classification_scheme_spinner)).perform(scrollTo(), click())
+            onData(`is`(context.getString(R.string.blood_pressure_classification_scheme_esc_esh_2018)))
+                .perform(click())
+
+            openResultsScreen(scenario)
+            onView(withId(R.id.classification_value)).check(matches(withText("Normal")))
+        }
+
+        ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+            openSettingsScreen(scenario)
+            onView(withId(R.id.blood_pressure_classification_scheme_spinner))
+                .perform(scrollTo())
+            onView(withId(R.id.blood_pressure_classification_scheme_spinner))
+                .check(
+                    matches(
+                        withSpinnerText(
+                            context.getString(R.string.blood_pressure_classification_scheme_esc_esh_2018),
+                        ),
+                    ),
+                )
+        }
+    }
+
+    @Test
     fun seedSampleMeasurements_populatesResultsInDebugBuild() {
         assumeTrue(BuildConfig.DEBUG)
 
@@ -606,12 +646,17 @@ class MainActivityTest {
         )
     }
 
-    private fun measurementAt(user: Int, recordedAt: LocalDateTime): Measurement {
+    private fun measurementAt(
+        user: Int,
+        recordedAt: LocalDateTime,
+        systolic: Int = 120 + user,
+        diastolic: Int = 80 + user,
+    ): Measurement {
         return Measurement(
             user = user,
             recordedAt = recordedAt,
-            systolic = 120 + user,
-            diastolic = 80 + user,
+            systolic = systolic,
+            diastolic = diastolic,
             pulse = 64 + user,
             irregularHeartbeat = false,
             movement = false,

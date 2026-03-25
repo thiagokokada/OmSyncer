@@ -1,6 +1,7 @@
 package com.github.thiagokokada.omronsyncer.export
 
 import com.github.thiagokokada.omronsyncer.TrendRange
+import com.github.thiagokokada.omronsyncer.BloodPressureClassificationScheme
 import com.github.thiagokokada.omronsyncer.model.Measurement
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -22,6 +23,7 @@ class MeasurementPdfReportBuilderTest {
             ),
             range = TrendRange.THIRTY_DAYS,
             selectedUser = 1,
+            classificationScheme = BloodPressureClassificationScheme.JNC7,
             generatedAt = generatedAt,
         )
 
@@ -40,8 +42,12 @@ class MeasurementPdfReportBuilderTest {
         assertEquals(LocalDateTime.of(2026, 3, 25, 18, 0), report.measurements.first().recordedAt)
         assertEquals(123, report.dailyAverages.first().meanSystolic)
         assertEquals(2, report.dailyAverages.first().measurementCount)
-        assertEquals(1, report.pressureDistribution.normal)
-        assertEquals(2, report.pressureDistribution.stageOne)
+        assertEquals(BloodPressureClassificationScheme.JNC7, report.classificationScheme)
+        assertEquals(4, report.pressureDistribution.categories.size)
+        assertEquals("Normal", report.pressureDistribution.categories[0].category.shortLabel)
+        assertEquals(1, report.pressureDistribution.categories[0].count)
+        assertEquals("Prehypertension", report.pressureDistribution.categories[1].category.shortLabel)
+        assertEquals(2, report.pressureDistribution.categories[1].count)
     }
 
     @Test
@@ -50,6 +56,7 @@ class MeasurementPdfReportBuilderTest {
             measurements = emptyList(),
             range = TrendRange.ALL,
             selectedUser = null,
+            classificationScheme = BloodPressureClassificationScheme.ESC_ESH_2018,
             generatedAt = LocalDateTime.of(2026, 3, 25, 12, 0),
         )
 
@@ -57,7 +64,8 @@ class MeasurementPdfReportBuilderTest {
         assertEquals(0, report.summary.averageSystolic)
         assertNull(report.summary.firstRecordedAt)
         assertEquals(emptyList<MeasurementPdfDailyAverage>(), report.dailyAverages)
-        assertEquals(0, report.pressureDistribution.normal)
+        assertEquals(6, report.pressureDistribution.categories.size)
+        assertEquals(0, report.pressureDistribution.categories.sumOf { it.count })
     }
 
     private fun measurement(

@@ -101,6 +101,7 @@ class PdfReportPreviewFragment : Fragment() {
             measurements = measurements,
             range = state.selectedTrendRange,
             selectedUser = state.selectedMeasurementUser,
+            classificationScheme = state.selectedBloodPressureClassificationScheme,
         )
         if (measurements.isEmpty()) {
             lastPreviewRequest = null
@@ -131,6 +132,7 @@ class PdfReportPreviewFragment : Fragment() {
                     measurements = request.measurements,
                     range = request.range,
                     selectedUser = request.selectedUser,
+                    classificationScheme = request.classificationScheme,
                 )
                 val previewFile = File(requireContext().cacheDir, "pdf-preview.pdf")
                 FileOutputStream(previewFile).use { outputStream ->
@@ -187,6 +189,7 @@ class PdfReportPreviewFragment : Fragment() {
         val measurements: List<Measurement>,
         val range: TrendRange,
         val selectedUser: Int?,
+        val classificationScheme: BloodPressureClassificationScheme,
     )
 
     private companion object {

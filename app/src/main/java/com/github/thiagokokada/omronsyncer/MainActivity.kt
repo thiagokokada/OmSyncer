@@ -273,6 +273,11 @@ class MainActivity : AppCompatActivity(),
         val selectedModel = selectedModel()
         val measurementUserOptions = buildMeasurementUserOptions(selectedModel)
         val selectedMeasurementUser = selectedMeasurementUser(selectedModel)
+        val bloodPressureClassificationScheme = syncPreferences.bloodPressureClassificationScheme()
+        val bloodPressureClassificationSchemeLabels = listOf(
+            getString(R.string.blood_pressure_classification_scheme_jnc7),
+            getString(R.string.blood_pressure_classification_scheme_esc_esh_2018),
+        )
         val truReadDisplayMode = syncPreferences.truReadDisplayMode()
         val truReadDisplayModeLabels = listOf(
             getString(R.string.tru_read_display_mode_separate),
@@ -322,6 +327,10 @@ class MainActivity : AppCompatActivity(),
             measurementUserLabels = measurementUserLabels,
             selectedMeasurementUser = selectedMeasurementUser,
             selectedMeasurementUserIndex = measurementUserOptions.indexOf(selectedMeasurementUser),
+            bloodPressureClassificationSchemeLabels = bloodPressureClassificationSchemeLabels,
+            selectedBloodPressureClassificationScheme = bloodPressureClassificationScheme,
+            selectedBloodPressureClassificationSchemeIndex =
+                BloodPressureClassificationScheme.entries.indexOf(bloodPressureClassificationScheme),
             statusMessage = statusMessage,
             syncLog = lastSyncLog,
             canExportCapture = lastSyncCapture.isNotBlank(),
@@ -387,6 +396,13 @@ class MainActivity : AppCompatActivity(),
         TruReadDisplayMode.entries.getOrNull(position)?.let { mode ->
             syncPreferences.setTruReadDisplayMode(mode)
             loadPersistedMeasurements()
+        }
+    }
+
+    override fun onBloodPressureClassificationSchemeSelected(position: Int) {
+        BloodPressureClassificationScheme.entries.getOrNull(position)?.let { scheme ->
+            syncPreferences.setBloodPressureClassificationScheme(scheme)
+            notifyCurrentFragment()
         }
     }
 
@@ -1112,6 +1128,7 @@ class MainActivity : AppCompatActivity(),
                         measurements = exportMeasurements,
                         range = syncPreferences.selectedTrendRange(),
                         selectedUser = selectedUser,
+                        classificationScheme = syncPreferences.bloodPressureClassificationScheme(),
                     )
                 }
                 withContext(Dispatchers.IO) {
