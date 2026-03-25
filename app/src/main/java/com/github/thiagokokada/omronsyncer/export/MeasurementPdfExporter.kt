@@ -3,6 +3,7 @@ package com.github.thiagokokada.omronsyncer.export
 import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.DashPathEffect
 import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.RectF
@@ -347,6 +348,17 @@ class MeasurementPdfExporter(
             val value = paddedMin + (pressureRange * ratio).toInt()
             canvas.drawText(value.toString(), chartRect.left + 8f, y + 4f, footerPaint)
         }
+        drawChartGuides(
+            canvas = canvas,
+            left = left,
+            right = right,
+            top = top,
+            bottom = bottom,
+            plotHeight = plotHeight,
+            paddedMin = paddedMin,
+            pressureRange = pressureRange,
+            report = report,
+        )
 
         val systolicPath = Path()
         val diastolicPath = Path()
@@ -392,6 +404,57 @@ class MeasurementPdfExporter(
         canvas.drawText(context.getString(R.string.pdf_report_systolic_legend), 56f, baselineY, bodyPaint)
         canvas.drawCircle(122f, baselineY - 4f, 4f, accentBluePaint)
         canvas.drawText(context.getString(R.string.pdf_report_diastolic_legend), 132f, baselineY, bodyPaint)
+    }
+
+    private fun drawChartGuides(
+        canvas: Canvas,
+        left: Float,
+        right: Float,
+        top: Float,
+        bottom: Float,
+        plotHeight: Float,
+        paddedMin: Int,
+        pressureRange: Int,
+        report: MeasurementPdfReport,
+    ) {
+        val guides = BloodPressureClassifier.relevantChartGuides(
+            scheme = report.classificationScheme,
+            minSystolic = report.dailyAverages.minOf { it.meanSystolic },
+            maxSystolic = report.dailyAverages.maxOf { it.meanSystolic },
+            minDiastolic = report.dailyAverages.minOf { it.meanDiastolic },
+            maxDiastolic = report.dailyAverages.maxOf { it.meanDiastolic },
+        )
+        var lastLabelY = Float.NEGATIVE_INFINITY
+        guides.sortedByDescending { it.value }.forEach { guide ->
+            val y = bottom - (((guide.value - paddedMin).toFloat() / pressureRange) * plotHeight)
+            if (y < top || y > bottom) {
+                return@forEach
+            }
+            val style = BloodPressureClassifier.style(guide.category)
+            guideLinePaint.color = style.textColor
+            canvas.drawLine(left, y, right, y, guideLinePaint)
+
+            if (y - lastLabelY < guideLabelPaint.textSize + 6f) {
+                return@forEach
+            }
+            guideLabelPaint.color = style.textColor
+            val label = buildString {
+                append(
+                    when (guide.metric) {
+                        com.github.thiagokokada.omronsyncer.BloodPressureGuideMetric.SYSTOLIC ->
+                            context.getString(R.string.blood_pressure_guide_metric_systolic)
+                        com.github.thiagokokada.omronsyncer.BloodPressureGuideMetric.DIASTOLIC ->
+                            context.getString(R.string.blood_pressure_guide_metric_diastolic)
+                    },
+                )
+                append(' ')
+                append(BloodPressureClassifier.shortLabel(context, guide.category))
+            }
+            canvas.drawText(guide.value.toString(), left - 28f, y - 3f, guideLabelPaint)
+            val textWidth = guideLabelPaint.measureText(label)
+            canvas.drawText(label, right - textWidth - 4f, y - 3f, guideLabelPaint)
+            lastLabelY = y
+        }
     }
 
     private fun drawMetricCard(
@@ -537,6 +600,10 @@ class MeasurementPdfExporter(
             color = Color.DKGRAY
             textSize = 9f
         }
+        val guideLabelPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.DKGRAY
+            textSize = 8f
+        }
         val panelValuePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.BLACK
             textSize = 12f
@@ -569,6 +636,12 @@ class MeasurementPdfExporter(
         val gridPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.rgb(213, 219, 230)
             strokeWidth = 1f
+        }
+        val guideLinePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.DKGRAY
+            strokeWidth = 1f
+            style = Paint.Style.STROKE
+            pathEffect = DashPathEffect(floatArrayOf(4f, 3f), 0f)
         }
         val chartSystolicPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.rgb(176, 48, 52)

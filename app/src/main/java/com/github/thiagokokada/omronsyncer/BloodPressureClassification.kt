@@ -27,6 +27,17 @@ data class BloodPressureCategoryCount(
     val count: Int,
 )
 
+data class BloodPressureCategoryGuide(
+    val metric: BloodPressureGuideMetric,
+    val value: Int,
+    val category: BloodPressureCategoryDefinition,
+)
+
+enum class BloodPressureGuideMetric {
+    SYSTOLIC,
+    DIASTOLIC,
+}
+
 data class BloodPressureCategoryStyle(
     val backgroundColor: Int,
     val textColor: Int,
@@ -82,6 +93,31 @@ object BloodPressureClassifier {
         }
     }
 
+    fun relevantChartGuides(
+        scheme: BloodPressureClassificationScheme,
+        minSystolic: Int,
+        maxSystolic: Int,
+        minDiastolic: Int,
+        maxDiastolic: Int,
+        buffer: Int = 8,
+    ): List<BloodPressureCategoryGuide> {
+        if (scheme == BloodPressureClassificationScheme.DISABLED) {
+            return emptyList()
+        }
+        val systolicLowerBound = minSystolic - buffer
+        val systolicUpperBound = maxSystolic + buffer
+        val diastolicLowerBound = minDiastolic - buffer
+        val diastolicUpperBound = maxDiastolic + buffer
+        return chartGuides(scheme).filter { guide ->
+            when (guide.metric) {
+                BloodPressureGuideMetric.SYSTOLIC ->
+                    guide.value in systolicLowerBound..systolicUpperBound
+                BloodPressureGuideMetric.DIASTOLIC ->
+                    guide.value in diastolicLowerBound..diastolicUpperBound
+            }
+        }
+    }
+
     fun style(category: BloodPressureCategoryDefinition): BloodPressureCategoryStyle {
         return when (category.severity) {
             0 -> BloodPressureCategoryStyle(
@@ -131,6 +167,32 @@ object BloodPressureClassifier {
             measurement.systolic >= 130 || measurement.diastolic >= 85 -> ESC_ESH_HIGH_NORMAL
             measurement.systolic >= 120 || measurement.diastolic >= 80 -> ESC_ESH_NORMAL
             else -> ESC_ESH_OPTIMAL
+        }
+    }
+
+    private fun chartGuides(scheme: BloodPressureClassificationScheme): List<BloodPressureCategoryGuide> {
+        return when (scheme) {
+            BloodPressureClassificationScheme.DISABLED -> emptyList()
+            BloodPressureClassificationScheme.JNC7 -> listOf(
+                BloodPressureCategoryGuide(BloodPressureGuideMetric.SYSTOLIC, 120, JNC7_PREHYPERTENSION),
+                BloodPressureCategoryGuide(BloodPressureGuideMetric.SYSTOLIC, 140, JNC7_STAGE_ONE),
+                BloodPressureCategoryGuide(BloodPressureGuideMetric.SYSTOLIC, 160, JNC7_STAGE_TWO),
+                BloodPressureCategoryGuide(BloodPressureGuideMetric.DIASTOLIC, 80, JNC7_PREHYPERTENSION),
+                BloodPressureCategoryGuide(BloodPressureGuideMetric.DIASTOLIC, 90, JNC7_STAGE_ONE),
+                BloodPressureCategoryGuide(BloodPressureGuideMetric.DIASTOLIC, 100, JNC7_STAGE_TWO),
+            )
+            BloodPressureClassificationScheme.ESC_ESH_2018 -> listOf(
+                BloodPressureCategoryGuide(BloodPressureGuideMetric.SYSTOLIC, 120, ESC_ESH_NORMAL),
+                BloodPressureCategoryGuide(BloodPressureGuideMetric.SYSTOLIC, 130, ESC_ESH_HIGH_NORMAL),
+                BloodPressureCategoryGuide(BloodPressureGuideMetric.SYSTOLIC, 140, ESC_ESH_GRADE_ONE),
+                BloodPressureCategoryGuide(BloodPressureGuideMetric.SYSTOLIC, 160, ESC_ESH_GRADE_TWO),
+                BloodPressureCategoryGuide(BloodPressureGuideMetric.SYSTOLIC, 180, ESC_ESH_GRADE_THREE),
+                BloodPressureCategoryGuide(BloodPressureGuideMetric.DIASTOLIC, 80, ESC_ESH_NORMAL),
+                BloodPressureCategoryGuide(BloodPressureGuideMetric.DIASTOLIC, 85, ESC_ESH_HIGH_NORMAL),
+                BloodPressureCategoryGuide(BloodPressureGuideMetric.DIASTOLIC, 90, ESC_ESH_GRADE_ONE),
+                BloodPressureCategoryGuide(BloodPressureGuideMetric.DIASTOLIC, 100, ESC_ESH_GRADE_TWO),
+                BloodPressureCategoryGuide(BloodPressureGuideMetric.DIASTOLIC, 110, ESC_ESH_GRADE_THREE),
+            )
         }
     }
 

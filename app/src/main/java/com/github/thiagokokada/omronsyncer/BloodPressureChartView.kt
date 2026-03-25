@@ -27,11 +27,28 @@ class BloodPressureChartView @JvmOverloads constructor(
         color = MaterialColors.getColor(context, com.google.android.material.R.attr.colorOutlineVariant, Color.LTGRAY)
         strokeWidth = resources.displayMetrics.density
     }
+    private val guideLinePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = MaterialColors.getColor(context, com.google.android.material.R.attr.colorOutline, Color.GRAY)
+        strokeWidth = resources.displayMetrics.density
+        style = Paint.Style.STROKE
+        pathEffect = android.graphics.DashPathEffect(
+            floatArrayOf(6f * resources.displayMetrics.density, 4f * resources.displayMetrics.density),
+            0f,
+        )
+    }
     private val axisTextPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = MaterialColors.getColor(context, com.google.android.material.R.attr.colorOnSurfaceVariant, Color.DKGRAY)
         textSize = TypedValue.applyDimension(
             TypedValue.COMPLEX_UNIT_SP,
             12f,
+            resources.displayMetrics,
+        )
+    }
+    private val guideTextPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = MaterialColors.getColor(context, com.google.android.material.R.attr.colorOnSurfaceVariant, Color.DKGRAY)
+        textSize = TypedValue.applyDimension(
+            TypedValue.COMPLEX_UNIT_SP,
+            10f,
             resources.displayMetrics,
         )
     }
@@ -62,10 +79,15 @@ class BloodPressureChartView @JvmOverloads constructor(
     }
 
     private var chartPoints: List<ChartPoint> = emptyList()
+    private var chartGuides: List<ChartGuide> = emptyList()
     private var selectedBucket: TrendBucket? = null
     var onSelectionChanged: ((TrendBucket?) -> Unit)? = null
 
-    fun setBuckets(buckets: List<TrendBucket>, selectedBucket: TrendBucket?) {
+    fun setBuckets(
+        buckets: List<TrendBucket>,
+        selectedBucket: TrendBucket?,
+        classificationScheme: BloodPressureClassificationScheme,
+    ) {
         chartPoints = buckets.sortedBy { it.date }.map {
             ChartPoint(
                 bucket = it,
@@ -73,6 +95,27 @@ class BloodPressureChartView @JvmOverloads constructor(
                 systolic = it.meanSystolic,
                 diastolic = it.meanDiastolic,
             )
+        }
+        chartGuides = if (chartPoints.isEmpty()) {
+            emptyList()
+        } else {
+            BloodPressureClassifier.relevantChartGuides(
+                scheme = classificationScheme,
+                minSystolic = chartPoints.minOf { it.systolic },
+                maxSystolic = chartPoints.maxOf { it.systolic },
+                minDiastolic = chartPoints.minOf { it.diastolic },
+                maxDiastolic = chartPoints.maxOf { it.diastolic },
+            ).map { guide ->
+                ChartGuide(
+                    metricLabel = when (guide.metric) {
+                        BloodPressureGuideMetric.SYSTOLIC -> context.getString(R.string.blood_pressure_guide_metric_systolic)
+                        BloodPressureGuideMetric.DIASTOLIC -> context.getString(R.string.blood_pressure_guide_metric_diastolic)
+                    },
+                    value = guide.value,
+                    label = BloodPressureClassifier.shortLabel(context, guide.category),
+                    color = BloodPressureClassifier.style(guide.category).textColor,
+                )
+            }
         }
         this.selectedBucket = selectedBucket
         invalidate()
@@ -108,6 +151,16 @@ class BloodPressureChartView @JvmOverloads constructor(
             val value = paddedMin + (pressureRange * ratio).roundToInt()
             canvas.drawText(value.toString(), paddingLeft.toFloat(), y + axisTextPaint.textSize / 3f, axisTextPaint)
         }
+        drawGuides(
+            canvas = canvas,
+            left = leftPadding,
+            right = rightPadding,
+            top = topPadding,
+            bottom = bottomPadding,
+            paddedMin = paddedMin,
+            pressureRange = pressureRange,
+            plotHeight = plotHeight,
+        )
 
         val timeMin = chartPoints.first().recordedAtMillis
         val timeMax = chartPoints.last().recordedAtMillis
@@ -235,6 +288,50 @@ class BloodPressureChartView @JvmOverloads constructor(
         val systolic: Int,
         val diastolic: Int,
     )
+
+    private data class ChartGuide(
+        val metricLabel: String,
+        val value: Int,
+        val label: String,
+        val color: Int,
+    )
+
+    private fun drawGuides(
+        canvas: Canvas,
+        left: Float,
+        right: Float,
+        top: Float,
+        bottom: Float,
+        paddedMin: Int,
+        pressureRange: Int,
+        plotHeight: Float,
+    ) {
+        var lastLabelY = Float.NEGATIVE_INFINITY
+        chartGuides.sortedByDescending { it.value }.forEach { guide ->
+            val y = bottom - (((guide.value - paddedMin).toFloat() / pressureRange) * plotHeight)
+            if (y < top || y > bottom) {
+                return@forEach
+            }
+            guideLinePaint.color = guide.color
+            canvas.drawLine(left, y, right, y, guideLinePaint)
+
+            if (y - lastLabelY < guideTextPaint.textSize + 6f * resources.displayMetrics.density) {
+                return@forEach
+            }
+            guideTextPaint.color = guide.color
+            val leftText = "${guide.value}"
+            val rightText = "${guide.metricLabel} ${guide.label}"
+            canvas.drawText(leftText, paddingLeft.toFloat(), y - 4f, guideTextPaint)
+            val textWidth = guideTextPaint.measureText(rightText)
+            canvas.drawText(
+                rightText,
+                (right - textWidth - 4f * resources.displayMetrics.density).coerceAtLeast(left),
+                y - 4f,
+                guideTextPaint,
+            )
+            lastLabelY = y
+        }
+    }
 
     private companion object {
         val DATE_FORMATTER: DateTimeFormatter = DateTimeFormatter.ofPattern("MM-dd")

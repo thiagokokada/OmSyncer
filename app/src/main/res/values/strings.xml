@@ -46,6 +46,8 @@
     <string name="blood_pressure_category_grade_1">Grade 1</string>
     <string name="blood_pressure_category_grade_2">Grade 2</string>
     <string name="blood_pressure_category_grade_3">Grade 3</string>
+    <string name="blood_pressure_guide_metric_systolic">SYS</string>
+    <string name="blood_pressure_guide_metric_diastolic">DIA</string>
     <string name="tru_read_display_mode_label">TruRead measurements</string>
     <string name="tru_read_display_mode_separate">Keep them separated</string>
     <string name="tru_read_display_mode_merge">Merge</string>

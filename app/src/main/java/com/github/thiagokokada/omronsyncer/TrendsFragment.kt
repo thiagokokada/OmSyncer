@@ -82,7 +82,11 @@ class TrendsFragment : Fragment() {
             selectedBucket = null
         }
 
-        binding.chartView.setBuckets(buckets, selectedBucket)
+        binding.chartView.setBuckets(
+            buckets = buckets,
+            selectedBucket = selectedBucket,
+            classificationScheme = state.selectedBloodPressureClassificationScheme,
+        )
         renderSelectedBucket()
         binding.emptyState.isVisible = buckets.isEmpty()
         binding.chartCard.isVisible = buckets.isNotEmpty()
