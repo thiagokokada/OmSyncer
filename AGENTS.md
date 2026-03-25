@@ -14,7 +14,7 @@ Repository-specific guidance for coding agents working in this project.
 - `sync/`: sync preferences, shared orchestration, WorkManager background sync
 - `healthconnect/`: Health Connect export
 - `data/`: local persistence
-- `export/`: CSV export
+- `export/`: CSV and PDF export
 - UI is fragment-based with `Results`, `Settings`, and `Sync Log` screens
 
 ## Project-specific expectations
@@ -40,6 +40,21 @@ Repository-specific guidance for coding agents working in this project.
 - Results and Trends currently share the same persisted date-range filter (`All` / `7D` / `30D`).
   - Keep that behavior unless the user explicitly asks to split them again.
   - Prefer DB-backed filtering for Results rather than loading all measurements and trimming in memory.
+
+## General learnings
+
+- Do not hardcode user-facing strings in code when they are shown in UI, previews, or exports.
+  - Prefer `strings.xml` and resolve them at the UI boundary or from Android-aware presentation code.
+- When a setting affects multiple surfaces, keep it shared end-to-end.
+  - Avoid duplicated per-screen logic for the same concept.
+  - If Results, Trends, and exports represent the same domain concept, they should use the same persisted setting and classifier.
+- For chart overlays and helper annotations, prefer relevance over completeness.
+  - Only draw reference lines or labels that help interpret the currently visible data.
+  - Avoid adding enough guide content to make the primary data harder to read.
+- Interactive chart content should stay inside its visual container.
+  - If panning or zooming is added, clip plotted content to the chart bounds.
+  - Reset transient view state like zoom when higher-level filters change, unless the user explicitly asked to preserve it.
+- In unit tests, prefer asserting stable identifiers over localized display text when the display text comes from resources.
 
 ## Build and test notes
 
