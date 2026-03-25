@@ -4,6 +4,7 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    android:background="?attr/colorSurface"
     android:orientation="vertical"
     android:paddingHorizontal="16dp"
     android:paddingBottom="16dp">
@@ -105,6 +106,7 @@
         android:layout_height="0dp"
         android:layout_marginTop="12dp"
         android:layout_weight="1"
+        android:background="?attr/colorSurface"
         android:clipToPadding="false"
         android:paddingBottom="16dp"
         tools:listitem="@layout/item_pdf_preview_page" />
