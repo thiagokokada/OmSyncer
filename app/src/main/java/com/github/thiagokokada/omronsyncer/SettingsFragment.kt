@@ -20,6 +20,7 @@ class SettingsFragment : Fragment() {
         fun onRefreshDevicesRequested()
         fun onPairSelectedDeviceRequested()
         fun onExportRequested()
+        fun onPdfReportRequested()
         fun onHealthConnectRequested()
         fun onHealthConnectExportRequested()
         fun onHealthConnectAutoExportChanged(enabled: Boolean)
@@ -144,6 +145,9 @@ class SettingsFragment : Fragment() {
         binding.exportButton.setOnClickListener {
             host.onExportRequested()
         }
+        binding.pdfReportButton.setOnClickListener {
+            host.onPdfReportRequested()
+        }
         binding.healthConnectActionButton.setOnClickListener {
             host.onHealthConnectRequested()
         }
@@ -244,6 +248,7 @@ class SettingsFragment : Fragment() {
         binding.pairDeviceButton.visibility = if (state.canPairSelectedDevice) View.VISIBLE else View.GONE
         binding.pairDeviceButton.isEnabled = state.canPairSelectedDevice && !state.isWorking
         binding.exportButton.isEnabled = state.canExport && !state.isWorking
+        binding.pdfReportButton.isEnabled = state.canExport && !state.isWorking
         binding.healthConnectStatusValue.text = state.healthConnectStatusMessage
         binding.healthConnectActionButton.isEnabled = state.canOpenHealthConnect && !state.isWorking
         binding.healthConnectActionButton.text = when {

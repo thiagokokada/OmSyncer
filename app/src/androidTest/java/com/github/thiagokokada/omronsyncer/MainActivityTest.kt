@@ -200,6 +200,47 @@ class MainActivityTest {
     }
 
     @Test
+    fun pdfReportButton_opensPreviewScreen() {
+        seedMeasurements(listOf(measurement(user = 1, day = 8)))
+
+        ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+            openSettingsScreen(scenario)
+            onView(withId(R.id.pdf_report_button)).perform(scrollTo(), click())
+
+            onView(withId(R.id.export_pdf_button)).check(matches(isDisplayed()))
+            onView(withText(R.string.pdf_report_title)).check(matches(isDisplayed()))
+        }
+    }
+
+    @Test
+    fun pdfReportRangeSelection_isSharedWithResults() {
+        val now = LocalDateTime.now().withNano(0)
+        seedMeasurements(
+            listOf(
+                measurementAt(user = 1, recordedAt = now.minusDays(3)),
+                measurementAt(user = 1, recordedAt = now.minusDays(15)),
+                measurementAt(user = 1, recordedAt = now.minusDays(40)),
+            ),
+        )
+
+        ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+            openSettingsScreen(scenario)
+            onView(withId(R.id.pdf_report_button)).perform(scrollTo(), click())
+
+            onView(withId(R.id.pdf_measurement_count)).check(matches(withText("3 measurements")))
+            onView(withId(R.id.pdf_range_seven_days)).perform(click())
+            onView(withId(R.id.pdf_range_seven_days)).check(matches(isChecked()))
+            onView(withId(R.id.pdf_measurement_count)).check(matches(withText("1 measurement")))
+
+            pressBack()
+
+            openResultsScreen(scenario)
+            onView(withId(R.id.results_range_seven_days)).check(matches(isChecked()))
+            waitForMeasurementCount("1 measurement")
+        }
+    }
+
+    @Test
     fun backFromSyncLog_returnsToSettingsScreen() {
         ActivityScenario.launch(MainActivity::class.java).use { scenario ->
             openSettingsScreen(scenario)

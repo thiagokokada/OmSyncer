@@ -28,6 +28,8 @@ import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.github.thiagokokada.omronsyncer.data.MeasurementStore
 import com.github.thiagokokada.omronsyncer.databinding.ActivityMainBinding
 import com.github.thiagokokada.omronsyncer.export.MeasurementCsvExporter
+import com.github.thiagokokada.omronsyncer.export.MeasurementPdfExporter
+import com.github.thiagokokada.omronsyncer.export.MeasurementPdfReportBuilder
 import com.github.thiagokokada.omronsyncer.healthconnect.HealthConnectBloodPressureExporter
 import com.github.thiagokokada.omronsyncer.model.Measurement
 import com.github.thiagokokada.omronsyncer.omron.OmronDeviceDefinition
@@ -56,6 +58,7 @@ class MainActivity : AppCompatActivity(),
     ResultsFragment.Host,
     TrendsFragment.Host,
     SettingsFragment.Host,
+    PdfReportPreviewFragment.Host,
     SyncLogFragment.Host,
     DeletedMeasurementsFragment.Host {
 
@@ -66,6 +69,8 @@ class MainActivity : AppCompatActivity(),
     private val measurementStore by lazy { MeasurementStore(this) }
     private val syncClient by lazy { OmronSyncClient(this) }
     private val csvExporter by lazy { MeasurementCsvExporter() }
+    private val pdfExporter by lazy { MeasurementPdfExporter() }
+    private val pdfReportBuilder by lazy { MeasurementPdfReportBuilder() }
     private val healthConnectExporter by lazy { HealthConnectBloodPressureExporter(this) }
     private val nearbySyncRegistrar by lazy { NearbySyncRegistrar(this) }
     private val syncOrchestrator by lazy {
@@ -151,6 +156,16 @@ class MainActivity : AppCompatActivity(),
                 setWorking(false)
             } else {
                 completeLogExport(uri)
+            }
+        }
+
+    private val exportPdfDocumentLauncher =
+        registerForActivityResult(ActivityResultContracts.CreateDocument("application/pdf")) { uri ->
+            if (uri == null) {
+                updateStatus(getString(R.string.status_pdf_export_cancelled))
+                setWorking(false)
+            } else {
+                completePdfReportExport(uri)
             }
         }
 
@@ -405,6 +420,10 @@ class MainActivity : AppCompatActivity(),
         exportMeasurements()
     }
 
+    override fun onPdfReportRequested() {
+        showPdfReportPreview()
+    }
+
     override fun onHealthConnectRequested() {
         openHealthConnect()
     }
@@ -471,6 +490,15 @@ class MainActivity : AppCompatActivity(),
         exportSyncCapture()
     }
 
+    override fun onPdfReportRangeSelected(range: TrendRange) {
+        syncPreferences.setSelectedTrendRange(range)
+        loadPersistedMeasurements()
+    }
+
+    override fun onPdfReportExportRequested() {
+        exportPdfReport()
+    }
+
     override fun onDeviceSelected(position: Int) {
         bondedDevices.getOrNull(position)?.address?.let(::persistSelectedDeviceAddress)
         notifyCurrentFragment()
@@ -506,6 +534,24 @@ class MainActivity : AppCompatActivity(),
             )
             .replace(R.id.fragment_container, SyncLogFragment())
             .addToBackStack(BACKSTACK_SYNC_LOG)
+            .commit()
+
+        binding.root.post {
+            updateTopLevelUi()
+            notifyCurrentFragment()
+        }
+    }
+
+    private fun showPdfReportPreview() {
+        supportFragmentManager.beginTransaction()
+            .setCustomAnimations(
+                R.animator.detail_enter_from_end,
+                R.animator.detail_exit_to_start,
+                R.animator.detail_pop_enter_from_start,
+                R.animator.detail_pop_exit_to_end,
+            )
+            .replace(R.id.fragment_container, PdfReportPreviewFragment())
+            .addToBackStack(BACKSTACK_PDF_REPORT)
             .commit()
 
         binding.root.post {
@@ -937,6 +983,12 @@ class MainActivity : AppCompatActivity(),
         exportDocumentLauncher.launch(csvExporter.suggestedFileName())
     }
 
+    private fun exportPdfReport() {
+        setWorking(true)
+        updateStatus(getString(R.string.status_pdf_export_choose_location))
+        exportPdfDocumentLauncher.launch(pdfExporter.suggestedFileName())
+    }
+
     private fun openHealthConnect() {
         when {
             isHealthConnectSetupRequired -> startActivity(healthConnectExporter.manageOrInstallIntent())
@@ -1043,6 +1095,41 @@ class MainActivity : AppCompatActivity(),
         }
     }
 
+    private fun completePdfReportExport(uri: Uri) {
+        updateStatus(getString(R.string.status_pdf_exporting))
+
+        launchUi {
+            runCatching {
+                val selectedUser = selectedMeasurementUser()
+                val report = withContext(Dispatchers.IO) {
+                    val measurementState = loadStoredMeasurementState(selectedUser)
+                    val exportMeasurements = measurementState.resultsMeasurements
+                        .map(MeasurementListItem::displayMeasurement)
+                    if (exportMeasurements.isEmpty()) {
+                        throw IllegalStateException(NO_MEASUREMENTS_TO_EXPORT)
+                    }
+                    pdfReportBuilder.build(
+                        measurements = exportMeasurements,
+                        range = syncPreferences.selectedTrendRange(),
+                        selectedUser = selectedUser,
+                    )
+                }
+                withContext(Dispatchers.IO) {
+                    contentResolver.openOutputStream(uri)?.use { outputStream ->
+                        pdfExporter.export(outputStream, report)
+                    } ?: throw IllegalStateException(EXPORT_DESTINATION_UNAVAILABLE)
+                }
+            }.onSuccess {
+                updateStatus(getString(R.string.status_pdf_exported))
+            }.onFailure { error ->
+                updateStatus(exportFailureMessage(error, R.string.status_pdf_export_failed))
+            }
+
+            setWorking(false)
+            notifyCurrentFragment()
+        }
+    }
+
     private fun completeLogExport(uri: Uri) {
         updateStatus(getString(R.string.status_log_exporting))
 
@@ -1090,6 +1177,7 @@ class MainActivity : AppCompatActivity(),
             is ResultsFragment -> fragment.render(currentUiState())
             is TrendsFragment -> fragment.render(currentUiState())
             is SettingsFragment -> fragment.render(currentUiState())
+            is PdfReportPreviewFragment -> fragment.render(currentUiState())
             is SyncLogFragment -> fragment.render(currentUiState())
             is DeletedMeasurementsFragment -> fragment.render(currentUiState())
         }
@@ -1500,11 +1588,13 @@ class MainActivity : AppCompatActivity(),
         val currentFragment = supportFragmentManager.findFragmentById(R.id.fragment_container)
         val isLogScreen = currentFragment is SyncLogFragment
         val isDeletedMeasurementsScreen = currentFragment is DeletedMeasurementsFragment
-        val isDetailScreen = isLogScreen || isDeletedMeasurementsScreen
+        val isPdfReportScreen = currentFragment is PdfReportPreviewFragment
+        val isDetailScreen = isLogScreen || isDeletedMeasurementsScreen || isPdfReportScreen
 
         binding.screenTitle.text = when {
             isLogScreen -> getString(R.string.sync_log_title)
             isDeletedMeasurementsScreen -> getString(R.string.deleted_measurements_title)
+            isPdfReportScreen -> getString(R.string.pdf_report_title)
             selectedTabId == R.id.navigation_trends -> getString(R.string.trends_title)
             selectedTabId == R.id.navigation_settings -> getString(R.string.settings_title)
             else -> getString(R.string.results_title)
@@ -1549,6 +1639,7 @@ class MainActivity : AppCompatActivity(),
     private companion object {
         const val BACKSTACK_DELETED_MEASUREMENTS = "deleted_measurements"
         const val BACKSTACK_SYNC_LOG = "sync_log"
+        const val BACKSTACK_PDF_REPORT = "pdf_report"
         const val KEY_SELECTED_TAB = "selected_tab"
         const val SYNC_LOG_TAG = "OmSyncerSync"
         const val MANUAL_SYNC_RUNNING_NOTIFICATION_ID = 1004
