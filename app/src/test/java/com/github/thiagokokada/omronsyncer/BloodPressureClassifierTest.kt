@@ -58,6 +58,44 @@ class BloodPressureClassifierTest {
         )
     }
 
+    @Test
+    fun relevantChartGuides_keepsLowestGuideWhenSeriesIsBelowThresholds() {
+        val guides = BloodPressureClassifier.relevantChartGuides(
+            scheme = BloodPressureClassificationScheme.ESC_ESH_2018,
+            minSystolic = 102,
+            maxSystolic = 111,
+            minDiastolic = 61,
+            maxDiastolic = 74,
+        )
+
+        assertEquals(
+            listOf(
+                "esc_esh_normal:SYSTOLIC",
+                "esc_esh_normal:DIASTOLIC",
+            ),
+            guides.map { "${it.category.key}:${it.metric.name}" },
+        )
+    }
+
+    @Test
+    fun relevantChartGuides_keepsHighestGuideWhenSeriesIsAboveThresholds() {
+        val guides = BloodPressureClassifier.relevantChartGuides(
+            scheme = BloodPressureClassificationScheme.ESC_ESH_2018,
+            minSystolic = 192,
+            maxSystolic = 205,
+            minDiastolic = 114,
+            maxDiastolic = 126,
+        )
+
+        assertEquals(
+            listOf(
+                "esc_esh_grade_three:SYSTOLIC",
+                "esc_esh_grade_three:DIASTOLIC",
+            ),
+            guides.map { "${it.category.key}:${it.metric.name}" },
+        )
+    }
+
     private fun classify(
         systolic: Int,
         diastolic: Int,
