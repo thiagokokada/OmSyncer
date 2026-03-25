@@ -19,6 +19,7 @@
     <string name="settings_device_body">Choose your monitor model and a paired Bluetooth monitor.\n\n1. Pair the monitor in Android Bluetooth settings.\n2. Finish Omron pairing here if your model supports it.\n\nIf that step fails, try pairing in Omron Connect instead.</string>
     <string name="settings_export_title">Data export</string>
     <string name="settings_export_body">Export your locally stored measurements as a CSV file.</string>
+    <string name="settings_pdf_report_body">Preview a printable PDF report using the current user and date-range filters.</string>
     <string name="settings_health_connect_title">Health Connect</string>
     <string name="settings_health_connect_body">Export synced blood pressure and pulse measurements to Health Connect.</string>
     <string name="settings_automatic_sync_title">Automatic sync</string>
@@ -33,6 +34,9 @@
     <string name="grant_health_connect_access">Grant access to Health Connect</string>
     <string name="health_connect_auto_export_label">Auto-export after sync</string>
     <string name="measurement_user_label">User</string>
+    <string name="blood_pressure_classification_scheme_label">Blood pressure categories</string>
+    <string name="blood_pressure_classification_scheme_jnc7">JNC 7</string>
+    <string name="blood_pressure_classification_scheme_esc_esh_2018">ESC/ESH 2018</string>
     <string name="tru_read_display_mode_label">TruRead measurements</string>
     <string name="tru_read_display_mode_separate">Keep them separated</string>
     <string name="tru_read_display_mode_merge">Merge</string>
@@ -54,6 +58,8 @@
     <string name="sync_now">Sync now</string>
     <string name="syncing_button_label">Syncing…</string>
     <string name="export_csv">Export CSV</string>
+    <string name="open_pdf_report">Preview PDF report</string>
+    <string name="export_pdf_report">Export PDF report</string>
     <string name="export_to_health_connect">Export to Health Connect</string>
     <string name="export_sync_log">Export sync log</string>
     <string name="export_sync_capture">Export capture</string>
@@ -76,6 +82,10 @@
     <string name="status_export_no_measurements">No measurements match the current export selection.</string>
     <string name="status_export_destination_unavailable">Could not open the selected destination for writing.</string>
     <string name="status_export_failed">Could not export the CSV file.</string>
+    <string name="status_pdf_export_choose_location">Choose where to save the PDF report.</string>
+    <string name="status_pdf_exporting">Exporting PDF report…</string>
+    <string name="status_pdf_export_cancelled">PDF export cancelled.</string>
+    <string name="status_pdf_export_failed">Could not export the PDF report.</string>
     <string name="status_log_export_choose_location">Choose where to save the sync log.</string>
     <string name="status_log_exporting">Exporting sync log…</string>
     <string name="status_log_export_cancelled">Sync log export cancelled.</string>
@@ -89,6 +99,7 @@
     <string name="toast_sync_failed">Sync failed: %1$s</string>
     <string name="toast_health_connect_exported">Health Connect updated.</string>
     <string name="status_exported">CSV exported.</string>
+    <string name="status_pdf_exported">PDF report exported.</string>
     <string name="status_health_connect_permissions_granted">Health Connect access is ready.</string>
     <string name="status_health_connect_permissions_denied">Health Connect access was not granted.</string>
     <string name="status_health_connect_auto_export_failed">Device sync completed, but Health Connect export failed: %1$s</string>
@@ -166,6 +177,26 @@
     <string name="flags_legend_title">Flags</string>
     <string name="flags_legend_message">AVG = merged TruRead average\nIHB = irregular heartbeat detected\nMOV = movement detected</string>
     <string name="sync_log_title">Last sync log</string>
+    <string name="pdf_report_title">PDF report</string>
+    <string name="pdf_report_preview_title">Report preview</string>
+    <string name="pdf_report_preview_body">Review the current selection before saving a PDF report.</string>
+    <string name="pdf_report_preview_rendering">Rendering inline PDF preview…</string>
+    <string name="pdf_report_selection_summary">%1$s - %2$s</string>
+    <string name="pdf_report_selection_summary_all_users">%1$s - All users</string>
+    <string name="pdf_report_latest_measurement">Latest: %1$s</string>
+    <string name="pdf_report_date_span">Date span</string>
+    <string name="pdf_report_average_pressure">Average blood pressure</string>
+    <string name="pdf_report_average_pulse">Average pulse</string>
+    <string name="pdf_report_flagged_readings">Flagged readings</string>
+    <string name="pdf_report_flagged_value">%1$d irregular heartbeat, %2$d movement</string>
+    <string name="pdf_report_date_span_value">%1$s to %2$s</string>
+    <string name="pdf_report_preview_measurements_title">Included measurements</string>
+    <string name="pdf_report_preview_more_measurements">...and %1$d more</string>
+    <string name="pdf_report_empty">No measurements match the current filters.</string>
+    <plurals name="pdf_report_preview_pages">
+        <item quantity="one">%d preview page</item>
+        <item quantity="other">%d preview pages</item>
+    </plurals>
     <string name="sync_log_empty">No sync log yet.</string>
     <string name="delete_measurement">Delete measurement</string>
     <string name="delete_measurement_title">Delete measurement?</string>

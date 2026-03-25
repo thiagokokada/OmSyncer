@@ -200,6 +200,47 @@ class MainActivityTest {
     }
 
     @Test
+    fun pdfReportButton_opensPreviewScreen() {
+        seedMeasurements(listOf(measurement(user = 1, day = 8)))
+
+        ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+            openSettingsScreen(scenario)
+            onView(withId(R.id.pdf_report_button)).perform(scrollTo(), click())
+
+            onView(withId(R.id.export_pdf_button)).check(matches(isDisplayed()))
+            onView(withId(R.id.pdf_preview_list)).check(matches(isDisplayed()))
+            onView(withText(R.string.pdf_report_title)).check(matches(isDisplayed()))
+        }
+    }
+
+    @Test
+    fun pdfReportRangeSelection_isSharedWithResults() {
+        val now = LocalDateTime.now().withNano(0)
+        seedMeasurements(
+            listOf(
+                measurementAt(user = 1, recordedAt = now.minusDays(3)),
+                measurementAt(user = 1, recordedAt = now.minusDays(15)),
+                measurementAt(user = 1, recordedAt = now.minusDays(40)),
+            ),
+        )
+
+        ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+            openSettingsScreen(scenario)
+            onView(withId(R.id.pdf_report_button)).perform(scrollTo(), click())
+
+            onView(withId(R.id.pdf_preview_list)).check(matches(isDisplayed()))
+            onView(withId(R.id.pdf_range_seven_days)).perform(click())
+            onView(withId(R.id.pdf_range_seven_days)).check(matches(isChecked()))
+
+            pressBack()
+
+            openResultsScreen(scenario)
+            onView(withId(R.id.results_range_seven_days)).check(matches(isChecked()))
+            waitForMeasurementCount("1 measurement")
+        }
+    }
+
+    @Test
     fun backFromSyncLog_returnsToSettingsScreen() {
         ActivityScenario.launch(MainActivity::class.java).use { scenario ->
             openSettingsScreen(scenario)
@@ -321,6 +362,46 @@ class MainActivityTest {
             openSettingsScreen(scenario)
             onView(withId(R.id.measurement_user_spinner)).perform(scrollTo())
             onView(withId(R.id.measurement_user_spinner)).check(matches(withSpinnerText(userTwoLabel)))
+        }
+    }
+
+    @Test
+    fun bloodPressureClassificationScheme_persistsAndUpdatesResultsLabel() {
+        seedMeasurements(
+            listOf(
+                measurementAt(
+                    user = 1,
+                    recordedAt = LocalDateTime.now().withNano(0).minusDays(2),
+                    systolic = 128,
+                    diastolic = 84,
+                ),
+            ),
+        )
+
+        ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+            onView(withId(R.id.classification_value)).check(matches(withText("Prehypertension")))
+
+            openSettingsScreen(scenario)
+            onView(withId(R.id.blood_pressure_classification_scheme_spinner)).perform(scrollTo(), click())
+            onData(`is`(context.getString(R.string.blood_pressure_classification_scheme_esc_esh_2018)))
+                .perform(click())
+
+            openResultsScreen(scenario)
+            onView(withId(R.id.classification_value)).check(matches(withText("Normal")))
+        }
+
+        ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+            openSettingsScreen(scenario)
+            onView(withId(R.id.blood_pressure_classification_scheme_spinner))
+                .perform(scrollTo())
+            onView(withId(R.id.blood_pressure_classification_scheme_spinner))
+                .check(
+                    matches(
+                        withSpinnerText(
+                            context.getString(R.string.blood_pressure_classification_scheme_esc_esh_2018),
+                        ),
+                    ),
+                )
         }
     }
 
@@ -565,12 +646,17 @@ class MainActivityTest {
         )
     }
 
-    private fun measurementAt(user: Int, recordedAt: LocalDateTime): Measurement {
+    private fun measurementAt(
+        user: Int,
+        recordedAt: LocalDateTime,
+        systolic: Int = 120 + user,
+        diastolic: Int = 80 + user,
+    ): Measurement {
         return Measurement(
             user = user,
             recordedAt = recordedAt,
-            systolic = 120 + user,
-            diastolic = 80 + user,
+            systolic = systolic,
+            diastolic = diastolic,
             pulse = 64 + user,
             irregularHeartbeat = false,
             movement = false,

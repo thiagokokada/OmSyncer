@@ -76,6 +76,20 @@
                     android:visibility="gone" />
 
                 <TextView
+                    android:id="@+id/blood_pressure_classification_scheme_label"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="16dp"
+                    android:text="@string/blood_pressure_classification_scheme_label"
+                    android:textAppearance="?attr/textAppearanceLabelLarge" />
+
+                <Spinner
+                    android:id="@+id/blood_pressure_classification_scheme_spinner"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp" />
+
+                <TextView
                     android:id="@+id/tru_read_display_mode_label"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
@@ -173,6 +187,21 @@
                     android:layout_height="wrap_content"
                     android:layout_marginTop="14dp"
                     android:text="@string/export_csv" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="14dp"
+                    android:text="@string/settings_pdf_report_body"
+                    android:textAppearance="?attr/textAppearanceBodyMedium" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/pdf_report_button"
+                    style="@style/Widget.Material3.Button.OutlinedButton"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="14dp"
+                    android:text="@string/open_pdf_report" />
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
 

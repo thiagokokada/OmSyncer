@@ -15,11 +15,13 @@ class SettingsFragment : Fragment() {
         fun currentUiState(): MainUiState
         fun onModelSelected(position: Int)
         fun onMeasurementUserSelected(user: Int?)
+        fun onBloodPressureClassificationSchemeSelected(position: Int)
         fun onTruReadDisplayModeSelected(position: Int)
         fun onBluetoothSettingsRequested()
         fun onRefreshDevicesRequested()
         fun onPairSelectedDeviceRequested()
         fun onExportRequested()
+        fun onPdfReportRequested()
         fun onHealthConnectRequested()
         fun onHealthConnectExportRequested()
         fun onHealthConnectAutoExportChanged(enabled: Boolean)
@@ -36,11 +38,13 @@ class SettingsFragment : Fragment() {
     private lateinit var host: Host
     private lateinit var modelAdapter: ArrayAdapter<String>
     private lateinit var measurementUserAdapter: ArrayAdapter<String>
+    private lateinit var bloodPressureClassificationSchemeAdapter: ArrayAdapter<String>
     private lateinit var truReadDisplayModeAdapter: ArrayAdapter<String>
     private lateinit var deviceAdapter: ArrayAdapter<String>
     private lateinit var nearbySyncCooldownAdapter: ArrayAdapter<String>
     private var suppressModelSelectionCallback = false
     private var suppressMeasurementUserCallback = false
+    private var suppressBloodPressureClassificationSchemeCallback = false
     private var suppressTruReadDisplayModeCallback = false
     private var suppressSelectionCallback = false
     private var suppressAutoExportCallback = false
@@ -81,6 +85,14 @@ class SettingsFragment : Fragment() {
             it.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
             binding.measurementUserSpinner.adapter = it
         }
+        bloodPressureClassificationSchemeAdapter = ArrayAdapter(
+            requireContext(),
+            android.R.layout.simple_spinner_item,
+            mutableListOf<String>(),
+        ).also {
+            it.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+            binding.bloodPressureClassificationSchemeSpinner.adapter = it
+        }
         truReadDisplayModeAdapter = ArrayAdapter(
             requireContext(),
             android.R.layout.simple_spinner_item,
@@ -117,6 +129,12 @@ class SettingsFragment : Fragment() {
                 )
             }
         }
+        binding.bloodPressureClassificationSchemeSpinner.onItemSelectedListener =
+            SimpleItemSelectedListener { position ->
+                if (!suppressBloodPressureClassificationSchemeCallback) {
+                    host.onBloodPressureClassificationSchemeSelected(position)
+                }
+            }
         binding.truReadDisplayModeSpinner.onItemSelectedListener = SimpleItemSelectedListener { position ->
             if (!suppressTruReadDisplayModeCallback) {
                 host.onTruReadDisplayModeSelected(position)
@@ -143,6 +161,9 @@ class SettingsFragment : Fragment() {
         }
         binding.exportButton.setOnClickListener {
             host.onExportRequested()
+        }
+        binding.pdfReportButton.setOnClickListener {
+            host.onPdfReportRequested()
         }
         binding.healthConnectActionButton.setOnClickListener {
             host.onHealthConnectRequested()
@@ -211,6 +232,23 @@ class SettingsFragment : Fragment() {
         }
         suppressMeasurementUserCallback = false
 
+        suppressBloodPressureClassificationSchemeCallback = true
+        bloodPressureClassificationSchemeAdapter.clear()
+        bloodPressureClassificationSchemeAdapter.addAll(state.bloodPressureClassificationSchemeLabels)
+        bloodPressureClassificationSchemeAdapter.notifyDataSetChanged()
+        binding.bloodPressureClassificationSchemeSpinner.isEnabled =
+            state.bloodPressureClassificationSchemeLabels.size > 1 && !state.isWorking
+        if (
+            state.selectedBloodPressureClassificationSchemeIndex >= 0 &&
+            state.selectedBloodPressureClassificationSchemeIndex <
+            state.bloodPressureClassificationSchemeLabels.size
+        ) {
+            binding.bloodPressureClassificationSchemeSpinner.setSelection(
+                state.selectedBloodPressureClassificationSchemeIndex,
+            )
+        }
+        suppressBloodPressureClassificationSchemeCallback = false
+
         suppressTruReadDisplayModeCallback = true
         truReadDisplayModeAdapter.clear()
         truReadDisplayModeAdapter.addAll(state.truReadDisplayModeLabels)
@@ -244,6 +282,7 @@ class SettingsFragment : Fragment() {
         binding.pairDeviceButton.visibility = if (state.canPairSelectedDevice) View.VISIBLE else View.GONE
         binding.pairDeviceButton.isEnabled = state.canPairSelectedDevice && !state.isWorking
         binding.exportButton.isEnabled = state.canExport && !state.isWorking
+        binding.pdfReportButton.isEnabled = state.canExport && !state.isWorking
         binding.healthConnectStatusValue.text = state.healthConnectStatusMessage
         binding.healthConnectActionButton.isEnabled = state.canOpenHealthConnect && !state.isWorking
         binding.healthConnectActionButton.text = when {

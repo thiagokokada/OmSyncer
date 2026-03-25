@@ -3,6 +3,7 @@ package com.github.thiagokokada.omronsyncer.sync
 import android.content.Context
 import android.content.SharedPreferences
 import androidx.core.content.edit
+import com.github.thiagokokada.omronsyncer.BloodPressureClassificationScheme
 import com.github.thiagokokada.omronsyncer.TruReadDisplayMode
 import com.github.thiagokokada.omronsyncer.TrendRange
 import com.github.thiagokokada.omronsyncer.omron.OmronDeviceDefinition
@@ -91,6 +92,24 @@ class SyncPreferences(context: Context) {
         return TrendRange.entries.firstOrNull { it.name == storedValue } ?: TrendRange.ALL
     }
 
+    fun bloodPressureClassificationScheme(): BloodPressureClassificationScheme {
+        val storedValue = preferences.getString(
+            PREF_BLOOD_PRESSURE_CLASSIFICATION_SCHEME,
+            BloodPressureClassificationScheme.JNC7.name,
+        )
+        return BloodPressureClassificationScheme.entries
+            .firstOrNull { it.name == storedValue }
+            ?: BloodPressureClassificationScheme.JNC7
+    }
+
+    fun setBloodPressureClassificationScheme(
+        scheme: BloodPressureClassificationScheme,
+    ) {
+        preferences.edit {
+            putString(PREF_BLOOD_PRESSURE_CLASSIFICATION_SCHEME, scheme.name)
+        }
+    }
+
     fun truReadDisplayMode(): TruReadDisplayMode {
         val storedValue = preferences.getString(PREF_TRU_READ_DISPLAY_MODE, TruReadDisplayMode.SEPARATE.name)
         return TruReadDisplayMode.entries.firstOrNull { it.name == storedValue } ?: TruReadDisplayMode.SEPARATE
@@ -166,6 +185,7 @@ class SyncPreferences(context: Context) {
         const val PREF_NEARBY_SYNC_COOLDOWN_MINUTES = "nearby_sync_cooldown_minutes"
         const val PREF_SELECTED_MEASUREMENT_USER = "selected_measurement_user"
         const val PREF_SELECTED_TREND_RANGE = "selected_trend_range"
+        const val PREF_BLOOD_PRESSURE_CLASSIFICATION_SCHEME = "blood_pressure_classification_scheme"
         const val PREF_TRU_READ_DISPLAY_MODE = "tru_read_display_mode"
         const val PREF_RESULTS_DELETE_HINT_SHOWN = "results_delete_hint_shown"
         const val PREF_LAST_NEARBY_SYNC_SUMMARY = "last_nearby_sync_summary"

@@ -1,5 +1,6 @@
 package com.github.thiagokokada.omronsyncer
 
+import android.graphics.drawable.GradientDrawable
 import android.view.View
 import android.view.LayoutInflater
 import android.view.ViewGroup
@@ -13,12 +14,23 @@ class MeasurementAdapter :
     ListAdapter<MeasurementListItem, MeasurementAdapter.MeasurementViewHolder>(DiffCallback) {
 
     private var showUserColumn: Boolean = true
+    private var classificationScheme: BloodPressureClassificationScheme =
+        BloodPressureClassificationScheme.JNC7
 
     fun setShowUserColumn(show: Boolean) {
         if (showUserColumn != show) {
             showUserColumn = show
             if (itemCount > 0) {
                 notifyItemRangeChanged(0, itemCount, PAYLOAD_USER_COLUMN_VISIBILITY)
+            }
+        }
+    }
+
+    fun setClassificationScheme(scheme: BloodPressureClassificationScheme) {
+        if (classificationScheme != scheme) {
+            classificationScheme = scheme
+            if (itemCount > 0) {
+                notifyItemRangeChanged(0, itemCount, PAYLOAD_CLASSIFICATION_SCHEME)
             }
         }
     }
@@ -34,7 +46,7 @@ class MeasurementAdapter :
     }
 
     override fun onBindViewHolder(holder: MeasurementViewHolder, position: Int) {
-        holder.bind(getItem(position), showUserColumn)
+        holder.bind(getItem(position), showUserColumn, classificationScheme)
     }
 
     override fun onBindViewHolder(
@@ -42,8 +54,14 @@ class MeasurementAdapter :
         position: Int,
         payloads: MutableList<Any>,
     ) {
+        val measurement = getItem(position).displayMeasurement
         if (payloads.contains(PAYLOAD_USER_COLUMN_VISIBILITY)) {
-            holder.updateUserColumn(getItem(position).displayMeasurement.user, showUserColumn)
+            holder.updateUserColumn(measurement.user, showUserColumn)
+        }
+        if (payloads.contains(PAYLOAD_CLASSIFICATION_SCHEME)) {
+            holder.updateClassification(measurement, classificationScheme)
+        }
+        if (payloads.isNotEmpty()) {
             return
         }
         super.onBindViewHolder(holder, position, payloads)
@@ -53,7 +71,11 @@ class MeasurementAdapter :
         private val binding: ItemMeasurementBinding,
     ) : RecyclerView.ViewHolder(binding.root) {
 
-        fun bind(item: MeasurementListItem, showUserColumn: Boolean) {
+        fun bind(
+            item: MeasurementListItem,
+            showUserColumn: Boolean,
+            classificationScheme: BloodPressureClassificationScheme,
+        ) {
             val measurement = item.displayMeasurement
             binding.timeValue.text = TIMESTAMP_FORMATTER.format(measurement.recordedAt)
             binding.sysValue.text = measurement.systolic.toString()
@@ -61,16 +83,29 @@ class MeasurementAdapter :
             binding.pulseValue.text = measurement.pulse.toString()
             binding.flagsValue.text = measurement.flagsLabel()
             updateUserColumn(measurement.user, showUserColumn)
+            updateClassification(measurement, classificationScheme)
         }
 
         fun updateUserColumn(user: Int, showUserColumn: Boolean) {
             binding.userValue.text = user.toString()
             binding.userValue.visibility = if (showUserColumn) View.VISIBLE else View.GONE
         }
+
+        fun updateClassification(
+            measurement: com.github.thiagokokada.omronsyncer.model.Measurement,
+            classificationScheme: BloodPressureClassificationScheme,
+        ) {
+            val classification = BloodPressureClassifier.classify(measurement, classificationScheme)
+            val style = BloodPressureClassifier.style(classification.category)
+            binding.classificationValue.text = classification.category.shortLabel
+            (binding.classificationValue.background.mutate() as? GradientDrawable)?.setColor(style.backgroundColor)
+            binding.classificationValue.setTextColor(style.textColor)
+        }
     }
 
     private companion object {
         const val PAYLOAD_USER_COLUMN_VISIBILITY = "user_column_visibility"
+        const val PAYLOAD_CLASSIFICATION_SCHEME = "classification_scheme"
         val TIMESTAMP_FORMATTER: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")
 
         val DiffCallback = object : DiffUtil.ItemCallback<MeasurementListItem>() {
