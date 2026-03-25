@@ -170,8 +170,8 @@ class MeasurementPdfExporter {
 
         val distributionTop = summaryTop + 190f
         val distributionHeight = max(
-            160f,
-            72f + report.pressureDistribution.categories.size * 24f,
+            112f,
+            74f + max(0, report.pressureDistribution.categories.size - 1) * 22f,
         )
         drawPanel(
             canvas,
