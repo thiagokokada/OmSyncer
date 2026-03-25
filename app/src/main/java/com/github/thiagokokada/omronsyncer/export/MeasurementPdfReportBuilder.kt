@@ -54,13 +54,17 @@ class MeasurementPdfReportBuilder {
             measurements = sortedMeasurements,
             summary = summary,
             dailyAverages = dailyAverages,
-            pressureDistribution = MeasurementPdfPressureDistribution(
-                scheme = classificationScheme,
-                categories = BloodPressureClassifier.categoryCounts(
-                    measurements = sortedMeasurements,
+            pressureDistribution = if (classificationScheme != BloodPressureClassificationScheme.DISABLED) {
+                MeasurementPdfPressureDistribution(
                     scheme = classificationScheme,
-                ),
-            ),
+                    categories = BloodPressureClassifier.categoryCounts(
+                        measurements = sortedMeasurements,
+                        scheme = classificationScheme,
+                    ),
+                )
+            } else {
+                null
+            },
         )
     }
 

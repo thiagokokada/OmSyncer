@@ -95,11 +95,11 @@ class SyncPreferences(context: Context) {
     fun bloodPressureClassificationScheme(): BloodPressureClassificationScheme {
         val storedValue = preferences.getString(
             PREF_BLOOD_PRESSURE_CLASSIFICATION_SCHEME,
-            BloodPressureClassificationScheme.JNC7.name,
+            BloodPressureClassificationScheme.ESC_ESH_2018.name,
         )
         return BloodPressureClassificationScheme.entries
             .firstOrNull { it.name == storedValue }
-            ?: BloodPressureClassificationScheme.JNC7
+            ?: BloodPressureClassificationScheme.ESC_ESH_2018
     }
 
     fun setBloodPressureClassificationScheme(

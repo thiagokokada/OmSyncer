@@ -28,17 +28,14 @@ class DeletedMeasurementAdapter(
 
         fun bind(item: MeasurementListItem) {
             val measurement = item.displayMeasurement
-            binding.measurementSummary.text = buildString {
-                append(TIMESTAMP_FORMATTER.format(measurement.recordedAt))
-                append(" · ")
-                append(measurement.systolic)
-                append('/')
-                append(measurement.diastolic)
-                append(", pulse ")
-                append(measurement.pulse)
-                append(", flags ")
-                append(measurement.flagsLabel())
-            }
+            binding.measurementSummary.text = binding.root.context.getString(
+                R.string.restore_measurement_item,
+                TIMESTAMP_FORMATTER.format(measurement.recordedAt),
+                measurement.systolic,
+                measurement.diastolic,
+                measurement.pulse,
+                measurement.flagsLabel(),
+            )
             binding.restoreMeasurementButton.setOnClickListener {
                 onRestoreClick(item)
             }

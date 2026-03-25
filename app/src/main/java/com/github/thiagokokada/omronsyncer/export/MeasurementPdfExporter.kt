@@ -1,20 +1,26 @@
 package com.github.thiagokokada.omronsyncer.export
 
+import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.DashPathEffect
 import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.RectF
 import android.graphics.Typeface
 import android.graphics.pdf.PdfDocument
+import com.github.thiagokokada.omronsyncer.BloodPressureClassifier
 import com.github.thiagokokada.omronsyncer.BloodPressureClassificationScheme
+import com.github.thiagokokada.omronsyncer.R
 import com.github.thiagokokada.omronsyncer.TrendRange
 import java.io.OutputStream
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import kotlin.math.max
 
-class MeasurementPdfExporter {
+class MeasurementPdfExporter(
+    private val context: Context,
+) {
 
     fun export(
         outputStream: OutputStream,
@@ -47,7 +53,7 @@ class MeasurementPdfExporter {
 
     fun suggestedFileName(
         now: LocalDateTime = LocalDateTime.now(),
-        prefix: String = "omsyncer-report",
+        prefix: String = context.getString(R.string.pdf_report_file_prefix),
         extension: String = "pdf",
     ): String {
         return "$prefix-${FILE_NAME_FORMATTER.format(now)}.$extension"
@@ -69,7 +75,7 @@ class MeasurementPdfExporter {
 
     private fun drawFooter(canvas: Canvas, pageNumber: Int, totalPages: Int) {
         canvas.drawText(
-            "Page $pageNumber of $totalPages",
+            context.getString(R.string.pdf_report_page_format, pageNumber, totalPages),
             MARGIN_HORIZONTAL.toFloat(),
             (PAGE_HEIGHT - MARGIN_BOTTOM).toFloat(),
             footerPaint,
@@ -83,7 +89,7 @@ class MeasurementPdfExporter {
         totalPages: Int,
     ) {
         val contentTop = 72f
-        canvas.drawText("Overview", MARGIN_HORIZONTAL.toFloat(), contentTop, sectionPaint)
+        canvas.drawText(context.getString(R.string.pdf_report_overview_title), MARGIN_HORIZONTAL.toFloat(), contentTop, sectionPaint)
         canvas.drawText(
             "${rangeLabel(report.range)} - ${userLabel(report.selectedUser)}",
             MARGIN_HORIZONTAL.toFloat(),
@@ -91,7 +97,7 @@ class MeasurementPdfExporter {
             bodyPaint,
         )
         canvas.drawText(
-            "Generated ${TIMESTAMP_FORMATTER.format(report.generatedAt)}",
+            context.getString(R.string.pdf_report_generated_format, TIMESTAMP_FORMATTER.format(report.generatedAt)),
             MARGIN_HORIZONTAL.toFloat(),
             contentTop + 36f,
             bodyPaint,
@@ -101,28 +107,28 @@ class MeasurementPdfExporter {
         drawMetricCard(
             canvas = canvas,
             rect = RectF(40f, cardsTop, 290f, cardsTop + 86f),
-            label = "Measurements",
+            label = context.getString(R.string.pdf_report_measurements_label),
             value = report.summary.measurementCount.toString(),
             accentPaint = accentRedPaint,
         )
         drawMetricCard(
             canvas = canvas,
             rect = RectF(305f, cardsTop, 555f, cardsTop + 86f),
-            label = "Average BP",
+            label = context.getString(R.string.pdf_report_average_bp_label),
             value = "${report.summary.averageSystolic}/${report.summary.averageDiastolic}",
             accentPaint = accentBluePaint,
         )
         drawMetricCard(
             canvas = canvas,
             rect = RectF(40f, cardsTop + 100f, 290f, cardsTop + 186f),
-            label = "Average pulse",
+            label = context.getString(R.string.pdf_report_average_pulse_label),
             value = report.summary.averagePulse.toString(),
             accentPaint = accentGreenPaint,
         )
         drawMetricCard(
             canvas = canvas,
             rect = RectF(305f, cardsTop + 100f, 555f, cardsTop + 186f),
-            label = "Days",
+            label = context.getString(R.string.pdf_report_days_label),
             value = report.dailyAverages.size.toString(),
             accentPaint = accentOrangePaint,
         )
@@ -131,7 +137,7 @@ class MeasurementPdfExporter {
         drawPanel(
             canvas,
             RectF(40f, summaryTop, 285f, summaryTop + 170f),
-            "Selection summary",
+            context.getString(R.string.pdf_report_selection_summary_title),
         )
         val latestMeasurement = report.summary.latestMeasurement
         drawPanelLines(
@@ -139,22 +145,37 @@ class MeasurementPdfExporter {
             startX = 58f,
             startY = summaryTop + 48f,
             lines = listOf(
-                "Date start: ${formatDate(report.summary.firstRecordedAt)}",
-                "Date end: ${formatDate(report.summary.lastRecordedAt)}",
-                "Latest: ${latestMeasurement?.let { TIMESTAMP_FORMATTER.format(it.recordedAt) } ?: "-"}",
-                "Systolic range: ${report.summary.minimumSystolic}-${report.summary.maximumSystolic}",
-                "Diastolic range: ${report.summary.minimumDiastolic}-${report.summary.maximumDiastolic}",
-                "Pulse range: ${report.summary.minimumPulse}-${report.summary.maximumPulse}",
+                context.getString(R.string.pdf_report_date_start_format, formatDate(report.summary.firstRecordedAt)),
+                context.getString(R.string.pdf_report_date_end_format, formatDate(report.summary.lastRecordedAt)),
+                context.getString(
+                    R.string.pdf_report_latest_format,
+                    latestMeasurement?.let { TIMESTAMP_FORMATTER.format(it.recordedAt) } ?: "-",
+                ),
+                context.getString(
+                    R.string.pdf_report_systolic_range_format,
+                    report.summary.minimumSystolic,
+                    report.summary.maximumSystolic,
+                ),
+                context.getString(
+                    R.string.pdf_report_diastolic_range_format,
+                    report.summary.minimumDiastolic,
+                    report.summary.maximumDiastolic,
+                ),
+                context.getString(
+                    R.string.pdf_report_pulse_range_format,
+                    report.summary.minimumPulse,
+                    report.summary.maximumPulse,
+                ),
             ),
         )
 
         drawPanel(
             canvas,
             RectF(300f, summaryTop, 555f, summaryTop + 170f),
-            "Recent reading",
+            context.getString(R.string.pdf_report_recent_reading_title),
         )
         if (latestMeasurement == null) {
-            canvas.drawText("No measurements matched the current filters.", 318f, summaryTop + 60f, bodyPaint)
+            canvas.drawText(context.getString(R.string.pdf_report_no_measurements_matched), 318f, summaryTop + 60f, bodyPaint)
         } else {
             canvas.drawText(TIMESTAMP_FORMATTER.format(latestMeasurement.recordedAt), 318f, summaryTop + 56f, panelValuePaint)
             canvas.drawText(
@@ -163,18 +184,27 @@ class MeasurementPdfExporter {
                 summaryTop + 92f,
                 largeValuePaint,
             )
-            canvas.drawText("Pulse ${latestMeasurement.pulse}", 318f, summaryTop + 120f, bodyPaint)
-            canvas.drawText("Flags ${latestMeasurement.flagsLabel()}", 318f, summaryTop + 140f, bodyPaint)
-            canvas.drawText("User ${latestMeasurement.user}", 318f, summaryTop + 158f, bodyPaint)
+            canvas.drawText(context.getString(R.string.pdf_report_pulse_format, latestMeasurement.pulse), 318f, summaryTop + 120f, bodyPaint)
+            canvas.drawText(context.getString(R.string.pdf_report_flags_format, latestMeasurement.flagsLabel()), 318f, summaryTop + 140f, bodyPaint)
+            canvas.drawText(context.getString(R.string.pdf_report_user_format, latestMeasurement.user), 318f, summaryTop + 158f, bodyPaint)
         }
 
-        val distributionTop = summaryTop + 190f
-        drawPanel(
-            canvas,
-            RectF(40f, distributionTop, 555f, distributionTop + 160f),
-            "Pressure categories (${classificationSchemeLabel(report.classificationScheme)})",
-        )
-        drawDistributionBars(canvas, report, distributionTop + 54f)
+        report.pressureDistribution?.let { distribution ->
+            val distributionTop = summaryTop + 190f
+            val distributionHeight = max(
+                112f,
+                74f + max(0, distribution.categories.size - 1) * 22f,
+            )
+            drawPanel(
+                canvas,
+                RectF(40f, distributionTop, 555f, distributionTop + distributionHeight),
+                context.getString(
+                    R.string.pdf_report_pressure_categories_title,
+                    classificationSchemeLabel(report.classificationScheme),
+                ),
+            )
+            drawDistributionBars(canvas, distribution, distributionTop + 54f)
+        }
     }
 
     private fun drawTrendPage(
@@ -183,25 +213,33 @@ class MeasurementPdfExporter {
         pageNumber: Int,
         totalPages: Int,
     ) {
-        canvas.drawText("Trends", MARGIN_HORIZONTAL.toFloat(), 72f, sectionPaint)
-        canvas.drawText("Daily average blood pressure over the selected range.", MARGIN_HORIZONTAL.toFloat(), 92f, bodyPaint)
+        canvas.drawText(context.getString(R.string.pdf_report_trends_title), MARGIN_HORIZONTAL.toFloat(), 72f, sectionPaint)
+        canvas.drawText(context.getString(R.string.pdf_report_trend_subtitle), MARGIN_HORIZONTAL.toFloat(), 92f, bodyPaint)
         drawLegend(canvas, 112f)
 
         val chartRect = RectF(58f, 136f, 545f, 556f)
         drawChart(canvas, report, chartRect)
 
         val insightRect = RectF(40f, 586f, 555f, 748f)
-        drawPanel(canvas, insightRect, "Chart notes")
+        drawPanel(canvas, insightRect, context.getString(R.string.pdf_report_chart_notes_title))
         val summary = report.summary
         drawPanelLines(
             canvas = canvas,
             startX = insightRect.left + 18f,
             startY = insightRect.top + 44f,
             lines = listOf(
-                "Average blood pressure: ${summary.averageSystolic}/${summary.averageDiastolic}",
-                "Average pulse: ${summary.averagePulse}",
-                "Flagged readings: ${summary.irregularHeartbeatCount} irregular heartbeat, ${summary.movementCount} movement",
-                "Trend points: ${report.dailyAverages.size}",
+                context.getString(
+                    R.string.pdf_report_average_blood_pressure_format,
+                    summary.averageSystolic,
+                    summary.averageDiastolic,
+                ),
+                context.getString(R.string.pdf_report_pulse_format, summary.averagePulse),
+                context.getString(
+                    R.string.pdf_report_flagged_readings_format,
+                    summary.irregularHeartbeatCount,
+                    summary.movementCount,
+                ),
+                context.getString(R.string.pdf_report_trend_points_format, report.dailyAverages.size),
             ),
         )
     }
@@ -212,16 +250,16 @@ class MeasurementPdfExporter {
         pageNumber: Int,
         totalPages: Int,
     ) {
-        canvas.drawText("Insights", MARGIN_HORIZONTAL.toFloat(), 72f, sectionPaint)
-        canvas.drawText("Recent readings and flagged sessions.", MARGIN_HORIZONTAL.toFloat(), 92f, bodyPaint)
+        canvas.drawText(context.getString(R.string.pdf_report_insights_title), MARGIN_HORIZONTAL.toFloat(), 72f, sectionPaint)
+        canvas.drawText(context.getString(R.string.pdf_report_insights_subtitle), MARGIN_HORIZONTAL.toFloat(), 92f, bodyPaint)
 
         val flaggedRect = RectF(40f, 122f, 555f, 356f)
-        drawPanel(canvas, flaggedRect, "Flagged readings")
+        drawPanel(canvas, flaggedRect, context.getString(R.string.pdf_report_flagged_readings_title))
         val flaggedMeasurements = report.measurements
             .filter { it.irregularHeartbeat || it.movement }
             .take(6)
         if (flaggedMeasurements.isEmpty()) {
-            canvas.drawText("No flagged readings in the selected range.", 58f, 182f, bodyPaint)
+            canvas.drawText(context.getString(R.string.pdf_report_no_flagged_readings), 58f, 182f, bodyPaint)
         } else {
             flaggedMeasurements.forEachIndexed { index, measurement ->
                 val y = 174f + index * 28f
@@ -235,13 +273,13 @@ class MeasurementPdfExporter {
         }
 
         val recentRect = RectF(40f, 384f, 555f, 748f)
-        drawPanel(canvas, recentRect, "Most recent measurements")
+        drawPanel(canvas, recentRect, context.getString(R.string.pdf_report_recent_measurements_title))
         report.measurements.take(8).forEachIndexed { index, measurement ->
             val y = 438f + index * 30f
             canvas.drawText(TIMESTAMP_FORMATTER.format(measurement.recordedAt), 58f, y, bodyPaint)
             canvas.drawText("${measurement.systolic}/${measurement.diastolic}", 262f, y, panelValuePaint)
-            canvas.drawText("Pulse ${measurement.pulse}", 352f, y, bodyPaint)
-            canvas.drawText("User ${measurement.user}", 442f, y, bodyPaint)
+            canvas.drawText(context.getString(R.string.pdf_report_pulse_format, measurement.pulse), 352f, y, bodyPaint)
+            canvas.drawText(context.getString(R.string.pdf_report_user_format, measurement.user), 442f, y, bodyPaint)
         }
     }
 
@@ -252,18 +290,18 @@ class MeasurementPdfExporter {
         pageNumber: Int,
         totalPages: Int,
     ) {
-        canvas.drawText("Measurements", MARGIN_HORIZONTAL.toFloat(), 72f, sectionPaint)
-        canvas.drawText("Detailed measurement list.", MARGIN_HORIZONTAL.toFloat(), 92f, bodyPaint)
+        canvas.drawText(context.getString(R.string.pdf_report_measurements_title), MARGIN_HORIZONTAL.toFloat(), 72f, sectionPaint)
+        canvas.drawText(context.getString(R.string.pdf_report_measurements_subtitle), MARGIN_HORIZONTAL.toFloat(), 92f, bodyPaint)
 
         val top = 124f
         val left = 40f
         canvas.drawRoundRect(RectF(left, top, 555f, top + 32f), 10f, 10f, tableHeaderBackgroundPaint)
         val headerBaseline = top + 20f
-        canvas.drawText("Time", 54f, headerBaseline, tableHeaderPaint)
-        canvas.drawText("BP", 234f, headerBaseline, tableHeaderPaint)
-        canvas.drawText("Pulse", 304f, headerBaseline, tableHeaderPaint)
-        canvas.drawText("Flags", 372f, headerBaseline, tableHeaderPaint)
-        canvas.drawText("User", 500f, headerBaseline, tableHeaderPaint)
+        canvas.drawText(context.getString(R.string.pdf_report_time_column), 54f, headerBaseline, tableHeaderPaint)
+        canvas.drawText(context.getString(R.string.pdf_report_bp_column), 234f, headerBaseline, tableHeaderPaint)
+        canvas.drawText(context.getString(R.string.pdf_report_pulse_column), 304f, headerBaseline, tableHeaderPaint)
+        canvas.drawText(context.getString(R.string.pdf_report_flags_column), 372f, headerBaseline, tableHeaderPaint)
+        canvas.drawText(context.getString(R.string.pdf_report_user_column), 500f, headerBaseline, tableHeaderPaint)
 
         rows.forEachIndexed { index, row ->
             val y = top + 58f + index * 22f
@@ -285,7 +323,7 @@ class MeasurementPdfExporter {
     ) {
         canvas.drawRoundRect(chartRect, 16f, 16f, panelPaint)
         if (report.dailyAverages.isEmpty()) {
-            canvas.drawText("No measurements matched the current filters.", chartRect.left + 20f, chartRect.centerY(), bodyPaint)
+            canvas.drawText(context.getString(R.string.pdf_report_no_measurements_matched), chartRect.left + 20f, chartRect.centerY(), bodyPaint)
             return
         }
 
@@ -310,6 +348,17 @@ class MeasurementPdfExporter {
             val value = paddedMin + (pressureRange * ratio).toInt()
             canvas.drawText(value.toString(), chartRect.left + 8f, y + 4f, footerPaint)
         }
+        drawChartGuides(
+            canvas = canvas,
+            left = left,
+            right = right,
+            top = top,
+            bottom = bottom,
+            plotHeight = plotHeight,
+            paddedMin = paddedMin,
+            pressureRange = pressureRange,
+            report = report,
+        )
 
         val systolicPath = Path()
         val diastolicPath = Path()
@@ -352,9 +401,60 @@ class MeasurementPdfExporter {
 
     private fun drawLegend(canvas: Canvas, baselineY: Float) {
         canvas.drawCircle(46f, baselineY - 4f, 4f, accentRedPaint)
-        canvas.drawText("Systolic", 56f, baselineY, bodyPaint)
+        canvas.drawText(context.getString(R.string.pdf_report_systolic_legend), 56f, baselineY, bodyPaint)
         canvas.drawCircle(122f, baselineY - 4f, 4f, accentBluePaint)
-        canvas.drawText("Diastolic", 132f, baselineY, bodyPaint)
+        canvas.drawText(context.getString(R.string.pdf_report_diastolic_legend), 132f, baselineY, bodyPaint)
+    }
+
+    private fun drawChartGuides(
+        canvas: Canvas,
+        left: Float,
+        right: Float,
+        top: Float,
+        bottom: Float,
+        plotHeight: Float,
+        paddedMin: Int,
+        pressureRange: Int,
+        report: MeasurementPdfReport,
+    ) {
+        val guides = BloodPressureClassifier.relevantChartGuides(
+            scheme = report.classificationScheme,
+            minSystolic = report.dailyAverages.minOf { it.meanSystolic },
+            maxSystolic = report.dailyAverages.maxOf { it.meanSystolic },
+            minDiastolic = report.dailyAverages.minOf { it.meanDiastolic },
+            maxDiastolic = report.dailyAverages.maxOf { it.meanDiastolic },
+        )
+        var lastLabelY = Float.NEGATIVE_INFINITY
+        guides.sortedByDescending { it.value }.forEach { guide ->
+            val y = bottom - (((guide.value - paddedMin).toFloat() / pressureRange) * plotHeight)
+            if (y < top || y > bottom) {
+                return@forEach
+            }
+            val style = BloodPressureClassifier.style(guide.category)
+            guideLinePaint.color = style.textColor
+            canvas.drawLine(left, y, right, y, guideLinePaint)
+
+            if (y - lastLabelY < guideLabelPaint.textSize + 6f) {
+                return@forEach
+            }
+            guideLabelPaint.color = style.textColor
+            val label = buildString {
+                append(
+                    when (guide.metric) {
+                        com.github.thiagokokada.omronsyncer.BloodPressureGuideMetric.SYSTOLIC ->
+                            context.getString(R.string.blood_pressure_guide_metric_systolic)
+                        com.github.thiagokokada.omronsyncer.BloodPressureGuideMetric.DIASTOLIC ->
+                            context.getString(R.string.blood_pressure_guide_metric_diastolic)
+                    },
+                )
+                append(' ')
+                append(BloodPressureClassifier.shortLabel(context, guide.category))
+            }
+            canvas.drawText(guide.value.toString(), left - 18f, y - 3f, guideLabelPaint)
+            val textWidth = guideLabelPaint.measureText(label)
+            canvas.drawText(label, right - textWidth - 4f, y - 3f, guideLabelPaint)
+            lastLabelY = y
+        }
     }
 
     private fun drawMetricCard(
@@ -388,14 +488,19 @@ class MeasurementPdfExporter {
 
     private fun drawDistributionBars(
         canvas: Canvas,
-        report: MeasurementPdfReport,
+        distribution: MeasurementPdfPressureDistribution,
         top: Float,
     ) {
-        val entries = report.pressureDistribution.categories
+        val entries = distribution.categories
         val maxCount = max(1, entries.maxOf { it.count })
         entries.forEachIndexed { index, entry ->
             val y = top + index * 22f
-            canvas.drawText(entry.category.shortLabel, 58f, y, bodyPaint)
+            canvas.drawText(
+                BloodPressureClassifier.shortLabel(context, entry.category),
+                58f,
+                y,
+                bodyPaint,
+            )
             val barLeft = 138f
             val barWidth = 300f * entry.count / maxCount.toFloat()
             canvas.drawRoundRect(RectF(barLeft, y - 11f, barLeft + barWidth, y + 2f), 6f, 6f, barPaint(index))
@@ -425,20 +530,25 @@ class MeasurementPdfExporter {
 
     private fun rangeLabel(range: TrendRange): String {
         return when (range) {
-            TrendRange.SEVEN_DAYS -> "Last 7 days"
-            TrendRange.THIRTY_DAYS -> "Last 30 days"
-            TrendRange.ALL -> "All data"
+            TrendRange.SEVEN_DAYS -> context.getString(R.string.trends_range_7d_long)
+            TrendRange.THIRTY_DAYS -> context.getString(R.string.trends_range_30d_long)
+            TrendRange.ALL -> context.getString(R.string.trends_range_all_long)
         }
     }
 
     private fun userLabel(selectedUser: Int?): String {
-        return selectedUser?.let { "User $it" } ?: "All users"
+        return selectedUser?.let { context.getString(R.string.measurement_user_single, it) }
+            ?: context.getString(R.string.measurement_user_all)
     }
 
     private fun classificationSchemeLabel(scheme: BloodPressureClassificationScheme): String {
         return when (scheme) {
-            BloodPressureClassificationScheme.JNC7 -> "JNC 7"
-            BloodPressureClassificationScheme.ESC_ESH_2018 -> "ESC/ESH 2018"
+            BloodPressureClassificationScheme.DISABLED ->
+                context.getString(R.string.blood_pressure_classification_scheme_disabled)
+            BloodPressureClassificationScheme.JNC7 ->
+                context.getString(R.string.blood_pressure_classification_scheme_jnc7)
+            BloodPressureClassificationScheme.ESC_ESH_2018 ->
+                context.getString(R.string.blood_pressure_classification_scheme_esc_esh_2018)
         }
     }
 
@@ -490,6 +600,10 @@ class MeasurementPdfExporter {
             color = Color.DKGRAY
             textSize = 9f
         }
+        val guideLabelPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.DKGRAY
+            textSize = 8f
+        }
         val panelValuePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.BLACK
             textSize = 12f
@@ -522,6 +636,12 @@ class MeasurementPdfExporter {
         val gridPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.rgb(213, 219, 230)
             strokeWidth = 1f
+        }
+        val guideLinePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.DKGRAY
+            strokeWidth = 1f
+            style = Paint.Style.STROKE
+            pathEffect = DashPathEffect(floatArrayOf(4f, 3f), 0f)
         }
         val chartSystolicPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.rgb(176, 48, 52)

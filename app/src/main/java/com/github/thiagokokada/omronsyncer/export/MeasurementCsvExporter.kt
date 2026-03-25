@@ -1,15 +1,26 @@
 package com.github.thiagokokada.omronsyncer.export
 
+import com.github.thiagokokada.omronsyncer.BloodPressureCategoryDefinition
+import com.github.thiagokokada.omronsyncer.BloodPressureClassificationScheme
+import com.github.thiagokokada.omronsyncer.BloodPressureClassifier
 import com.github.thiagokokada.omronsyncer.model.Measurement
 import java.io.OutputStream
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 
-class MeasurementCsvExporter {
+class MeasurementCsvExporter(
+    private val categoryLabel: (BloodPressureCategoryDefinition) -> String = { it.key },
+) {
 
-    fun export(outputStream: OutputStream, measurements: List<Measurement>) {
+    fun export(
+        outputStream: OutputStream,
+        measurements: List<Measurement>,
+        classificationScheme: BloodPressureClassificationScheme,
+    ) {
         outputStream.bufferedWriter().use { writer ->
-            writer.appendLine("recorded_at,user,systolic,diastolic,pulse,irregular_heartbeat,movement,tru_read_merged")
+            writer.appendLine(
+                "recorded_at,user,systolic,diastolic,pulse,irregular_heartbeat,movement,tru_read_merged,blood_pressure_category",
+            )
             measurements.forEach { measurement ->
                 writer.appendLine(
                     listOf(
@@ -21,6 +32,7 @@ class MeasurementCsvExporter {
                         measurement.irregularHeartbeat.toString(),
                         measurement.movement.toString(),
                         measurement.isTruReadMerged.toString(),
+                        bloodPressureCategory(measurement, classificationScheme),
                     ).joinToString(","),
                 )
             }
@@ -40,5 +52,15 @@ class MeasurementCsvExporter {
             DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")
         val FILE_NAME_FORMATTER: DateTimeFormatter =
             DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss")
+    }
+
+    private fun bloodPressureCategory(
+        measurement: Measurement,
+        classificationScheme: BloodPressureClassificationScheme,
+    ): String {
+        if (classificationScheme == BloodPressureClassificationScheme.DISABLED) {
+            return ""
+        }
+        return categoryLabel(BloodPressureClassifier.classify(measurement, classificationScheme).category)
     }
 }

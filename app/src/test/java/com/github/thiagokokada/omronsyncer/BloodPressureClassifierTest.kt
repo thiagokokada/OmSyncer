@@ -10,11 +10,11 @@ class BloodPressureClassifierTest {
     @Test
     fun classify_usesJnc7Thresholds() {
         assertEquals(
-            "Prehypertension",
+            "jnc7_prehypertension",
             classify(128, 84, BloodPressureClassificationScheme.JNC7),
         )
         assertEquals(
-            "Stage 2",
+            "jnc7_stage_two",
             classify(165, 92, BloodPressureClassificationScheme.JNC7),
         )
     }
@@ -22,16 +22,39 @@ class BloodPressureClassifierTest {
     @Test
     fun classify_usesEscEsh2018Thresholds() {
         assertEquals(
-            "Normal",
+            "esc_esh_normal",
             classify(128, 84, BloodPressureClassificationScheme.ESC_ESH_2018),
         )
         assertEquals(
-            "High normal",
+            "esc_esh_high_normal",
             classify(135, 88, BloodPressureClassificationScheme.ESC_ESH_2018),
         )
         assertEquals(
-            "Grade 3",
+            "esc_esh_grade_three",
             classify(182, 96, BloodPressureClassificationScheme.ESC_ESH_2018),
+        )
+    }
+
+    @Test
+    fun relevantChartGuides_omitsFarAwayThresholds() {
+        val guides = BloodPressureClassifier.relevantChartGuides(
+            scheme = BloodPressureClassificationScheme.ESC_ESH_2018,
+            minSystolic = 122,
+            maxSystolic = 146,
+            minDiastolic = 82,
+            maxDiastolic = 88,
+        )
+
+        assertEquals(
+            listOf(
+                "esc_esh_normal:SYSTOLIC",
+                "esc_esh_high_normal:SYSTOLIC",
+                "esc_esh_grade_one:SYSTOLIC",
+                "esc_esh_normal:DIASTOLIC",
+                "esc_esh_high_normal:DIASTOLIC",
+                "esc_esh_grade_one:DIASTOLIC",
+            ),
+            guides.map { "${it.category.key}:${it.metric.name}" },
         )
     }
 
@@ -51,6 +74,6 @@ class BloodPressureClassifierTest {
                 movement = false,
             ),
             scheme = scheme,
-        ).category.shortLabel
+        ).category.key
     }
 }

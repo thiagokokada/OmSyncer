@@ -100,6 +100,9 @@ class ResultsFragment : Fragment() {
             },
         )
         adapter.setShowUserColumn(state.showsMeasurementUserColumn)
+        adapter.setShowClassification(
+            state.selectedBloodPressureClassificationScheme != BloodPressureClassificationScheme.DISABLED,
+        )
         adapter.setClassificationScheme(state.selectedBloodPressureClassificationScheme)
         adapter.submitList(state.resultsMeasurements)
 

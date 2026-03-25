@@ -15,7 +15,7 @@ data class MeasurementPdfReport(
     val measurements: List<Measurement>,
     val summary: MeasurementPdfReportSummary,
     val dailyAverages: List<MeasurementPdfDailyAverage>,
-    val pressureDistribution: MeasurementPdfPressureDistribution,
+    val pressureDistribution: MeasurementPdfPressureDistribution?,
 )
 
 data class MeasurementPdfReportSummary(

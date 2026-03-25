@@ -39,6 +39,14 @@
                     android:text="@string/trends_chart_body"
                     android:textAppearance="?attr/textAppearanceBodySmall" />
 
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:text="@string/trends_chart_zoom_hint"
+                    android:textAppearance="?attr/textAppearanceBodySmall"
+                    android:textColor="?attr/colorOnSurfaceVariant" />
+
                 <com.google.android.material.button.MaterialButtonToggleGroup
                     android:id="@+id/range_toggle"
                     android:layout_width="wrap_content"

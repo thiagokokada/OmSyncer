@@ -43,10 +43,10 @@ class MeasurementPdfReportBuilderTest {
         assertEquals(123, report.dailyAverages.first().meanSystolic)
         assertEquals(2, report.dailyAverages.first().measurementCount)
         assertEquals(BloodPressureClassificationScheme.JNC7, report.classificationScheme)
-        assertEquals(4, report.pressureDistribution.categories.size)
-        assertEquals("Normal", report.pressureDistribution.categories[0].category.shortLabel)
+        assertEquals(4, report.pressureDistribution!!.categories.size)
+        assertEquals("jnc7_normal", report.pressureDistribution.categories[0].category.key)
         assertEquals(1, report.pressureDistribution.categories[0].count)
-        assertEquals("Prehypertension", report.pressureDistribution.categories[1].category.shortLabel)
+        assertEquals("jnc7_prehypertension", report.pressureDistribution.categories[1].category.key)
         assertEquals(2, report.pressureDistribution.categories[1].count)
     }
 
@@ -64,8 +64,24 @@ class MeasurementPdfReportBuilderTest {
         assertEquals(0, report.summary.averageSystolic)
         assertNull(report.summary.firstRecordedAt)
         assertEquals(emptyList<MeasurementPdfDailyAverage>(), report.dailyAverages)
-        assertEquals(6, report.pressureDistribution.categories.size)
+        assertEquals(6, report.pressureDistribution!!.categories.size)
         assertEquals(0, report.pressureDistribution.categories.sumOf { it.count })
+    }
+
+    @Test
+    fun build_omitsPressureDistributionWhenDisabled() {
+        val report = builder.build(
+            measurements = listOf(
+                measurement(recordedAt = LocalDateTime.of(2026, 3, 25, 9, 0), systolic = 160, diastolic = 100, pulse = 60),
+            ),
+            range = TrendRange.ALL,
+            selectedUser = null,
+            classificationScheme = BloodPressureClassificationScheme.DISABLED,
+            generatedAt = LocalDateTime.of(2026, 3, 25, 12, 0),
+        )
+
+        assertEquals(BloodPressureClassificationScheme.DISABLED, report.classificationScheme)
+        assertNull(report.pressureDistribution)
     }
 
     private fun measurement(

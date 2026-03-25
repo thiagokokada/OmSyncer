@@ -68,8 +68,12 @@ class MainActivity : AppCompatActivity(),
     private val bondedDevices = mutableListOf<BluetoothDevice>()
     private val measurementStore by lazy { MeasurementStore(this) }
     private val syncClient by lazy { OmronSyncClient(this) }
-    private val csvExporter by lazy { MeasurementCsvExporter() }
-    private val pdfExporter by lazy { MeasurementPdfExporter() }
+    private val csvExporter by lazy {
+        MeasurementCsvExporter { category ->
+            BloodPressureClassifier.shortLabel(this, category)
+        }
+    }
+    private val pdfExporter by lazy { MeasurementPdfExporter(this) }
     private val pdfReportBuilder by lazy { MeasurementPdfReportBuilder() }
     private val healthConnectExporter by lazy { HealthConnectBloodPressureExporter(this) }
     private val nearbySyncRegistrar by lazy { NearbySyncRegistrar(this) }
@@ -274,10 +278,16 @@ class MainActivity : AppCompatActivity(),
         val measurementUserOptions = buildMeasurementUserOptions(selectedModel)
         val selectedMeasurementUser = selectedMeasurementUser(selectedModel)
         val bloodPressureClassificationScheme = syncPreferences.bloodPressureClassificationScheme()
-        val bloodPressureClassificationSchemeLabels = listOf(
-            getString(R.string.blood_pressure_classification_scheme_jnc7),
-            getString(R.string.blood_pressure_classification_scheme_esc_esh_2018),
-        )
+        val bloodPressureClassificationSchemeLabels = BLOOD_PRESSURE_CLASSIFICATION_SCHEME_OPTIONS.map { scheme ->
+            when (scheme) {
+                BloodPressureClassificationScheme.ESC_ESH_2018 ->
+                    getString(R.string.blood_pressure_classification_scheme_esc_esh_2018)
+                BloodPressureClassificationScheme.JNC7 ->
+                    getString(R.string.blood_pressure_classification_scheme_jnc7)
+                BloodPressureClassificationScheme.DISABLED ->
+                    getString(R.string.blood_pressure_classification_scheme_disabled)
+            }
+        }
         val truReadDisplayMode = syncPreferences.truReadDisplayMode()
         val truReadDisplayModeLabels = listOf(
             getString(R.string.tru_read_display_mode_separate),
@@ -330,7 +340,7 @@ class MainActivity : AppCompatActivity(),
             bloodPressureClassificationSchemeLabels = bloodPressureClassificationSchemeLabels,
             selectedBloodPressureClassificationScheme = bloodPressureClassificationScheme,
             selectedBloodPressureClassificationSchemeIndex =
-                BloodPressureClassificationScheme.entries.indexOf(bloodPressureClassificationScheme),
+                BLOOD_PRESSURE_CLASSIFICATION_SCHEME_OPTIONS.indexOf(bloodPressureClassificationScheme),
             statusMessage = statusMessage,
             syncLog = lastSyncLog,
             canExportCapture = lastSyncCapture.isNotBlank(),
@@ -400,7 +410,7 @@ class MainActivity : AppCompatActivity(),
     }
 
     override fun onBloodPressureClassificationSchemeSelected(position: Int) {
-        BloodPressureClassificationScheme.entries.getOrNull(position)?.let { scheme ->
+        BLOOD_PRESSURE_CLASSIFICATION_SCHEME_OPTIONS.getOrNull(position)?.let { scheme ->
             syncPreferences.setBloodPressureClassificationScheme(scheme)
             notifyCurrentFragment()
         }
@@ -1097,7 +1107,11 @@ class MainActivity : AppCompatActivity(),
                 }
                 withContext(Dispatchers.IO) {
                     contentResolver.openOutputStream(uri)?.use { outputStream ->
-                        csvExporter.export(outputStream, exportMeasurements)
+                        csvExporter.export(
+                            outputStream = outputStream,
+                            measurements = exportMeasurements,
+                            classificationScheme = syncPreferences.bloodPressureClassificationScheme(),
+                        )
                     } ?: throw IllegalStateException(EXPORT_DESTINATION_UNAVAILABLE)
                 }
             }.onSuccess {
@@ -1654,6 +1668,11 @@ class MainActivity : AppCompatActivity(),
     }
 
     private companion object {
+        val BLOOD_PRESSURE_CLASSIFICATION_SCHEME_OPTIONS = listOf(
+            BloodPressureClassificationScheme.ESC_ESH_2018,
+            BloodPressureClassificationScheme.JNC7,
+            BloodPressureClassificationScheme.DISABLED,
+        )
         const val BACKSTACK_DELETED_MEASUREMENTS = "deleted_measurements"
         const val BACKSTACK_SYNC_LOG = "sync_log"
         const val BACKSTACK_PDF_REPORT = "pdf_report"

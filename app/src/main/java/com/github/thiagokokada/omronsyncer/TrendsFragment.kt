@@ -21,6 +21,7 @@ class TrendsFragment : Fragment() {
     private val binding get() = _binding!!
     private lateinit var host: Host
     private var selectedBucket: TrendBucket? = null
+    private var lastRenderedRange: TrendRange? = null
 
     override fun onAttach(context: Context) {
         super.onAttach(context)
@@ -40,12 +41,15 @@ class TrendsFragment : Fragment() {
         super.onViewCreated(view, savedInstanceState)
 
         binding.rangeSevenDays.setOnClickListener {
+            binding.chartView.resetZoom()
             host.onTrendRangeSelected(TrendRange.SEVEN_DAYS)
         }
         binding.rangeThirtyDays.setOnClickListener {
+            binding.chartView.resetZoom()
             host.onTrendRangeSelected(TrendRange.THIRTY_DAYS)
         }
         binding.rangeAll.setOnClickListener {
+            binding.chartView.resetZoom()
             host.onTrendRangeSelected(TrendRange.ALL)
         }
         binding.chartView.onSelectionChanged = { bucket ->
@@ -63,6 +67,11 @@ class TrendsFragment : Fragment() {
         if (_binding == null) {
             return
         }
+
+        if (state.selectedTrendRange != lastRenderedRange) {
+            binding.chartView.resetZoom()
+        }
+        lastRenderedRange = state.selectedTrendRange
 
         binding.rangeToggle.check(
             when (state.selectedTrendRange) {
@@ -82,7 +91,11 @@ class TrendsFragment : Fragment() {
             selectedBucket = null
         }
 
-        binding.chartView.setBuckets(buckets, selectedBucket)
+        binding.chartView.setBuckets(
+            buckets = buckets,
+            selectedBucket = selectedBucket,
+            classificationScheme = state.selectedBloodPressureClassificationScheme,
+        )
         renderSelectedBucket()
         binding.emptyState.isVisible = buckets.isEmpty()
         binding.chartCard.isVisible = buckets.isNotEmpty()
