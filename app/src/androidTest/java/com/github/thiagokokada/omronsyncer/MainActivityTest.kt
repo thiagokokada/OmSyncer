@@ -379,15 +379,15 @@ class MainActivityTest {
         )
 
         ActivityScenario.launch(MainActivity::class.java).use { scenario ->
-            onView(withId(R.id.classification_value)).check(matches(withText("Prehypertension")))
+            onView(withId(R.id.classification_value)).check(matches(withText("Normal")))
 
             openSettingsScreen(scenario)
             onView(withId(R.id.blood_pressure_classification_scheme_spinner)).perform(scrollTo(), click())
-            onData(`is`(context.getString(R.string.blood_pressure_classification_scheme_esc_esh_2018)))
+            onData(`is`(context.getString(R.string.blood_pressure_classification_scheme_jnc7)))
                 .perform(click())
 
             openResultsScreen(scenario)
-            onView(withId(R.id.classification_value)).check(matches(withText("Normal")))
+            onView(withId(R.id.classification_value)).check(matches(withText("Prehypertension")))
         }
 
         ActivityScenario.launch(MainActivity::class.java).use { scenario ->
