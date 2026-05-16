@@ -563,8 +563,12 @@ class OmronSyncClient(
             val service = gatt.getService(model.serviceUuid)
             txCharacteristic = service?.getCharacteristic(model.txUuid)
             rxCharacteristic = service?.getCharacteristic(model.rxUuid)
-            rxContinuationCharacteristic = model.rxContinuationUuid?.let(service::getCharacteristic)
-            pairingBootstrapCharacteristic = model.pairingBootstrapUuid?.let(service::getCharacteristic)
+            rxContinuationCharacteristic = service?.let { svc ->
+                model.rxContinuationUuid?.let(svc::getCharacteristic)
+            }
+            pairingBootstrapCharacteristic = service?.let { svc ->
+                model.pairingBootstrapUuid?.let(svc::getCharacteristic)
+            }
             val supported =
                 txCharacteristic?.supportsWrite() == true &&
                     rxCharacteristic?.supportsUpdates() == true
