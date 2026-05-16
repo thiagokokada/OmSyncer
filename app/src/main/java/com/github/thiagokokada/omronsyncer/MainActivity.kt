@@ -24,6 +24,8 @@ import androidx.fragment.app.Fragment
 import androidx.health.connect.client.HealthConnectClient
 import androidx.health.connect.client.PermissionController
 import androidx.lifecycle.lifecycleScope
+import androidx.work.WorkInfo
+import androidx.work.WorkManager
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.github.thiagokokada.omronsyncer.data.MeasurementStore
 import com.github.thiagokokada.omronsyncer.databinding.ActivityMainBinding
@@ -39,11 +41,13 @@ import com.github.thiagokokada.omronsyncer.omron.OmronSyncClient.PairingExceptio
 import com.github.thiagokokada.omronsyncer.omron.OmronSyncClient.SyncException
 import com.github.thiagokokada.omronsyncer.omron.VerificationLevel
 import com.github.thiagokokada.omronsyncer.sync.NearbySyncRegistrar
+import com.github.thiagokokada.omronsyncer.sync.NearbySyncWorker
 import com.github.thiagokokada.omronsyncer.sync.SyncAlreadyInProgressException
 import com.github.thiagokokada.omronsyncer.sync.SyncExecutionResult
 import com.github.thiagokokada.omronsyncer.sync.SyncFailureMessageFormatter
 import com.github.thiagokokada.omronsyncer.sync.SyncOrchestrator
 import com.github.thiagokokada.omronsyncer.sync.SyncPreferences
+import com.github.thiagokokada.omronsyncer.sync.SyncRunCoordinator
 import com.github.thiagokokada.omronsyncer.sync.SyncWorkerNotifications
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -241,6 +245,7 @@ class MainActivity : AppCompatActivity(),
         renderSyncLog(lastSyncLog)
         refreshHealthConnectState()
         refreshNearbySyncRegistration()
+        observeNearbySyncCompletion()
         updateStatus(getString(R.string.status_idle))
         maybeRequestInitialBluetoothPermission()
     }
@@ -312,6 +317,10 @@ class MainActivity : AppCompatActivity(),
         val selectedNearbySyncCooldownMinutes = syncPreferences.nearbySyncCooldownMinutes()
             .takeIf { minutes -> nearbySyncCooldownOptions.any { it.minutes == minutes } }
             ?: SyncPreferences.DEFAULT_NEARBY_SYNC_COOLDOWN_MINUTES
+        val syncTimeoutOptions = syncTimeoutOptions()
+        val selectedSyncTimeoutMinutes = syncPreferences.syncTimeoutMinutes()
+            .takeIf { minutes -> syncTimeoutOptions.any { it.minutes == minutes } }
+            ?: SyncPreferences.DEFAULT_SYNC_TIMEOUT_MINUTES
         val nearbySyncEnabled = syncPreferences.nearbySyncEnabled()
         val nearbySyncSummary = if (!nearbySyncEnabled) {
             getString(R.string.nearby_sync_summary_off)
@@ -370,6 +379,9 @@ class MainActivity : AppCompatActivity(),
             nearbySyncCooldownLabels = nearbySyncCooldownOptions.map { it.label },
             selectedNearbySyncCooldownIndex =
                 nearbySyncCooldownOptions.indexOfFirst { it.minutes == selectedNearbySyncCooldownMinutes },
+            syncTimeoutLabels = syncTimeoutOptions.map { it.label },
+            selectedSyncTimeoutIndex =
+                syncTimeoutOptions.indexOfFirst { it.minutes == selectedSyncTimeoutMinutes },
             showsSeedSampleMeasurements = BuildConfig.DEBUG,
             canSeedSampleMeasurements = BuildConfig.DEBUG && !isWorking && measurements.isEmpty(),
             selectedTrendRange = syncPreferences.selectedTrendRange(),
@@ -490,6 +502,18 @@ class MainActivity : AppCompatActivity(),
             syncPreferences.setNearbySyncCooldownMinutes(option.minutes)
             notifyCurrentFragment()
         }
+    }
+
+    override fun onSyncTimeoutSelected(position: Int) {
+        syncTimeoutOptions().getOrNull(position)?.let { option ->
+            syncPreferences.setSyncTimeoutMinutes(option.minutes)
+            notifyCurrentFragment()
+        }
+    }
+
+    override fun onResetSyncStateRequested() {
+        SyncRunCoordinator(this).clearActiveSync()
+        updateStatus(getString(R.string.status_sync_state_reset))
     }
 
     override fun onRestoreDeletedMeasurementsRequested() {
@@ -1344,6 +1368,19 @@ class MainActivity : AppCompatActivity(),
         )
     }
 
+    // A background Nearby sync persists to the measurement store with nothing
+    // telling a foregrounded activity to reload. Observe the worker so the list
+    // refreshes as soon as an automatic sync finishes.
+    private fun observeNearbySyncCompletion() {
+        WorkManager.getInstance(this)
+            .getWorkInfosForUniqueWorkLiveData(NearbySyncWorker.UNIQUE_WORK_NAME)
+            .observe(this) { workInfos ->
+                if (workInfos.any { it.state == WorkInfo.State.SUCCEEDED }) {
+                    loadPersistedMeasurements()
+                }
+            }
+    }
+
     private fun requestNotificationPermissionThenEnableNearbySync() {
         if (hasNotificationPermission()) {
             pendingEnableNearbySync = false
@@ -1664,7 +1701,24 @@ class MainActivity : AppCompatActivity(),
             add(NearbySyncCooldownOption(3, getString(R.string.nearby_sync_cooldown_3_minutes)))
             add(NearbySyncCooldownOption(5, getString(R.string.nearby_sync_cooldown_5_minutes)))
             add(NearbySyncCooldownOption(10, getString(R.string.nearby_sync_cooldown_10_minutes)))
+            add(NearbySyncCooldownOption(30, getString(R.string.nearby_sync_cooldown_30_minutes)))
+            add(NearbySyncCooldownOption(60, getString(R.string.nearby_sync_cooldown_60_minutes)))
+            add(NearbySyncCooldownOption(120, getString(R.string.nearby_sync_cooldown_120_minutes)))
         }
+    }
+
+    private data class SyncTimeoutOption(
+        val minutes: Int,
+        val label: String,
+    )
+
+    private fun syncTimeoutOptions(): List<SyncTimeoutOption> {
+        return listOf(
+            SyncTimeoutOption(1, getString(R.string.sync_timeout_1_minute)),
+            SyncTimeoutOption(2, getString(R.string.sync_timeout_2_minutes)),
+            SyncTimeoutOption(3, getString(R.string.sync_timeout_3_minutes)),
+            SyncTimeoutOption(5, getString(R.string.sync_timeout_5_minutes)),
+        )
     }
 
     private companion object {

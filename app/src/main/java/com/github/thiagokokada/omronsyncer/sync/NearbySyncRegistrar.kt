@@ -27,9 +27,14 @@ class NearbySyncRegistrar(private val context: Context) {
                 return
             }
 
+            // Filter on the UUID the monitor actually advertises. The HEM-6232T
+            // advertises the standard Blood Pressure service (1810), not its
+            // legacy GATT service UUID; advertisedServiceUuid carries that.
             val filters = listOf(
                 ScanFilter.Builder()
-                    .setServiceUuid(ParcelUuid(model.serviceUuid))
+                    .setServiceUuid(
+                        ParcelUuid(model.advertisedServiceUuid ?: model.serviceUuid),
+                    )
                     .build(),
             )
             val settings = ScanSettings.Builder()

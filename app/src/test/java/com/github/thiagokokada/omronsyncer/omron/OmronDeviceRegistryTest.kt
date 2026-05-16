@@ -15,7 +15,7 @@ class OmronDeviceRegistryTest {
     @Test
     fun supportedModels_matchExpectedNoPairingFe4aBatch() {
         assertEquals(
-            listOf("hem_7380t1", "hem_7155t_v2", "hem_7155t_v3", "hem_7146t"),
+            listOf("hem_7380t1", "hem_7155t_v2", "hem_7155t_v3", "hem_7146t", "hem_6232t"),
             OmronDeviceRegistry.supportedModels.map { it.id },
         )
     }
@@ -149,13 +149,47 @@ class OmronDeviceRegistryTest {
     }
 
     @Test
-    fun supportedModels_shareExpectedFe4aService() {
+    fun fe4aModels_shareExpectedFe4aService() {
         val expectedService = UUID.fromString("0000fe4a-0000-1000-8000-00805f9b34fb")
+        val fe4aModels = OmronDeviceRegistry.supportedModels.filter { it.id != "hem_6232t" }
 
+        assertTrue(fe4aModels.isNotEmpty())
         assertEquals(
-            listOf(expectedService, expectedService, expectedService, expectedService),
-            OmronDeviceRegistry.supportedModels.map { it.serviceUuid },
+            List(fe4aModels.size) { expectedService },
+            fe4aModels.map { it.serviceUuid },
         )
+    }
+
+    @Test
+    fun hem6232T_usesLegacyService() {
+        val model = OmronDeviceRegistry.findById("hem_6232t")
+        assertEquals(
+            UUID.fromString("ecbe3980-c9a2-11e1-b1bd-0002a5d5c51b"),
+            model.serviceUuid,
+        )
+    }
+
+    @Test
+    fun hem6232T_exposesLegacyUnlockMetadata() {
+        val model = OmronDeviceRegistry.findById("hem_6232t")
+
+        assertTrue(model.requiresUnlock)
+        // The monitor does not validate the unlock key's value; the registry carries a
+        // fixed placeholder so no user-supplied key is needed.
+        assertEquals("00112233445566778899aabbccddeeff", model.unlockKey)
+        assertEquals(
+            UUID.fromString("b305b680-aee7-11e1-a730-0002a5d5c51b"),
+            model.pairingBootstrapUuid,
+        )
+    }
+
+    @Test
+    fun fe4aModels_doNotRequireUnlock() {
+        val fe4aModels = OmronDeviceRegistry.supportedModels.filter { it.id != "hem_6232t" }
+
+        assertTrue(fe4aModels.isNotEmpty())
+        assertTrue(fe4aModels.all { !it.requiresUnlock })
+        assertTrue(fe4aModels.all { it.unlockKey == null })
     }
 
     @Test
@@ -163,16 +197,11 @@ class OmronDeviceRegistryTest {
         val expectedContinuation = UUID.fromString("4d0bf320-aee8-11e1-a0d9-0002a5d5c51b")
 
         assertEquals(
-            listOf(
-                expectedContinuation,
-                expectedContinuation,
-                expectedContinuation,
-                expectedContinuation,
-            ),
+            List(OmronDeviceRegistry.supportedModels.size) { expectedContinuation },
             OmronDeviceRegistry.supportedModels.map { it.rxContinuationUuid },
         )
         assertEquals(
-            listOf(true, true, true, true),
+            List(OmronDeviceRegistry.supportedModels.size) { true },
             OmronDeviceRegistry.supportedModels.map { it.clearGattCacheOnDisconnect },
         )
     }
@@ -202,11 +231,48 @@ class OmronDeviceRegistryTest {
             OmronDeviceRegistry.findById("hem_7155t_v2"),
             OmronDeviceRegistry.findById("hem_7155t_v3"),
             OmronDeviceRegistry.findById("hem_7146t"),
+            OmronDeviceRegistry.findById("hem_6232t"),
         )
 
         assertTrue(models.all { !it.supportsAppPairingStep })
         assertTrue(models.all { !it.normalSyncClockWriteEnabled })
         assertTrue(models.all { !it.supportsTruReadMerge })
+    }
+
+    @Test
+    fun parseMeasurement_parsesHem6232TRecord() {
+        val measurement = OmronRecordParser.parseMeasurement(
+            device = OmronDeviceRegistry.findById("hem_6232t"),
+            user = 1,
+            recordBytes = byteArrayOf(
+                0x52,
+                0x64,
+                0x1A,
+                0x46,
+                0x11,
+                0x09,
+                0x07,
+                0x8F.toByte(),
+                0x00,
+                0x00,
+                0x00,
+                0x00,
+                0x00,
+                0x00,
+            ),
+        )
+
+        assertNotNull(measurement)
+        assertEquals(
+            LocalDateTime.of(2026, 4, 8, 9, 30, 15),
+            measurement?.recordedAt,
+        )
+        assertEquals(125, measurement?.systolic)
+        assertEquals(82, measurement?.diastolic)
+        assertEquals(70, measurement?.pulse)
+        assertEquals(false, measurement?.irregularHeartbeat)
+        assertEquals(false, measurement?.movement)
+        assertEquals(null, measurement?.truReadStage)
     }
 
     @Test

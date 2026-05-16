@@ -27,6 +27,8 @@ class SettingsFragment : Fragment() {
         fun onHealthConnectAutoExportChanged(enabled: Boolean)
         fun onNearbySyncChanged(enabled: Boolean)
         fun onNearbySyncCooldownSelected(position: Int)
+        fun onSyncTimeoutSelected(position: Int)
+        fun onResetSyncStateRequested()
         fun onRestoreDeletedMeasurementsRequested()
         fun onSeedSampleMeasurementsRequested()
         fun onSyncLogRequested()
@@ -42,6 +44,7 @@ class SettingsFragment : Fragment() {
     private lateinit var truReadDisplayModeAdapter: ArrayAdapter<String>
     private lateinit var deviceAdapter: ArrayAdapter<String>
     private lateinit var nearbySyncCooldownAdapter: ArrayAdapter<String>
+    private lateinit var syncTimeoutAdapter: ArrayAdapter<String>
     private var suppressModelSelectionCallback = false
     private var suppressMeasurementUserCallback = false
     private var suppressBloodPressureClassificationSchemeCallback = false
@@ -50,6 +53,7 @@ class SettingsFragment : Fragment() {
     private var suppressAutoExportCallback = false
     private var suppressNearbySyncCallback = false
     private var suppressNearbySyncCooldownCallback = false
+    private var suppressSyncTimeoutCallback = false
 
     override fun onAttach(context: Context) {
         super.onAttach(context)
@@ -117,6 +121,14 @@ class SettingsFragment : Fragment() {
             it.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
             binding.nearbySyncCooldownSpinner.adapter = it
         }
+        syncTimeoutAdapter = ArrayAdapter(
+            requireContext(),
+            android.R.layout.simple_spinner_item,
+            mutableListOf<String>(),
+        ).also {
+            it.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+            binding.syncTimeoutSpinner.adapter = it
+        }
         binding.modelSpinner.onItemSelectedListener = SimpleItemSelectedListener { position ->
             if (!suppressModelSelectionCallback) {
                 host.onModelSelected(position)
@@ -148,6 +160,11 @@ class SettingsFragment : Fragment() {
         binding.nearbySyncCooldownSpinner.onItemSelectedListener = SimpleItemSelectedListener { position ->
             if (!suppressNearbySyncCooldownCallback) {
                 host.onNearbySyncCooldownSelected(position)
+            }
+        }
+        binding.syncTimeoutSpinner.onItemSelectedListener = SimpleItemSelectedListener { position ->
+            if (!suppressSyncTimeoutCallback) {
+                host.onSyncTimeoutSelected(position)
             }
         }
         binding.bluetoothSettingsButton.setOnClickListener {
@@ -189,6 +206,9 @@ class SettingsFragment : Fragment() {
         }
         binding.syncLogButton.setOnClickListener {
             host.onSyncLogRequested()
+        }
+        binding.resetSyncStateButton.setOnClickListener {
+            host.onResetSyncStateRequested()
         }
     }
 
@@ -316,6 +336,19 @@ class SettingsFragment : Fragment() {
         binding.nearbySyncSwitch.isChecked = state.nearbySyncEnabled
         suppressNearbySyncCallback = false
         binding.nearbySyncSwitch.isEnabled = !state.isWorking
+        suppressSyncTimeoutCallback = true
+        syncTimeoutAdapter.clear()
+        syncTimeoutAdapter.addAll(state.syncTimeoutLabels)
+        syncTimeoutAdapter.notifyDataSetChanged()
+        binding.syncTimeoutSpinner.isEnabled = !state.isWorking
+        if (
+            state.selectedSyncTimeoutIndex >= 0 &&
+            state.selectedSyncTimeoutIndex < state.syncTimeoutLabels.size
+        ) {
+            binding.syncTimeoutSpinner.setSelection(state.selectedSyncTimeoutIndex)
+        }
+        suppressSyncTimeoutCallback = false
+        binding.resetSyncStateButton.isEnabled = !state.isWorking
         binding.restoreMeasurementsButton.isEnabled =
             state.canRestoreDeletedMeasurements && !state.isWorking
         binding.seedMeasurementsButton.visibility =

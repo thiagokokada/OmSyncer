@@ -43,6 +43,40 @@ class OmronPacketAssemblerTest {
     }
 
     @Test
+    fun appendFragment_dropsTrailingChannelPaddingFromLegacyResponse() {
+        val assembler = OmronPacketAssembler()
+        // Legacy monitor: a 24-byte response delivered as two 16-byte channel
+        // notifications, the second carrying 8 real bytes plus 8 bytes of padding.
+        val primary = hexToBytes("188000000010000000940144ffffffff")
+        val continuation = hexToBytes("ffffffffffff00590000000000000000")
+        val expectedPacket = hexToBytes("188000000010000000940144ffffffffffffffffffff0059")
+
+        val firstResult = assembler.appendFragment(fragment = primary, startsPacket = true)
+        val secondResult = assembler.appendFragment(fragment = continuation, startsPacket = false)
+
+        assertEquals(0, firstResult.size)
+        assertEquals(1, secondResult.size)
+        assertArrayEquals(expectedPacket, secondResult.single())
+    }
+
+    @Test
+    fun appendFragment_reassemblesConsecutivePaddedResponses() {
+        val assembler = OmronPacketAssembler()
+        val primary = hexToBytes("188000000010000000940144ffffffff")
+        val continuation = hexToBytes("ffffffffffff00590000000000000000")
+        val expectedPacket = hexToBytes("188000000010000000940144ffffffffffffffffffff0059")
+
+        assembler.appendFragment(fragment = primary, startsPacket = true)
+        assembler.appendFragment(fragment = continuation, startsPacket = false)
+        // A second response must reassemble cleanly after the first one's padding.
+        assembler.appendFragment(fragment = primary, startsPacket = true)
+        val secondResponse = assembler.appendFragment(fragment = continuation, startsPacket = false)
+
+        assertEquals(1, secondResponse.size)
+        assertArrayEquals(expectedPacket, secondResponse.single())
+    }
+
+    @Test
     fun appendFragment_ignoresOrphanContinuationNotification() {
         val assembler = OmronPacketAssembler()
 

@@ -11,12 +11,15 @@ data class OmronDeviceDefinition(
     val marketedName: String,
     val verificationLevel: VerificationLevel,
     val serviceUuid: UUID,
+    val advertisedServiceUuid: UUID? = null,
     val txUuid: UUID,
     val rxUuid: UUID,
     val rxContinuationUuid: UUID? = null,
     val pairingBootstrapUuid: UUID? = null,
     val pairingWorkflow: OmronPairingWorkflow = OmronPairingWorkflow.NONE,
     val pairingSetupWriteHex: String? = null,
+    val requiresUnlock: Boolean = false,
+    val unlockKey: String? = null,
     val syncSessionHandshakeEnabled: Boolean = false,
     val normalSyncClockWriteEnabled: Boolean = false,
     val userLayouts: List<OmronUserLayout>,
@@ -75,6 +78,10 @@ enum class OmronPairingWorkflow {
 object OmronDeviceRegistry {
     private val FE4A_SERVICE_UUID: UUID =
         UUID.fromString("0000fe4a-0000-1000-8000-00805f9b34fb")
+    private val LEGACY_SERVICE_UUID: UUID =
+        UUID.fromString("ecbe3980-c9a2-11e1-b1bd-0002a5d5c51b")
+    private val BLOOD_PRESSURE_SERVICE_UUID: UUID =
+        UUID.fromString("00001810-0000-1000-8000-00805f9b34fb")
     private val FE4A_TX_UUID: UUID =
         UUID.fromString("db5b55e0-aee7-11e1-965e-0002a5d5c51b")
     private val FE4A_RX_UUID: UUID =
@@ -99,11 +106,27 @@ object OmronDeviceRegistry {
         movement = BitField(byte = 4, bit = 15, length = 1),
     )
 
+    private val FE4A_WORD_SWAPPED_PARSER = OmronRecordParserDefinition(
+        endianness = RecordEndianness.WORD_SWAPPED,
+        systolic = BitField(byte = 0, bit = 0, length = 8),
+        diastolic = BitField(byte = 1, bit = 0, length = 8),
+        pulse = BitField(byte = 2, bit = 0, length = 8),
+        year = BitField(byte = 3, bit = 0, length = 6),
+        month = BitField(byte = 4, bit = 10, length = 4),
+        day = BitField(byte = 4, bit = 5, length = 5),
+        hour = BitField(byte = 4, bit = 0, length = 5),
+        minute = BitField(byte = 6, bit = 6, length = 6),
+        second = BitField(byte = 6, bit = 0, length = 6),
+        irregularHeartbeat = BitField(byte = 4, bit = 15, length = 1),
+        movement = BitField(byte = 4, bit = 14, length = 1),
+    )
+
     val supportedModels: List<OmronDeviceDefinition> = listOf(
         hem7380T1(),
         hem7155TV2(),
         hem7155TV3(),
         hem7146T(),
+        hem6232T(),
     )
 
     fun defaultModel(): OmronDeviceDefinition = supportedModels.first()
@@ -186,6 +209,32 @@ object OmronDeviceRegistry {
         ),
         recordSizeBytes = 0x0E,
         recordParser = FE4A_LITTLE_ENDIAN_PARSER,
+        clearGattCacheOnDisconnect = true,
+    )
+
+    private fun hem6232T() = OmronDeviceDefinition(
+        id = "hem_6232t",
+        modelCode = "HEM-6232T",
+        marketedName = "RS7 Intelli IT, Gold Wireless Wrist (BP4350)",
+        verificationLevel = VerificationLevel.VERIFIED,
+        serviceUuid = LEGACY_SERVICE_UUID,
+        advertisedServiceUuid = BLOOD_PRESSURE_SERVICE_UUID,
+        txUuid = FE4A_TX_UUID,
+        rxUuid = FE4A_RX_UUID,
+        rxContinuationUuid = FE4A_RX_CONTINUATION_UUID,
+        pairingBootstrapUuid = FE4A_PAIRING_UUID,
+        requiresUnlock = true,
+        // The HEM-6232T does not validate the unlock key's value: any 16 bytes are
+        // accepted once the phone is BLE-bonded to the monitor (verified by testing
+        // with deliberately bogus keys). This fixed placeholder means no user-supplied
+        // key is ever needed - the monitor only needs the phone's OS Bluetooth bond.
+        unlockKey = "00112233445566778899aabbccddeeff",
+        userLayouts = listOf(
+            OmronUserLayout(user = 1, startAddress = 0x02E8, recordCount = 100),
+            OmronUserLayout(user = 2, startAddress = 0x0860, recordCount = 100),
+        ),
+        recordSizeBytes = 0x0E,
+        recordParser = FE4A_WORD_SWAPPED_PARSER,
         clearGattCacheOnDisconnect = true,
     )
 

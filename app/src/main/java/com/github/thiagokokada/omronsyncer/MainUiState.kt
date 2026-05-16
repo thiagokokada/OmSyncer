@@ -38,6 +38,8 @@ data class MainUiState(
     val nearbySyncSummary: String,
     val nearbySyncCooldownLabels: List<String>,
     val selectedNearbySyncCooldownIndex: Int,
+    val syncTimeoutLabels: List<String>,
+    val selectedSyncTimeoutIndex: Int,
     val showsSeedSampleMeasurements: Boolean,
     val canSeedSampleMeasurements: Boolean,
     val selectedTrendRange: TrendRange,
