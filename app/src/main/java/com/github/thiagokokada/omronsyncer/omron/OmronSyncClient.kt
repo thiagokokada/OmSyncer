@@ -31,6 +31,7 @@ class OmronSyncClient(
     suspend fun sync(
         device: BluetoothDevice,
         model: OmronDeviceDefinition,
+        syncTimeoutMillis: Long,
     ): SyncResult = withContext(Dispatchers.IO) {
         val diagnostics = mutableListOf<String>()
         fun log(message: String) {
@@ -57,28 +58,30 @@ class OmronSyncClient(
 
         val session = OmronBleSession(context, model, ::log, captureBuilder)
         try {
-            log("Connecting with Nordic BLE Library...")
-            session.connect(device)
-            session.unlockIfRequired()
-            session.performSyncSessionHandshakeIfRequired()
-            session.startTransmission()
-            session.syncMonitorClockIfRequired()
+            withTimeout(syncTimeoutMillis) {
+                log("Connecting with Nordic BLE Library...")
+                session.connect(device)
+                session.unlockIfRequired()
+                session.performSyncSessionHandshakeIfRequired()
+                session.startTransmission()
+                session.syncMonitorClockIfRequired()
 
-            val measurements = buildList {
-                model.userLayouts.forEach { layout ->
-                    addAll(readUser(session, model, layout))
+                val measurements = buildList {
+                    model.userLayouts.forEach { layout ->
+                        addAll(readUser(session, model, layout))
+                    }
                 }
+
+                session.endTransmission()
+
+                val sortedMeasurements = measurements.sortedByDescending { it.recordedAt }
+                log("Sync completed with ${sortedMeasurements.size} parsed measurements.")
+                SyncResult(
+                    measurements = sortedMeasurements,
+                    diagnostics = SyncDiagnostics(diagnostics.toList()),
+                    capture = captureBuilder.build(),
+                )
             }
-
-            session.endTransmission()
-
-            val sortedMeasurements = measurements.sortedByDescending { it.recordedAt }
-            log("Sync completed with ${sortedMeasurements.size} parsed measurements.")
-            SyncResult(
-                measurements = sortedMeasurements,
-                diagnostics = SyncDiagnostics(diagnostics.toList()),
-                capture = captureBuilder.build(),
-            )
         } catch (error: Exception) {
             log("Sync failed: ${error.message ?: error.javaClass.simpleName}")
             throw SyncException(
@@ -710,11 +713,13 @@ class OmronSyncClient(
 
         suspend fun writeCommand(command: ByteArray) {
             try {
-                writeCharacteristic(
-                    requireTxCharacteristic(),
-                    command,
-                    requireTxCharacteristic().bestWriteType(),
-                ).suspend()
+                withTimeout(GATT_REQUEST_TIMEOUT_MS) {
+                    writeCharacteristic(
+                        requireTxCharacteristic(),
+                        command,
+                        requireTxCharacteristic().bestWriteType(),
+                    ).suspend()
+                }
             } catch (_: SecurityException) {
                 throw MissingBluetoothPermissionException()
             }
@@ -723,7 +728,9 @@ class OmronSyncClient(
         suspend fun closeConnection() {
             if (isConnected) {
                 runCatching {
-                    disconnect().suspend()
+                    withTimeout(GATT_REQUEST_TIMEOUT_MS) {
+                        disconnect().suspend()
+                    }
                 }.onFailure { error ->
                     sessionLog(
                         "Disconnect request failed: ${error.message ?: error.javaClass.simpleName}",
@@ -745,18 +752,22 @@ class OmronSyncClient(
 
         suspend fun enablePairingUpdates() {
             val characteristic = pairingBootstrapCharacteristic ?: return
-            enableUpdates(
-                characteristic = characteristic,
-                label = "Pairing bootstrap",
-            ).suspend()
+            withTimeout(GATT_REQUEST_TIMEOUT_MS) {
+                enableUpdates(
+                    characteristic = characteristic,
+                    label = "Pairing bootstrap",
+                ).suspend()
+            }
         }
 
         suspend fun disablePairingUpdates() {
             val characteristic = pairingBootstrapCharacteristic ?: return
-            disableUpdates(
-                characteristic = characteristic,
-                label = "Pairing bootstrap",
-            ).suspend()
+            withTimeout(GATT_REQUEST_TIMEOUT_MS) {
+                disableUpdates(
+                    characteristic = characteristic,
+                    label = "Pairing bootstrap",
+                ).suspend()
+            }
         }
 
         suspend fun writePairingCommand(
@@ -765,11 +776,13 @@ class OmronSyncClient(
             val characteristic = pairingBootstrapCharacteristic
                 ?: throw IllegalStateException("Pairing characteristic not found.")
             try {
-                writeCharacteristic(
-                    characteristic,
-                    command,
-                    characteristic.bestWriteType(),
-                ).suspend()
+                withTimeout(GATT_REQUEST_TIMEOUT_MS) {
+                    writeCharacteristic(
+                        characteristic,
+                        command,
+                        characteristic.bestWriteType(),
+                    ).suspend()
+                }
             } catch (_: SecurityException) {
                 throw MissingBluetoothPermissionException()
             }
@@ -964,6 +977,7 @@ class OmronSyncClient(
         const val MTU = 185
         const val RESPONSE_TIMEOUT_MS = 5_000L
         const val CONNECTION_TIMEOUT_MS = 15_000L
+        const val GATT_REQUEST_TIMEOUT_MS = 10_000L
         const val CONNECTION_RETRY_COUNT = 3
         const val CONNECTION_RETRY_DELAY_MS = 250
         const val PAIRING_CHARACTERISTIC_SETTLE_DELAY_MS = 250L

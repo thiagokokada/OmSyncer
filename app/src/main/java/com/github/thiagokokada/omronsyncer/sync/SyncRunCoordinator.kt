@@ -15,6 +15,9 @@ class SyncRunCoordinator internal constructor(
         store = PreferencesStore(
             context.getSharedPreferences(SyncPreferences.PREFERENCES_NAME, Context.MODE_PRIVATE),
         ),
+        // Keep the lock's stale timeout above the configured sync timeout so a
+        // legitimately slow sync is never mistaken for a dead one.
+        staleTimeoutMillis = SyncPreferences(context).syncTimeoutMillis() + STALE_TIMEOUT_MARGIN_MILLIS,
     )
 
     suspend fun <T> runSingleFlight(
@@ -39,6 +42,11 @@ class SyncRunCoordinator internal constructor(
         }
         store.clearActive()
         return false
+    }
+
+    @Synchronized
+    fun clearActiveSync() {
+        store.clearActive()
     }
 
     @Synchronized
@@ -172,6 +180,7 @@ class SyncRunCoordinator internal constructor(
 
     companion object {
         internal const val DEFAULT_STALE_TIMEOUT_MILLIS = 2 * 60_000L
+        internal const val STALE_TIMEOUT_MARGIN_MILLIS = 60_000L
 
         private const val PREF_ACTIVE_SOURCE = "sync_run_active_source"
         private const val PREF_ACTIVE_TOKEN = "sync_run_active_token"

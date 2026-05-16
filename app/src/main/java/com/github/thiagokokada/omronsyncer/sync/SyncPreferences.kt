@@ -141,6 +141,20 @@ class SyncPreferences(context: Context) {
         return nearbySyncCooldownMinutes() * 60_000L
     }
 
+    fun syncTimeoutMinutes(): Int {
+        return preferences.getInt(PREF_SYNC_TIMEOUT_MINUTES, DEFAULT_SYNC_TIMEOUT_MINUTES)
+    }
+
+    fun setSyncTimeoutMinutes(minutes: Int) {
+        preferences.edit {
+            putInt(PREF_SYNC_TIMEOUT_MINUTES, minutes)
+        }
+    }
+
+    fun syncTimeoutMillis(): Long {
+        return syncTimeoutMinutes() * 60_000L
+    }
+
     fun lastNearbySyncSummary(): String? {
         return preferences.getString(PREF_LAST_NEARBY_SYNC_SUMMARY, null)
     }
@@ -191,7 +205,9 @@ class SyncPreferences(context: Context) {
         const val PREF_LAST_NEARBY_SYNC_SUMMARY = "last_nearby_sync_summary"
         const val PREF_LAST_NEARBY_SYNC_AT_MILLIS = "last_nearby_sync_at_millis"
         const val PREF_LAST_NEARBY_SYNC_TRIGGER_AT_MILLIS = "last_nearby_sync_trigger_at_millis"
+        const val PREF_SYNC_TIMEOUT_MINUTES = "sync_timeout_minutes"
         const val DEFAULT_NEARBY_SYNC_COOLDOWN_MINUTES = 5
+        const val DEFAULT_SYNC_TIMEOUT_MINUTES = 2
         const val MEASUREMENT_USER_ALL = -1
     }
 }

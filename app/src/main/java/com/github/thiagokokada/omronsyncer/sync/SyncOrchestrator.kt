@@ -45,6 +45,7 @@ class SyncOrchestrator(
             val syncResult = syncClient.sync(
                 device = device,
                 model = model,
+                syncTimeoutMillis = syncPreferences.syncTimeoutMillis(),
             )
             val saveSummary = withContext(Dispatchers.IO) {
                 measurementStore.saveAll(syncResult.measurements)
