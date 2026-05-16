@@ -104,7 +104,16 @@ class ResultsFragment : Fragment() {
             state.selectedBloodPressureClassificationScheme != BloodPressureClassificationScheme.DISABLED,
         )
         adapter.setClassificationScheme(state.selectedBloodPressureClassificationScheme)
-        adapter.submitList(state.resultsMeasurements)
+        val previousTopItem = adapter.currentList.firstOrNull()
+        adapter.submitList(state.resultsMeasurements) {
+            // Snap to the newest measurement when the top of the list changes
+            // (e.g. a background sync prepended a new reading) so it is not
+            // left scrolled off-screen above the current position.
+            val newTopItem = adapter.currentList.firstOrNull()
+            if (newTopItem != null && newTopItem != previousTopItem) {
+                _binding?.measurementsList?.scrollToPosition(0)
+            }
+        }
 
         binding.syncButton.isEnabled = state.canSync && !state.isWorking
         binding.syncButton.text = if (state.isWorking) {

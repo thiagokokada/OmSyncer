@@ -24,6 +24,8 @@ import androidx.fragment.app.Fragment
 import androidx.health.connect.client.HealthConnectClient
 import androidx.health.connect.client.PermissionController
 import androidx.lifecycle.lifecycleScope
+import androidx.work.WorkInfo
+import androidx.work.WorkManager
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.github.thiagokokada.omronsyncer.data.MeasurementStore
 import com.github.thiagokokada.omronsyncer.databinding.ActivityMainBinding
@@ -39,6 +41,7 @@ import com.github.thiagokokada.omronsyncer.omron.OmronSyncClient.PairingExceptio
 import com.github.thiagokokada.omronsyncer.omron.OmronSyncClient.SyncException
 import com.github.thiagokokada.omronsyncer.omron.VerificationLevel
 import com.github.thiagokokada.omronsyncer.sync.NearbySyncRegistrar
+import com.github.thiagokokada.omronsyncer.sync.NearbySyncWorker
 import com.github.thiagokokada.omronsyncer.sync.SyncAlreadyInProgressException
 import com.github.thiagokokada.omronsyncer.sync.SyncExecutionResult
 import com.github.thiagokokada.omronsyncer.sync.SyncFailureMessageFormatter
@@ -241,6 +244,7 @@ class MainActivity : AppCompatActivity(),
         renderSyncLog(lastSyncLog)
         refreshHealthConnectState()
         refreshNearbySyncRegistration()
+        observeNearbySyncCompletion()
         updateStatus(getString(R.string.status_idle))
         maybeRequestInitialBluetoothPermission()
     }
@@ -1342,6 +1346,19 @@ class MainActivity : AppCompatActivity(),
             enabled = syncPreferences.nearbySyncEnabled() && hasBluetoothScanPermission(),
             model = selectedModel(),
         )
+    }
+
+    // A background Nearby sync persists to the measurement store with nothing
+    // telling a foregrounded activity to reload. Observe the worker so the list
+    // refreshes as soon as an automatic sync finishes.
+    private fun observeNearbySyncCompletion() {
+        WorkManager.getInstance(this)
+            .getWorkInfosForUniqueWorkLiveData(NearbySyncWorker.UNIQUE_WORK_NAME)
+            .observe(this) { workInfos ->
+                if (workInfos.any { it.state == WorkInfo.State.SUCCEEDED }) {
+                    loadPersistedMeasurements()
+                }
+            }
     }
 
     private fun requestNotificationPermissionThenEnableNearbySync() {
