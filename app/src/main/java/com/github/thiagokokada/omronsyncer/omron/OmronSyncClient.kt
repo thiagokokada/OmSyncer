@@ -59,6 +59,7 @@ class OmronSyncClient(
         try {
             log("Connecting with Nordic BLE Library...")
             session.connect(device)
+            session.unlockIfRequired()
             session.performSyncSessionHandshakeIfRequired()
             session.startTransmission()
             session.syncMonitorClockIfRequired()
@@ -233,6 +234,58 @@ class OmronSyncClient(
             writeMonitorClock(logLabel = "during pairing")
 
             endTransmission()
+        }
+
+        suspend fun unlockIfRequired() {
+            if (!model.requiresUnlock) {
+                return
+            }
+            val unlockKey = model.unlockKey?.hexToByteArray()
+                ?: throw IllegalStateException(
+                    "No unlock key configured for ${model.modelCode}.",
+                )
+            require(unlockKey.size == UNLOCK_KEY_SIZE_BYTES) {
+                "Unlock key must be $UNLOCK_KEY_SIZE_BYTES bytes, was ${unlockKey.size}."
+            }
+            if (!manager.hasPairingBootstrapCharacteristic()) {
+                throw IllegalStateException("Omron unlock characteristic is unavailable.")
+            }
+
+            while (pairingChannel.tryReceive().isSuccess) {
+                // Discard stale packets before the unlock handshake.
+            }
+
+            val command = byteArrayOf(UNLOCK_COMMAND_PREFIX) + unlockKey
+            log("Unlocking legacy Omron monitor.")
+            try {
+                manager.enablePairingUpdates()
+                delay(PAIRING_CHARACTERISTIC_SETTLE_DELAY_MS)
+                log("TX[UNLOCK]: ${command.toHexString()}")
+                captureBuilder.addPacket(SyncPacketDirection.TX, command)
+                manager.writePairingCommand(command)
+                val response = withTimeout(UNLOCK_TIMEOUT_MS) {
+                    pairingChannel.receive()
+                }
+                log("RX[UNLOCK]: ${response.toHexString()}")
+                captureBuilder.addPacket(SyncPacketDirection.RX, response)
+
+                require(response.size >= 2) {
+                    "Unlock response was too short: ${response.size} bytes."
+                }
+                require(response[0] == 0x81.toByte() && response[1] == 0x00.toByte()) {
+                    "Unlock rejected by the monitor. Response: ${response.toHexString()}"
+                }
+                log("Legacy Omron monitor unlocked.")
+            } finally {
+                runCatching {
+                    manager.disablePairingUpdates()
+                }.onFailure { error ->
+                    log(
+                        "Failed to disable Omron unlock updates: " +
+                            "${error.message ?: error.javaClass.simpleName}",
+                    )
+                }
+            }
         }
 
         suspend fun performSyncSessionHandshakeIfRequired() {
@@ -915,6 +968,9 @@ class OmronSyncClient(
         const val CONNECTION_RETRY_DELAY_MS = 250
         const val PAIRING_CHARACTERISTIC_SETTLE_DELAY_MS = 250L
         const val SYNC_SESSION_HANDSHAKE_TIMEOUT_MS = 2_000L
+        const val UNLOCK_TIMEOUT_MS = 5_000L
+        const val UNLOCK_KEY_SIZE_BYTES = 16
+        const val UNLOCK_COMMAND_PREFIX: Byte = 0x01
 
         const val RESPONSE_START = 0x8000
         const val RESPONSE_READ = 0x8100
@@ -1033,21 +1089,19 @@ internal class OmronPacketAssembler {
     }
 
     private fun drainCompletedPackets(): List<ByteArray> {
-        val packets = mutableListOf<ByteArray>()
-
-        while (true) {
-            val packetSize = expectedPacketSize ?: break
-            if (bufferedBytes.size < packetSize) {
-                break
-            }
-
-            val packet = ByteArray(packetSize) { index -> bufferedBytes[index] }
-            packets += packet
-            bufferedBytes.subList(0, packetSize).clear()
-            expectedPacketSize = bufferedBytes.firstOrNull()?.toUByte()?.toInt()
+        val packetSize = expectedPacketSize ?: return emptyList()
+        // 8 bytes is the minimum Omron packet (6-byte header + 2-byte checksum).
+        if (packetSize < 8 || bufferedBytes.size < packetSize) {
+            return emptyList()
         }
-
-        return packets
+        // One monitor response is one packet. Legacy monitors split a response
+        // into fixed 16-byte channel notifications and pad the last one, so any
+        // bytes past packetSize are padding and are dropped here. The next
+        // response arrives with its own start fragment, which resets the buffer.
+        val packet = ByteArray(packetSize) { index -> bufferedBytes[index] }
+        bufferedBytes.clear()
+        expectedPacketSize = null
+        return listOf(packet)
     }
 }
 

@@ -20,6 +20,7 @@ The project is based on reverse engineering work from [`omblepy`](https://github
 ### Verified
 
 - `HEM-7380T1`
+- `HEM-6232T` (Omron RS7 Intelli IT / Gold Wireless Wrist `BP4350`; word-swapped record format ported from [`omblepy`](https://github.com/userx14/omblepy))
 
 ### Experimental
 
