@@ -560,7 +560,13 @@ class OmronSyncClient(
 
         override fun isRequiredServiceSupported(gatt: BluetoothGatt): Boolean {
             sessionLog("Services discovered.")
+            gatt.services.forEach { discovered ->
+                sessionLog("  service ${discovered.uuid}")
+            }
             val service = gatt.getService(model.serviceUuid)
+            if (service == null) {
+                sessionLog("Expected service ${model.serviceUuid} not found on device.")
+            }
             txCharacteristic = service?.getCharacteristic(model.txUuid)
             rxCharacteristic = service?.getCharacteristic(model.rxUuid)
             rxContinuationCharacteristic = service?.let { svc ->
